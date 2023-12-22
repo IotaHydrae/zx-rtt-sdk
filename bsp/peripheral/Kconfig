@@ -1,0 +1,20 @@
+
+source "bsp/peripheral/spinand/Kconfig"
+source "bsp/peripheral/spinor_sfud/Kconfig"
+source "bsp/peripheral/nftl/Kconfig"
+
+#--------------------------------------------
+# touch panel driver global option
+#--------------------------------------------
+
+menu "Touch Panel Support"
+source "bsp/peripheral/touch/Kconfig"
+endmenu
+
+#--------------------------------------------
+# Audio Codec driver option
+#--------------------------------------------
+
+menu "External Audio Codec Support"
+source "bsp/peripheral/codec/Kconfig"
+endmenu

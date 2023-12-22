@@ -1,0 +1,40 @@
+/*
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ */
+
+#ifndef _ZX_HAL_PSADC_H_
+#define _ZX_HAL_PSADC_H_
+
+#include "aic_osal.h"
+
+#define AIC_PSADC_FIFO1_NUM_BITS   20
+#define AIC_PSADC_FIFO2_NUM_BITS   12
+#define AIC_PSADC_TIMEOUT    1000 /* 1000 ms */
+
+enum aic_psadc_mode {
+    AIC_PSADC_MODE_SINGLE = 0,
+    AIC_PSADC_MODE_PERIOD = 1
+};
+
+struct aic_psadc_ch {
+    u8 id;
+    u8 available;
+    enum aic_psadc_mode mode;
+    u8 fifo_depth;
+
+    aicos_sem_t complete;
+};
+
+void hal_psadc_enable(int enable);
+void hal_psadc_single_queue_mode(int enable);
+void hal_psadc_qc_irq_enable(int enable);
+int hal_psadc_ch_init(struct aic_psadc_ch *chan, u32 pclk);
+irqreturn_t hal_psadc_isr(int irq, void *arg);
+int hal_psadc_read(struct aic_psadc_ch *chan, u32 *val, u32 timeout);
+struct aic_psadc_ch *hal_psadc_ch_is_valid(u32 ch);
+void hal_psadc_set_ch_num(u32 num);
+void hal_psadc_status_show(struct aic_psadc_ch *chan);
+
+#endif

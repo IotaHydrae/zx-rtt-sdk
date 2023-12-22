@@ -1,0 +1,46 @@
+menu "touch panel options"
+
+choice
+    prompt "select touch panel"
+    default ZX_TOUCH_NONE
+
+config ZX_TOUCH_NONE
+    bool "none touch"
+
+config ZX_TOUCH_GT911
+    bool "gt911 touch"
+    select AIC_I2C_DRV
+
+config ZX_TOUCH_ILITEK
+    bool "ilitek touch"
+    select AIC_I2C_DRV
+
+config ZX_TOUCH_CST226SE
+    bool "cst226se touch"
+    select AIC_I2C_DRV
+
+config ZX_TOUCH_FT5X06
+    bool "ft5x06 touch"
+    select AIC_I2C_DRV
+
+endchoice
+
+if ZX_TOUCH_GT911
+source "bsp/peripheral/touch/gt911/Kconfig"
+endif
+
+if ZX_TOUCH_ILITEK
+source "bsp/peripheral/touch/ilitek/Kconfig"
+endif
+
+if ZX_TOUCH_CST226SE
+source "bsp/peripheral/touch/cst226se/Kconfig"
+endif
+
+if ZX_TOUCH_FT5X06
+source "bsp/peripheral/touch/ft5x06/Kconfig"
+endif
+
+endmenu
+
+

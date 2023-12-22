@@ -1,0 +1,4 @@
+menuconfig ZX_SUBOER_DEMO
+    tristate "ZX suboer demo"
+    select LPKG_USING_LVGL
+    default n
