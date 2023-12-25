@@ -252,8 +252,14 @@ static void btn_air_condition_wet_cb(lv_event_t *e)
 void page_first(void)
 {
 
-    test_obj.img_background_first = lv_img_create(test_obj.page_first);
-    lv_img_set_src(test_obj.img_background_first, IMG_BACKGROUND_FIRST);
+    test_obj.img_background_first = lv_obj_create(test_obj.page_first);
+    // lv_img_set_src(test_obj.img_background_first, IMG_BACKGROUND_FIRST);
+    lv_obj_set_size(test_obj.img_background_first, 480, 480);
+    lv_obj_set_style_bg_color(test_obj.img_background_first, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(test_obj.img_background_first, 255, 0);
+    lv_obj_set_style_border_width(test_obj.img_background_first, 0, 0);
+    lv_obj_set_style_radius(test_obj.img_background_first, 0, 0);
+    
     lv_obj_center(test_obj.img_background_first);
 
     test_obj.label_time_hours_first = lv_label_create(test_obj.img_background_first);
