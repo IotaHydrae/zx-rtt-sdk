@@ -14,7 +14,7 @@ source "bsp/zx/drv/gpio/Kconfig.dev"
 # Interface Class
 #================================================
 
-comment "Interface Related: "
+comment "Interface Related:"
 
 #---------------------------
 # uart device global option
@@ -81,6 +81,10 @@ config AIC_USING_I2C2
     default n
     select AIC_I2C_DRV
 
+config AIC_USING_I2C3
+    bool "Using I2c3"
+    default n
+    select AIC_I2C_DRV
 
 source "bsp/zx/drv/i2c/Kconfig.dev"
 
@@ -124,21 +128,6 @@ config AIC_USING_HRTIMER1
 
 config AIC_USING_HRTIMER2
     bool "Using HRTimer2"
-    default n
-    select AIC_HRTIMER_DRV
-
-config AIC_USING_HRTIMER3
-    bool "Using HRTimer3"
-    default n
-    select AIC_HRTIMER_DRV
-
-config AIC_USING_HRTIMER4
-    bool "Using HRTimer4"
-    default n
-    select AIC_HRTIMER_DRV
-
-config AIC_USING_HRTIMER5
-    bool "Using HRTimer5"
     default n
     select AIC_HRTIMER_DRV
 
@@ -196,6 +185,13 @@ if AIC_USING_USB0
     endchoice
 endif
 
+if !AIC_USING_USB0_HOST
+    config AIC_USING_USB1_HOST
+        bool "Using Usb1 (Host)"
+        default n
+        select AIC_USB_HOST_EHCI_DRV
+endif
+
 #---------------------------
 # gmac device global option
 #---------------------------
@@ -211,7 +207,7 @@ source "packages/third-party/lwip/contrib/ports/drv/aic/Kconfig.dev"
 # Storage Class
 #================================================
 
-comment "Storage Related: "
+comment "Storage Related:"
 
 #--------------------------------------------
 # qspi device global option
@@ -253,13 +249,18 @@ config AIC_USING_SDMC1
     default y
     select AIC_SDMC_DRV
 
+config AIC_USING_SDMC2
+    bool "Using SDMC2"
+    default n
+    select AIC_SDMC_DRV
+
 source "bsp/zx/drv/sdmc/Kconfig"
 
 #================================================
 # Analog Class
 #================================================
 
-comment "Analog Related: "
+comment "Analog Related:"
 
 #---------------------------
 # RTP device global option
@@ -329,7 +330,7 @@ config AIC_USING_GPAI7
 # MutiMedia Class
 #================================================
 
-comment "MutiMedia Related: "
+comment "MutiMedia Related:"
 
 #--------------------------------------------
 # DE device global option
@@ -383,6 +384,20 @@ source "bsp/peripheral/camera/Kconfig"
 endmenu
 
 #---------------------------
+# I2S global option
+#---------------------------
+
+config AIC_USING_I2S0
+    bool "Using I2S0"
+    default n
+    select AIC_I2S_DRV
+
+config AIC_USING_I2S1
+    bool "Using I2S1"
+    default n
+    select AIC_I2S_DRV
+
+#---------------------------
 # AUDIO device global option
 #---------------------------
 
@@ -402,7 +417,7 @@ source "bsp/zx/drv/audio/Kconfig"
 # System Class
 #================================================
 
-comment "System Related: "
+comment "System Related:"
 
 #---------------------------
 # DMA device global option
@@ -448,159 +463,55 @@ config AIC_USING_WDT
 
 menu "Mem Options"
 
-# 1. sram region
-config AIC_SRAM_TOTAL_SIZE
-    hex "SRAM Total Size"
-    default 0x100000
-
-# 1.1 tcm region
-# itcm: section(".tcm_code") + itcm_heap "MEM_ITCM"
-# itcm: section(".tcm_data") + dtcm_heap "MEM_DTCM"
-
-config AIC_TCM_EN
-    bool "Enable TCM (Tightly Coupled Memory) "
-    default n
-
-config AIC_ITCM_SIZE
-    hex
-    range 0 AIC_SRAM_TOTAL_SIZE
-    default 0x0 if !AIC_TCM_EN
-    default 0x20000 if AIC_TCM_EN
-
-config AIC_DTCM_SIZE
-    hex
-    range 0 AIC_SRAM_TOTAL_SIZE
-    default 0x0 if !AIC_TCM_EN
-    default 0x20000 if AIC_TCM_EN
-
-# 1.2 sram_s0 region
-# sram_sw: section(".text" + ".data" + ".bss") + sram_sw_heap ‘MEM_DEFAULT’
-
-config AIC_SRAM_SIZE
-    hex "SRAM_S0 Size"
-    range 0 AIC_SRAM_TOTAL_SIZE
-    default 0x100000
+# 1. dram region
+config AIC_DRAM_TOTAL_SIZE
+    hex "DRAM Total Size"
+    default 0x8000000
 
 config AIC_INTERRUPTSTACK_SIZE
     int "Interrupt stack size reserve in '.section .bss'"
-    range 0 AIC_SRAM_SIZE
+    range 0 AIC_DRAM_TOTAL_SIZE
     default 4096
 
-# 1.3 sram_s1 region
-
-choice
-    prompt "SRAM_S1 Size"
-    default AIC_SRAM_S1_SIZE_0K
-    help
-        Select the package version
-
-    config AIC_SRAM_S1_SIZE_0K
-        bool "0K"
-    config AIC_SRAM_S1_SIZE_128K
-        bool "128K"
-    config AIC_SRAM_S1_SIZE_256K
-        bool "256K"
-    config AIC_SRAM_S1_SIZE_384K
-        bool "384K"
-    config AIC_SRAM_S1_SIZE_512K
-        bool "512K"
-    config AIC_SRAM_S1_SIZE_640K
-        bool "640K"
-    config AIC_SRAM_S1_SIZE_768K
-        bool "768K"
-endchoice
-
-config AIC_SRAM_S1_SIZE
-   hex
-   range 0 AIC_SRAM_TOTAL_SIZE
-   default 0        if AIC_SRAM_S1_SIZE_0K
-   default 0x20000  if AIC_SRAM_S1_SIZE_128K
-   default 0x40000  if AIC_SRAM_S1_SIZE_256K
-   default 0x60000  if AIC_SRAM_S1_SIZE_384K
-   default 0x80000  if AIC_SRAM_S1_SIZE_512K
-   default 0xA0000  if AIC_SRAM_S1_SIZE_640K
-   default 0xC0000  if AIC_SRAM_S1_SIZE_768K
-
-config AIC_SRAM_S1_REG_SIZE
-   hex
-   range 0 AIC_SRAM_TOTAL_SIZE
-   default 0x00  if AIC_SRAM_S1_SIZE_0K
-   default 0x10  if AIC_SRAM_S1_SIZE_128K
-   default 0x20  if AIC_SRAM_S1_SIZE_256K
-   default 0x30  if AIC_SRAM_S1_SIZE_384K
-   default 0x40  if AIC_SRAM_S1_SIZE_512K
-   default 0x50  if AIC_SRAM_S1_SIZE_640K
-   default 0x60  if AIC_SRAM_S1_SIZE_768K
-
-config AIC_SRAM1_EN
-    bool
-    default y if !AIC_SRAM_S1_SIZE_0K
-    select AIC_SRAM1_CMA_EN
-
-config AIC_SRAM1_CMA_EN
-    bool
-
-config AIC_SRAM1_SW_SIZE
-    hex "Software size in SRAM_S1"
-    range 0 AIC_SRAM_S1_SIZE
+config AIC_DRAM_CMA_SIZE
+    hex "CMA mem size"
+    range 0 AIC_DRAM_TOTAL_SIZE
     default 0x0
 
-config AIC_SRAM1_SW_EN
+config AIC_DRAM_CMA_EN
     bool
-    default y if AIC_SRAM1_SW_SIZE > 0
+    default y if AIC_DRAM_CMA_SIZE > 0
 
-# 2. psram region
-
-config AIC_PSRAM_SIZE
-    hex "PSRAM size"
-    default 0x800000
-
-# 2.1 psram cma: section(".psram_cma_data") + psram_cma_heap ‘MEM_PSRAM_CMA’
-
-config AIC_PSRAM_CMA_EN
-    bool
-    default y if AIC_PSRAM_SIZE > 0
-
-# 2.2 psram sw: section(".psram_sw_data") + psram_sw_heap ‘MEM_PSRAM_SW’
-config AIC_PSRAM_SW_SIZE
-    hex "Software size in PSRAM"
-    range 0 AIC_PSRAM_SIZE
-    default 0x100000
-
-config AIC_PSRAM_SW_EN
-    bool
-    default y if AIC_PSRAM_SW_SIZE > 0
-
-config AIC_XIP
-    bool "Enable XIP"
-    default n
 endmenu
 
 #---------------------------
 # Clock options
 #---------------------------
 
-menu "Clocks options"
-
+menu "Clocks Options"
 config AIC_CLK_PLL_INT0_FREQ
     int "Clk int0 pll frequence"
-    default 480000000
+    default 600000000
 
 config AIC_CLK_PLL_INT1_FREQ
     int "Clk int1 pll frequence"
     default 1200000000
 
-config AIC_CLK_PLL_FRA0_FREQ
-    int "Clk fra0 pll frequence"
-    default 0
+#config AIC_CLK_PLL_FRA0_FREQ
+#    int "Clk fra0 pll frequence"
+#    default 0
+#
+#config AIC_CLK_PLL_FRA0_SSC_DIS
+#    bool "Disable fra0 pll spread spectrum"
+#    default n
 
-config AIC_CLK_PLL_FRA0_SSC_DIS
-    bool "Disable fra0 pll spread spectrum"
-    default n
+config AIC_CLK_PLL_FRA1_FREQ
+    int "Clk fra1 pll frequence"
+    default 491520000
 
 config AIC_CLK_PLL_FRA2_FREQ
     int "Clk fra2 pll frequence"
-    default 0
+    default 840000000
 
 config AIC_CLK_PLL_FRA2_SSC_DIS
     bool "Disable fra2 pll spread spectrum"
@@ -608,15 +519,15 @@ config AIC_CLK_PLL_FRA2_SSC_DIS
 
 config AIC_CLK_CPU_FREQ
     int "Clk cpu frequence"
-    default 480000000
+    default 600000000
 
 config AIC_CLK_AXI0_FREQ
     int "Clk axi0 frequence"
-    default 200000000
+    default 240000000
 
 config AIC_CLK_AHB0_FREQ
     int "Clk ahb0 frequence"
-    default 200000000
+    default 240000000
 
 config AIC_CLK_APB0_FREQ
     int "Clk apb0 frequence"
@@ -637,14 +548,24 @@ config AIC_USING_CLK_OUT2
 config AIC_USING_CLK_OUT3
     bool "Enable CLK_OUT3"
     default n
-
 endmenu
+
+#---------------------------
+# PM options
+#---------------------------
+
+config AIC_USING_PM
+    bool "Using Power Management"
+    default n
+    select AIC_PM_DRV
+
+source "bsp/zx/drv/pm/Kconfig"
 
 #================================================
 # Security Class
 #================================================
 
-comment "Security Related: "
+comment "Security Related:"
 
 #--------------------------------------------
 # spienc device global option
@@ -667,8 +588,6 @@ config AIC_USING_SID
     default n
     select AIC_SID_DRV
 
-source "bsp/zx/drv/efuse/Kconfig.dev"
-
 #---------------------------
 # ce device global option
 #---------------------------
@@ -680,16 +599,6 @@ config AIC_USING_CE
     select RT_USING_HWCRYPTO
 
 source "bsp/zx/drv/ce/Kconfig"
-
-#---------------------------
-# syscfg global option
-#---------------------------
-
-config AIC_USING_SYSCFG
-    bool "Using Syscfg"
-    default y
-
-source "bsp/zx/drv/syscfg/Kconfig.dev"
 
 #---------------------------
 # mtop device global option
