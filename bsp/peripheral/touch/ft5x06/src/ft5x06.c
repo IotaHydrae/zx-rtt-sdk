@@ -148,8 +148,11 @@ static rt_size_t ft5x06_read_point(struct rt_touch_device *touch, void *buf,
     uint8_t point_num;
     uint8_t data[4] = {0};
     uint16_t input_x = 0, input_y = 0;
+    rt_uint8_t reg[1];
 
-    __ft5x06_read_reg(&ft5x06_client, FT5x06_TOUCH_POINTS, &point_num, 1);
+    reg[0] = (rt_uint8_t)(FT5x06_TOUCH_POINTS);
+
+    __ft5x06_read_reg(&ft5x06_client, reg, &point_num, 1);
     point_num &= 0x07;
 
     if (point_num > 0 && point_num <= TOUCH_MAX_POINT_NUMBER) {
@@ -157,10 +160,12 @@ static rt_size_t ft5x06_read_point(struct rt_touch_device *touch, void *buf,
         uint16_t y[TOUCH_MAX_POINT_NUMBER];
 
         for (size_t i = 0; i < point_num; i++) {
-            __ft5x06_read_reg(&ft5x06_client, (FT5x06_TOUCH1_XH + i * 6), data, 2);
+            reg[0] = (rt_uint8_t)(FT5x06_TOUCH1_XH + i * 6);
+            __ft5x06_read_reg(&ft5x06_client, reg, data, 2);
             x[i] = 0x0fff & ((uint16_t)(data[0]) << 8 | data[1]);
             input_x = x[i];
-            ft5x06_read(dev, (FT5x06_TOUCH1_YH + i * 6), 2, data);
+            reg[0] = (rt_uint8_t)(FT5x06_TOUCH1_YH + i * 6);
+            __ft5x06_read_reg(&ft5x06_client, reg, data, 2);
             y[i] = ((uint16_t)(data[0]) << 8 | data[1]);
             input_y = y[i];
         }

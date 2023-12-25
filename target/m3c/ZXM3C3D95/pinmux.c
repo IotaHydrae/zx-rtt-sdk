@@ -1,7 +1,9 @@
 /*
+ * Copyright (c) 2022, ArtInChip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  *
+ * Authors: weilin.peng@artinchip.com
  */
 
 #include <aic_core.h>
@@ -216,6 +218,14 @@ struct aic_pinmux aic_pinmux_config[] = {
     {1, PIN_PULL_DIS, 3, AIC_AUDIO_PA_ENABLE_GPIO},
 #endif
 #endif
+
+    {1, PIN_PULL_DIS, 3, "PD.3"},
+    {1, PIN_PULL_DIS, 3, "PB.6"},
+    {1, PIN_PULL_DIS, 3, "PB.8"},
+    {1, PIN_PULL_DIS, 3, "PB.9"},
+    {1, PIN_PULL_DIS, 3, "PC.7"},
+    {1, PIN_PULL_DIS, 3, "PC.2"},
+    {1, PIN_PULL_DIS, 3, "PC.3"},
 };
 
 void aic_board_pinmux_init(void)
@@ -235,4 +245,11 @@ void aic_board_pinmux_init(void)
         hal_gpio_set_bias_pull(g, p, aic_pinmux_config[i].bias);
         hal_gpio_set_drive_strength(g, p, aic_pinmux_config[i].drive);
     }
+
+    pin = hal_gpio_name2pin("PC.7");
+
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_set_output(g,p);
 }

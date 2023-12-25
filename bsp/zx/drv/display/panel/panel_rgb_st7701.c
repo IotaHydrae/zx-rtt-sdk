@@ -9,41 +9,51 @@ static unsigned int __gpio_sck_g, __gpio_sck_p;
 static unsigned int __gpio_cs_g, __gpio_cs_p;
 static unsigned int __gpio_sda_g, __gpio_sda_p;
 
-static void __st7701_write(unsigned short temp)
+static int __st7701_write(unsigned int value, unsigned char u8Bits)
 {
-    unsigned char i;
+    unsigned int i;
 
-    hal_gpio_clr_output(__gpio_cs_g, __gpio_cs_p);
-
-    for(i=0;i<9;i++)
+    for(i = 0; i < u8Bits; i++)
     {
         hal_gpio_clr_output(__gpio_sck_g, __gpio_sck_p);
-        if(temp&0x0100)
+        aic_delay_us(5);
+        if(value & (0x01<<(u8Bits - 1)))
             hal_gpio_set_output(__gpio_sda_g, __gpio_sda_p);
         else
             hal_gpio_clr_output(__gpio_sda_g, __gpio_sda_p);
+        value <<= 1;
         aic_delay_us(5);
         hal_gpio_set_output(__gpio_sck_g, __gpio_sck_p);
         aic_delay_us(5);
-        temp = temp<<1;
     }
-    hal_gpio_set_output(__gpio_cs_g, __gpio_cs_p);
+
+    hal_gpio_clr_output(__gpio_sda_g, __gpio_sda_p);
+    aic_delay_us(5);
+    hal_gpio_clr_output(__gpio_sck_g, __gpio_sck_p);
+    aic_delay_us(5);
+    return 0;
 }
 
 static void __spi_send_cmd(uint8_t c)
 {
-    unsigned short temp = 0x00;
-    temp = temp | c;
-    __st7701_write(temp);
-    aic_delay_us(100);
+    hal_gpio_clr_output(__gpio_cs_g, __gpio_cs_p);
+    aic_delay_us(50);
+    __st7701_write(0, 1);
+    __st7701_write(c, 8);
+    aic_delay_us(50);
+    hal_gpio_set_output(__gpio_cs_g, __gpio_cs_p);
+    aic_delay_us(30);
 }
 
 static void __spi_send_data(uint8_t c)
 {
-    unsigned short temp = 0x100;
-    temp = temp | c;
-    __st7701_write(temp);
-    aic_delay_us(100);
+    hal_gpio_clr_output(__gpio_cs_g, __gpio_cs_p);
+    aic_delay_us(50);
+    __st7701_write(1, 1);
+    __st7701_write(c, 8);
+    aic_delay_us(50);
+    hal_gpio_set_output(__gpio_cs_g, __gpio_cs_p);
+    aic_delay_us(30);
 }
 
 void __st7701_init(void)
@@ -55,38 +65,37 @@ void __st7701_init(void)
     __gpio_cs_g = GPIO_GROUP(pin);
     __gpio_cs_p = GPIO_GROUP_PIN(pin);
 
-    hal_gpio_set_func(__gpio_cs_g, __gpio_cs_p, 1);
     hal_gpio_direction_output(__gpio_cs_g, __gpio_cs_p);
-    hal_gpio_clr_output(__gpio_cs_g, __gpio_cs_p);
-
-    pin = hal_gpio_name2pin(PANEL_ST7701_SCK_GPIO);
-    __gpio_sck_g = GPIO_GROUP(pin);
-    __gpio_sck_p = GPIO_GROUP_PIN(pin);
-
-    hal_gpio_set_func(__gpio_sck_g, __gpio_sck_p, 1);
-    hal_gpio_direction_output(__gpio_sck_g, __gpio_sck_p);
-    hal_gpio_clr_output(__gpio_sck_g, __gpio_sck_p);
+    hal_gpio_set_output(__gpio_cs_g, __gpio_cs_p);  // cs high
 
     pin = hal_gpio_name2pin(PANEL_ST7701_SDA_GPIO);
     __gpio_sda_g = GPIO_GROUP(pin);
     __gpio_sda_p = GPIO_GROUP_PIN(pin);
 
-    hal_gpio_set_func(__gpio_sda_g, __gpio_sda_p, 1);
     hal_gpio_direction_output(__gpio_sda_g, __gpio_sda_p);
+    hal_gpio_clr_output(__gpio_sda_g, __gpio_sda_p);    // sda low
+
+    pin = hal_gpio_name2pin(PANEL_ST7701_SCK_GPIO);
+    __gpio_sck_g = GPIO_GROUP(pin);
+    __gpio_sck_p = GPIO_GROUP_PIN(pin);
+
+    hal_gpio_direction_output(__gpio_sck_g, __gpio_sck_p);
+    hal_gpio_set_output(__gpio_sck_g, __gpio_sck_g);  // sck high
+
+    hal_gpio_set_output(__gpio_cs_g, __gpio_cs_p);
     hal_gpio_clr_output(__gpio_sda_g, __gpio_sda_p);
+    hal_gpio_clr_output(__gpio_sck_g, __gpio_sck_p);
 
     pin = hal_gpio_name2pin(PANEL_ST7701_RESET_GPIO);
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
-
-    hal_gpio_set_func(g, p, 1);
     hal_gpio_direction_output(g, p);
     hal_gpio_set_output(g, p);
-    aic_delay_ms(2);
+    aic_delay_ms(80);
     hal_gpio_clr_output(g, p);
-    aic_delay_ms(100);
+    aic_delay_ms(80);
     hal_gpio_set_output(g, p);
-    aic_delay_ms(100);
+    aic_delay_ms(120);
 
     __spi_send_cmd (0xF0);
     __spi_send_data (0x55);
@@ -663,6 +672,16 @@ void __st7701_init(void)
     __spi_send_cmd (0x3a);
     __spi_send_data (0x66);
 
+#if 0   //浅蓝 need pclk
+    __spi_send_cmd(0xce);
+    __spi_send_data(0x06);
+    __spi_send_cmd(0xf2);
+    __spi_send_data(0x70);
+    __spi_send_data(0xFF);
+    __spi_send_data(0x00);
+    __spi_send_data(0x00);
+#endif
+
     __spi_send_cmd (0x11);
     aic_delay_ms(120);
     __spi_send_cmd (0x29);
@@ -673,6 +692,10 @@ void __st7701_init(void)
 static int panel_enable(struct aic_panel *panel)
 {
     __st7701_init();
+
+    panel_di_enable(panel, 0);
+    panel_de_timing_enable(panel, 0);
+    panel_backlight_enable(panel, 0);
 
     return 0;
 }
@@ -700,7 +723,7 @@ static struct display_timing st7701_timing = {
 
 static struct panel_rgb rgb = {
     .mode = AIC_RGB_MODE,
-    .format = DSI_FMT_RGB666,
+    .format = AIC_RGB_FORMAT,
     .clock_phase = AIC_RGB_CLK_CTL,
     .data_order = AIC_RGB_DATA_ORDER,
     .data_mirror = AIC_RGB_DATA_MIRROR,

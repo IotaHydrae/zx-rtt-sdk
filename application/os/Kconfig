@@ -122,5 +122,6 @@ endif
 
 source "application/os/benchmark/Kconfig"
 source "application/os/freetype/Kconfig"
+source "application/os/ZX3D95/Kconfig"
 
 endmenu

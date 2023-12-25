@@ -1,4 +1,4 @@
-menu "Gt911 touch panel options"
+menu "FT5X06 touch panel options"
 
 config ZX_TOUCH_PANEL_NAME
     string "ft5x06 name"
