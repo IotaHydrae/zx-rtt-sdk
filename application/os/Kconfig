@@ -121,10 +121,6 @@ if AIC_USING_FS_IMAGE_TYPE_FATFS_FOR_0 || AIC_USING_FS_IMAGE_TYPE_FATFS_FOR_1
 endif
 
 source "application/os/benchmark/Kconfig"
-source "application/os/haier/Kconfig"
 source "application/os/freetype/Kconfig"
-source "application/os/suboer/Kconfig"
-source "application/os/ZX6D75/Kconfig"
-source "application/os/ZX9D35/Kconfig"
 
 endmenu
