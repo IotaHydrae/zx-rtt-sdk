@@ -10,27 +10,27 @@
 
 static inline void __raw_writeb(u8 val, volatile void *addr)
 {
-    asm volatile("sb %0, 0(%1)" : : "r"(val), "r"(addr));
+    __asm__ __volatile__("sb %0, 0(%1)" : : "r"(val), "r"(addr));
 }
 
 static inline u8 __raw_readb(const volatile void *addr)
 {
     u8 val;
 
-    asm volatile("lb %0, 0(%1)" : "=r"(val) : "r"(addr));
+    __asm__ __volatile__("lb %0, 0(%1)" : "=r"(val) : "r"(addr));
     return val;
 }
 
 static inline void __raw_writel(u32 val, volatile void *addr)
 {
-    asm volatile("sw %0, 0(%1)" : : "r"(val), "r"(addr));
+    __asm__ __volatile__("sw %0, 0(%1)" : : "r"(val), "r"(addr));
 }
 
 static inline u32 __raw_readl(const volatile void *addr)
 {
     u32 val;
 
-    asm volatile("lw %0, 0(%1)" : "=r"(val) : "r"(addr));
+    __asm__ __volatile__("lw %0, 0(%1)" : "=r"(val) : "r"(addr));
     return val;
 }
 

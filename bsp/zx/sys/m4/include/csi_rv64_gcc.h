@@ -1131,7 +1131,7 @@ __STATIC_INLINE void __set_PMPADDRx(uint64_t idx, uint64_t pmpaddr)
  */
 __ALWAYS_STATIC_INLINE void __set_MEDELEG(uint64_t x)
 {
-    asm volatile("csrw medeleg, %0"::"r"(x));
+    __ASM volatile("csrw medeleg, %0"::"r"(x));
 }
 
 /**
@@ -1141,7 +1141,7 @@ __ALWAYS_STATIC_INLINE void __set_MEDELEG(uint64_t x)
 __ALWAYS_STATIC_INLINE uint64_t __get_MEDELEG(void)
 {
     uint64_t x;
-    asm volatile("csrr %0, medeleg":"=r"(x));
+    __ASM volatile("csrr %0, medeleg":"=r"(x));
     return x;
 }
 
@@ -1151,7 +1151,7 @@ __ALWAYS_STATIC_INLINE uint64_t __get_MEDELEG(void)
  */
 __ALWAYS_STATIC_INLINE void __set_MIDELEG(uint64_t x)
 {
-    asm volatile("csrw mideleg, %0"::"r"(x));
+    __ASM volatile("csrw mideleg, %0"::"r"(x));
 }
 
 /**
@@ -1162,7 +1162,7 @@ __ALWAYS_STATIC_INLINE void __set_MIDELEG(uint64_t x)
 __ALWAYS_STATIC_INLINE uint64_t __get_MIDELEG(void)
 {
     uint64_t x;
-    asm volatile("csrr %0, mideleg":"=r"(x));
+    __ASM volatile("csrr %0, mideleg":"=r"(x));
     return x;
 }
 
@@ -1172,7 +1172,7 @@ __ALWAYS_STATIC_INLINE uint64_t __get_MIDELEG(void)
  */
 __ALWAYS_STATIC_INLINE void __set_SSTATUS(uint64_t x)
 {
-    asm volatile("csrw sstatus, %0"::"r"(x));
+    __ASM volatile("csrw sstatus, %0"::"r"(x));
 }
 
 /**
@@ -1183,7 +1183,7 @@ __ALWAYS_STATIC_INLINE void __set_SSTATUS(uint64_t x)
 __ALWAYS_STATIC_INLINE uint64_t __get_SSTATUS(void)
 {
     uint64_t x;
-    asm volatile("csrr %0, sstatus":"=r"(x));
+    __ASM volatile("csrr %0, sstatus":"=r"(x));
     return x;
 }
 
@@ -1193,7 +1193,7 @@ __ALWAYS_STATIC_INLINE uint64_t __get_SSTATUS(void)
  */
 __ALWAYS_STATIC_INLINE void __set_SXSTATUS(uint64_t x)
 {
-    asm volatile("csrw sxstatus, %0"::"r"(x));
+    __ASM volatile("csrw sxstatus, %0"::"r"(x));
 }
 
 /**
@@ -1204,7 +1204,7 @@ __ALWAYS_STATIC_INLINE void __set_SXSTATUS(uint64_t x)
 __ALWAYS_STATIC_INLINE uint64_t __get__SXSTATUS(void)
 {
     uint64_t x;
-    asm volatile("csrr %0, sxstatus":"=r"(x));
+    __ASM volatile("csrr %0, sxstatus":"=r"(x));
     return x;
 }
 
@@ -1214,7 +1214,7 @@ __ALWAYS_STATIC_INLINE uint64_t __get__SXSTATUS(void)
  */
 __ALWAYS_STATIC_INLINE void __set_SIE(uint64_t x)
 {
-    asm volatile("csrw sie, %0"::"r"(x));
+    __ASM volatile("csrw sie, %0"::"r"(x));
 }
 
 /**
@@ -1225,7 +1225,7 @@ __ALWAYS_STATIC_INLINE void __set_SIE(uint64_t x)
 __ALWAYS_STATIC_INLINE uint64_t __get_SIE(void)
 {
     uint64_t x;
-    asm volatile("csrr %0, sie":"=r"(x));
+    __ASM volatile("csrr %0, sie":"=r"(x));
     return x;
 }
 
@@ -1235,7 +1235,7 @@ __ALWAYS_STATIC_INLINE uint64_t __get_SIE(void)
  */
 __ALWAYS_STATIC_INLINE void __set_STVEC(uint64_t x)
 {
-    asm volatile("csrw stvec, %0"::"r"(x));
+    __ASM volatile("csrw stvec, %0"::"r"(x));
 }
 
 /**
@@ -1246,7 +1246,7 @@ __ALWAYS_STATIC_INLINE void __set_STVEC(uint64_t x)
 __ALWAYS_STATIC_INLINE uint64_t __get_STVEC(void)
 {
     uint64_t x;
-    asm volatile("csrr %0, stvec":"=r"(x));
+    __ASM volatile("csrr %0, stvec":"=r"(x));
     return x;
 }
 
