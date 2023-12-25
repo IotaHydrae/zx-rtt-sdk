@@ -1,6 +1,0 @@
-menuconfig ZX_ZX9D35_DEMO
-    tristate "ZX ZX9D35 demo"
-    select LPKG_USING_LVGL
-    default n
-
-

@@ -1,4 +1,0 @@
-menuconfig ZX_ZX6D75_DEMO
-    tristate "ZX ZX6D75 demo"
-    select LPKG_USING_LVGL
-    default n
