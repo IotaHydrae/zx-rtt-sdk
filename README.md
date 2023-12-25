@@ -11,9 +11,9 @@ Supported development boards:
 - ZX7D00M4R64-V10
 - ZX3D95CM20S-V11
 
-Supported UI frameworks, default is LVGL-8.3.1:
+Supported UI frameworks, default is LVGL-8.3.10
 
-- LVGL-8.3.1
+- LVGL-8.3.10
 
 
 # Usage Instructions
