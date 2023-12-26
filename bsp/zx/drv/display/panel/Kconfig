@@ -50,7 +50,7 @@ menu "Display Panels"
         depends on AIC_DISP_RGB
 
     config AIC_PANEL_RGB_ST7701
-        bool "ArtInChip prgb st7701 panel"
+        bool "ZX prgb st7701 panel"
         depends on AIC_DISP_RGB
 
     endchoice

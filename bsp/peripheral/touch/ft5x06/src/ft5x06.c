@@ -6,7 +6,6 @@
  * Change Logs:
  * Date           Author       Notes
  * 2021-01-13     RiceChen     the first version
- * 2023-04-30     Geo          modified for ArtInChip
  */
 
 #include <rtthread.h>

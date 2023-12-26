@@ -1,9 +1,7 @@
 /*
- * Copyright (c) 2022, ArtInChip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Authors: weilin.peng@artinchip.com
  */
 
 #include <aic_core.h>
