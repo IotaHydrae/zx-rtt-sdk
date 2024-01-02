@@ -559,12 +559,6 @@ config AIC_SRAM1_SW_EN
     bool
     default y if AIC_SRAM1_SW_SIZE > 0
 
-# 2. psram region
-
-config AIC_PSRAM_SIZE
-    hex "PSRAM size"
-    default 0x800000
-
 # 2.1 psram cma: section(".psram_cma_data") + psram_cma_heap ‘MEM_PSRAM_CMA’
 
 config AIC_PSRAM_CMA_EN

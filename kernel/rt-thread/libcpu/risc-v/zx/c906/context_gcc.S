@@ -67,7 +67,11 @@ rt_hw_context_switch_to:
     fence
     lw      t1, (t0)
     fence
+#ifdef __riscv_xthead
     sync.is
+#else
+    .long   0x01b0000b
+#endif
 
     /* enable global interrup */
     csrsi   mstatus, 8
@@ -120,7 +124,11 @@ rt_hw_context_switch_interrupt:
     fence
     lw      t1, (t0)
     fence
+#ifdef __riscv_xthead
     sync.is
+#else
+    .long   0x01b0000b
+#endif
 
     LOAD    t0, 0 * REGBYTES(sp)
     LOAD    t1, 1 * REGBYTES(sp)
@@ -364,4 +372,3 @@ rt_hw_interrupt_disable:
 rt_hw_interrupt_enable:
     csrw mstatus, a0
     ret
-

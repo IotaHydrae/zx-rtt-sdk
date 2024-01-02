@@ -292,7 +292,11 @@ void hal_clk_pll_lowpower(void)
     *(volatile uint32_t *)(CMU_BASE+PLL_IN_REG) &= ~(0x7U << 29);
     #endif
 #elif defined(AIC_CMU_DRV_V11)
-    *(volatile uint32_t *)(CMU_BASE+PLL_IN_REG) &= ~((0x7U << 29) | (0x1U << 1));
+    int xtal_en = readl(SID_BASE + 0x1C) & (0x1 << 1);
+    if (xtal_en)
+        *(volatile uint32_t *)(CMU_BASE+PLL_IN_REG) &= ~((0x7U << 29) | (0x1U << 1));
+    else
+        *(volatile uint32_t *)(CMU_BASE+PLL_IN_REG) &= ~((0x7U << 29) | (0x1U << 28));
 #elif defined(AIC_CMU_DRV_V12)
     *(volatile uint32_t *)(CMU_BASE+PLL_IN_REG) &= ~((0x7U << 29) | (0x1U << 1));
 #endif

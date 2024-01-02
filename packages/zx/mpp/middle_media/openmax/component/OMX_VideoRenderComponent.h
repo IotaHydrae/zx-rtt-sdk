@@ -1,10 +1,3 @@
-
-/*
-*
-*  Desc: OMX_DemuxerComponent
-*/
-
-
 #ifndef _OMX_VIDEO_RENDER_COMPONENT_H_
 #define _OMX_VIDEO_RENDER_COMPONENT_H_
 
@@ -103,7 +96,6 @@ typedef struct VIDEO_RENDER_DATA_TYPE {
     OMX_S32 nDumpIndex;
     OMX_TIME_CLOCKSTATE eClockState;
 
-    pthread_mutex_t sWaitReayFrameLock;
     OMX_S32 nWaitReayFrameFlag;
     //rotation
     OMX_S32 nInitRotationParam; // -1-init fail,0-not init,1-init ok
@@ -116,5 +108,4 @@ typedef struct VIDEO_RENDER_DATA_TYPE {
 
 
 #endif
-
 

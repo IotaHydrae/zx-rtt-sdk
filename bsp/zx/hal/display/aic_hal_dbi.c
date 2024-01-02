@@ -5,8 +5,11 @@
 
 #include <stdint.h>
 #include <aic_core.h>
+#include <aic_iopoll.h>
 
 #include "aic_hal_dbi.h"
+
+#define DBI_TIMEOUT_US  1000000
 
 void i8080_cmd_ctl(void *base, u32 first_line, u32 other_line)
 {
@@ -72,7 +75,8 @@ void i8080_wr_fifo_flush(void *base)
 
 void i8080_cmd_wr(void *base, u32 code, u32 count, const u8 *data)
 {
-    int i;
+    int i, ret;
+    u32 val;
 
     i8080_wr_cmd(base, code);
 
@@ -81,9 +85,20 @@ void i8080_cmd_wr(void *base, u32 code, u32 count, const u8 *data)
 
     i8080_wr_ctl(base, count, 1);
 
-    while (!reg_rd_bit(base + DBI_I8080_STATUS, DBI_I8080_TX_FIFO_EMPTY,
-        DBI_I8080_TX_FIFO_EMPTY_SHIFT))
-        ;
+#ifdef AIC_DISP_MIPI_DBI_DEBUG
+    printf("command: %#x, ", code);
+    printf("data:");
+    for (i = 0; i < count; i++)
+        printf(" %#x", *(data + i));
+
+    printf("\n");
+#endif
+
+    ret = readl_poll_timeout(base + DBI_I8080_STATUS, val,
+            ((val & (DBI_I8080_IDEL | DBI_I8080_TX_FIFO_EMPTY)) == 0x2),
+            DBI_TIMEOUT_US);
+    if (ret)
+        pr_err("Timeout during i8080 write command\n");
 }
 
 void qspi_code_cfg(void *base, u32 code1, u32 code2, u32 code3)
@@ -185,7 +200,8 @@ void spi_wr_fifo_flush(void *base)
 
 void spi_cmd_wr(void *base, u32 code, u32 count, const u8 *data)
 {
-    int i;
+    int i, ret;
+    u32 val;
 
     spi_wr_cmd(base, code);
 
@@ -194,9 +210,19 @@ void spi_cmd_wr(void *base, u32 code, u32 count, const u8 *data)
 
     spi_wr_ctl(base, count, 1);
 
-    while (!reg_rd_bit(base + DBI_SPI_STATUS, DBI_SPI_TX_FIFO_EMPTY,
-        DBI_SPI_TX_FIFO_EMPTY_SHIFT))
-        ;
-}
+#ifdef AIC_DISP_MIPI_DBI_DEBUG
+    printf("command: %#x, ", code);
+    printf("data:");
+    for (i = 0; i < count; i++)
+        printf(" %#x", *(data + i));
 
+    printf("\n");
+#endif
+
+    ret = readl_poll_timeout(base + DBI_SPI_STATUS, val,
+            ((val & (DBI_SPI_IDEL | DBI_SPI_TX_FIFO_EMPTY)) == 0x2),
+            DBI_TIMEOUT_US);
+    if (ret)
+        pr_err("Timeout during spi write command\n");
+}
 

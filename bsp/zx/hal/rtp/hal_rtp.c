@@ -307,15 +307,15 @@ static void rtp_report_abs(struct aic_rtp_dev *rtp, u16 down)
     struct aic_rtp_dat *dat = &rtp->latest;
     struct aic_rtp_event e = {0};
 
-    if (dat->x_minus == AIC_RTP_INVALID_VAL
-        || dat->y_minus == AIC_RTP_INVALID_VAL)
-        return;
+    if (dat->x_minus == AIC_RTP_INVALID_VAL || dat->y_minus == AIC_RTP_INVALID_VAL)
+        e.down = 0;
 
     if (rtp->pressure_det) {
         int pressure = rtp_press_calc(rtp);
 
         if (pressure == AIC_RTP_INVALID_VAL)
-            return;
+            e.down = 0;
+
         e.pressure = pressure;
     }
 
@@ -324,9 +324,10 @@ static void rtp_report_abs(struct aic_rtp_dev *rtp, u16 down)
     e.down = down;
     e.timestamp = dat->timestamp;
 
+    hal_rtp_ebuf_write(&rtp->ebuf, &e);
+
     if (rtp->callback)
         rtp->callback();
-    hal_rtp_ebuf_write(&rtp->ebuf, &e);
 }
 
 static void rtp_smp_period(u32 period)

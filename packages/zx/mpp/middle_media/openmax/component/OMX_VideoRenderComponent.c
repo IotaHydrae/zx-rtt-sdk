@@ -1,8 +1,3 @@
-/*
-*
-*  Desc: OMX_VideoRenderComponent
-*/
-
 #include "OMX_VideoRenderComponent.h"
 
 #define  aic_pthread_mutex_lock(mutex)\
@@ -470,6 +465,7 @@ static int  OMX_VideoRenderGiveBackAllFrames(VIDEO_RENDER_DATA_TYPE * pVideoRend
             } else {
                 loge("give back frame to vdec fail\n");
                 pVideoRenderDataType->nGiveBackFrameFailNum++;
+                usleep(5*1000);
                 continue;// must give back ok ,so retry to give back
             }
             logi("nGiveBackFrameOkNum:%"PRId32",nGiveBackFrameFailNum:%"PRId32"\n"
@@ -889,9 +885,15 @@ static OMX_ERRORTYPE OMX_VideoRenderEmptyThisBuffer(
         memcpy(&pFrame->sFrameInfo,pBuffer->pBuffer,sizeof(struct mpp_frame));
         mpp_list_del(&pFrame->sList);
         mpp_list_add_tail(&pFrame->sList, &pVideoRenderDataType->sInReadyFrame);
-        aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
+        if (pVideoRenderDataType->nWaitReayFrameFlag) {
+            sMsg.message_id = OMX_CommandNops;
+            sMsg.data_size = 0;
+            aic_msg_put(&pVideoRenderDataType->sMsgQue, &sMsg);
+            pVideoRenderDataType->nWaitReayFrameFlag = 0;
+        }
         pVideoRenderDataType->nReceiveFrameNum++;
         logd("nReceiveFrameNum:%"PRId32"\n",pVideoRenderDataType->nReceiveFrameNum);
+        aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
 
         {
             static int nRenderFrameNum = 0;
@@ -925,19 +927,17 @@ static OMX_ERRORTYPE OMX_VideoRenderEmptyThisBuffer(
         memcpy(&pFrame->sFrameInfo,pBuffer->pBuffer,sizeof(struct mpp_frame));
         mpp_list_del(&pFrame->sList);
         mpp_list_add_tail(&pFrame->sList, &pVideoRenderDataType->sInReadyFrame);
-        aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
+        if (pVideoRenderDataType->nWaitReayFrameFlag) {
+            sMsg.message_id = OMX_CommandNops;
+            sMsg.data_size = 0;
+            aic_msg_put(&pVideoRenderDataType->sMsgQue, &sMsg);
+            pVideoRenderDataType->nWaitReayFrameFlag = 0;
+        }
         pVideoRenderDataType->nReceiveFrameNum++;
-        logw("nReceiveFrameNum:%"PRId32"\n",pVideoRenderDataType->nReceiveFrameNum);
+        logd("nReceiveFrameNum:%"PRId32"\n",pVideoRenderDataType->nReceiveFrameNum);
+        aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
     }
 
-    aic_pthread_mutex_lock(&pVideoRenderDataType->sWaitReayFrameLock);
-    if (pVideoRenderDataType->nWaitReayFrameFlag) {
-        sMsg.message_id = OMX_CommandNops;
-        sMsg.data_size = 0;
-        aic_msg_put(&pVideoRenderDataType->sMsgQue, &sMsg);
-        pVideoRenderDataType->nWaitReayFrameFlag = 0;
-    }
-    aic_pthread_mutex_unlock(&pVideoRenderDataType->sWaitReayFrameLock);
     aic_pthread_mutex_unlock(&pVideoRenderDataType->stateLock);
 
     return eError;
@@ -1041,7 +1041,6 @@ OMX_ERRORTYPE OMX_VideoRenderComponentDeInit(
 
     pthread_mutex_destroy(&pVideoRenderDataType->sInFrameLock);
     pthread_mutex_destroy(&pVideoRenderDataType->stateLock);
-    pthread_mutex_destroy(&pVideoRenderDataType->sWaitReayFrameLock);
 
     aic_msg_destroy(&pVideoRenderDataType->sMsgQue);
 
@@ -1171,8 +1170,6 @@ OMX_ERRORTYPE OMX_VideoRenderComponentInit(
     pVideoRenderDataType->nRotationAngleChange = 0;
     pVideoRenderDataType->nInitRotationParam = 0;
 
-    pthread_mutex_init(&pVideoRenderDataType->sWaitReayFrameLock, NULL);
-
     pthread_mutex_init(&pVideoRenderDataType->stateLock, NULL);
     // Create the component thread
     err = pthread_create(&pVideoRenderDataType->threadId, &attr, OMX_VideoRenderComponentThread, pVideoRenderDataType);
@@ -1189,7 +1186,6 @@ OMX_ERRORTYPE OMX_VideoRenderComponentInit(
 _EXIT5:
     aic_msg_destroy(&pVideoRenderDataType->sMsgQue);
     pthread_mutex_destroy(&pVideoRenderDataType->stateLock);
-    pthread_mutex_destroy(&pVideoRenderDataType->sWaitReayFrameLock);
 
 _EXIT4:
     if (!mpp_list_empty(&pVideoRenderDataType->sInEmptyFrame)) {
@@ -1523,7 +1519,8 @@ static int OMX_GiveBackProcessedFrames(VIDEO_RENDER_DATA_TYPE* pVideoRenderDataT
         } else { // how to do ,do nothing or move to empty list,now move to  empty list
             logw("give back frame to vdec fail\n");
             pVideoRenderDataType->nGiveBackFrameFailNum++;
-            break;
+            usleep(5*1000);
+            continue;
         }
         logi("nGiveBackFrameOkNum:%"PRId32",nGiveBackFrameFailNum:%"PRId32"\n"
             ,pVideoRenderDataType->nGiveBackFrameOkNum,pVideoRenderDataType->nGiveBackFrameFailNum);
@@ -1745,13 +1742,13 @@ _AIC_MSG_GET_:
 
         OMX_GiveBackProcessedFrames(pVideoRenderDataType);
 
-        if (OMX_VideoRenderListEmpty(&pVideoRenderDataType->sInReadyFrame,pVideoRenderDataType->sInFrameLock))
-        {
+        aic_pthread_mutex_lock(&pVideoRenderDataType->sInFrameLock);
+        if (mpp_list_empty(&pVideoRenderDataType->sInReadyFrame)) {
             struct timespec before = {0},after = {0};
             long diff;
-            aic_pthread_mutex_lock(&pVideoRenderDataType->sWaitReayFrameLock);
+
             pVideoRenderDataType->nWaitReayFrameFlag = 1;
-            aic_pthread_mutex_unlock(&pVideoRenderDataType->sWaitReayFrameLock);
+            aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
 
             clock_gettime(CLOCK_REALTIME,&before);
             aic_msg_wait_new_msg(&pVideoRenderDataType->sMsgQue, 0);
@@ -1763,6 +1760,7 @@ _AIC_MSG_GET_:
             nEmptyNum++;
             goto _AIC_MSG_GET_;
         }
+        aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
 
         while(!OMX_VideoRenderListEmpty(&pVideoRenderDataType->sInReadyFrame,pVideoRenderDataType->sInFrameLock)) {
             aic_pthread_mutex_lock(&pVideoRenderDataType->sInFrameLock);
@@ -2010,4 +2008,3 @@ _EXIT:
     printf("[%s:%d]OMX_VideoRenderComponentThread EXIT\n",__FUNCTION__,__LINE__);
     return (void*)OMX_ErrorNone;
 }
-

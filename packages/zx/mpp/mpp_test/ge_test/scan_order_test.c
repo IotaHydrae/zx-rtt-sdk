@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include <stdio.h>
@@ -34,7 +32,7 @@
 
 static void usage(char *app)
 {
-    printf("Usage: %s [Options], built on %s %s\n", app, __DATE__, __TIME__);
+    printf("Usage: %s [Options]: \n", app);
     printf("\t-r, --region the  region of screen (default 0),The range of region is 0~7\n");
     printf("\t-m, --mode   scan order flags for GE ctrl (default 0)\n");
     printf("\t    --mode=0 scan order flags = MPP_LR_TB\n");
@@ -51,28 +49,19 @@ static void help(void)
     printf("\r--This is ge bitblt operation using scan order function.\n");
     printf("\r--Scan order function is used when src and dst memory overlap.\n");
     printf("\r--Scan order flags defaults to MPP_LR_TB whether the memory overlaps or not.\n");
-    printf("\r--When scan order is not set to MPP_LR_TB,rot0 and dither are not supported,\
-            only rgb format is supported.\n\n");
+    printf("\r--When scan order is not set to MPP_LR_TB,rot0 and dither are not supported, only rgb format is supported.\n\n");
 
     printf("\r--There are eight types of memory overlap in screen memory for reference.\n\n");
     printf("\r--In the case of SRC and DST memory overlap,it is recommended to set scan order flags as follows.\n");
-    printf("\r--If the DST layer is in the upper left  corner of the SRC layer,\
-            scan order flags is recommended to be MPP_LR_TB.\n");
-    printf("\r--If the DST layer is in the upper right corner of the SRC layer,\
-            scan order flags is recommended to be MPP_RL_TB.\n");
-    printf("\r--If the DST layer is in the lower left  corner of the SRC layer,\
-            scan order flags is recommended to be MPP_LR_BT.\n");
-    printf("\r--If the DST layer is in the lower right corner of the SRC layer,\
-            scan order flags is recommended to be MPP_RL_BT.\n");
+    printf("\r--If the DST layer is in the upper left  corner of the SRC layer, scan order flags is recommended to be MPP_LR_TB.\n");
+    printf("\r--If the DST layer is in the upper right corner of the SRC layer, scan order flags is recommended to be MPP_RL_TB.\n");
+    printf("\r--If the DST layer is in the lower left  corner of the SRC layer, scan order flags is recommended to be MPP_LR_BT.\n");
+    printf("\r--If the DST layer is in the lower right corner of the SRC layer, scan order flags is recommended to be MPP_RL_BT.\n");
 
-    printf("\r--If the DST layer is in the directly above the SRC layer,\
-            scan order flags is recommended to be MPP_LR_TB or MPP_RL_TB.\n");
-    printf("\r--If the DST layer is in the directly below the SRC layer,\
-            scan order flags is recommended to be MPP_LR_BT or MPP_RL_BT.\n");
-    printf("\r--If the DST layer is on the straight left  side of the SRC layer,\
-            scan order flags is recommended to be MPP_LR_TB or MPP_LR_BT.\n");
-    printf("\r--If the DST layer is on the straight right side of the SRC layer,\
-            scan order flags is recommended to be MPP_RL_TB or MPP_RL_BT.\n\n");
+    printf("\r--If the DST layer is in the directly above the SRC layer, scan order flags is recommended to be MPP_LR_TB or MPP_RL_TB.\n");
+    printf("\r--If the DST layer is in the directly below the SRC layer, scan order flags is recommended to be MPP_LR_BT or MPP_RL_BT.\n");
+    printf("\r--If the DST layer is on the straight left  side of the SRC layer, scan order flags is recommended to be MPP_LR_TB or MPP_LR_BT.\n");
+    printf("\r--If the DST layer is on the straight right side of the SRC layer, scan order flags is recommended to be MPP_RL_TB or MPP_RL_BT.\n\n");
 
     printf("\r--Please use parameter -u or --usage to list other parameters.\n\n");
 }
@@ -260,7 +249,7 @@ static void ge_scan_test(int argc, char **argv)
     int region = 0;
     int mode = 0;
 
-    int bmp_fd = 0;
+    int bmp_fd = -1;
     enum mpp_pixel_format bmp_fmt = 0;
     struct mpp_ge *ge = NULL;
     struct ge_bitblt blt = {0};
@@ -290,13 +279,13 @@ static void ge_scan_test(int argc, char **argv)
             break;
         case 'u':
             usage(argv[0]);
-            goto EXIT;
+            return;
         case 'h':
             help();
-            goto EXIT;
+            return;
         default:
             LOGE("Invalid parameter: %#x\n", ret);
-            goto EXIT;
+            return;
         }
     }
 
@@ -310,7 +299,7 @@ static void ge_scan_test(int argc, char **argv)
 
     bmp_fd = bmp_open(SCAN_IMAGE, &bmp_head);
     if (bmp_fd < 0) {
-        LOGE("open bmp error\n");
+        LOGE("open bmp error, path = %s\n", SCAN_IMAGE);
         goto EXIT;
     }
 
@@ -345,7 +334,7 @@ static void ge_scan_test(int argc, char **argv)
     }
 
 EXIT:
-    if (bmp_fd)
+    if (bmp_fd > 0)
         bmp_close(bmp_fd);
 
     if (ge)

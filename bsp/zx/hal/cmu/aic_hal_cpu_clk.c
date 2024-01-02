@@ -101,8 +101,9 @@ static unsigned long clk_cpu_mod_recalc_rate(struct aic_clk_comm_cfg *comm_cfg,
     if (parent_index == 1) {
         div0 = (readl(cmu_reg(mod->offset_reg)) >> mod->div0_bit) & mod->div0_mask;
         rate = parent_rate / (div0 + 1);
-    } else
+    } else {
         rate = parent_rate;
+    }
 
 #ifdef CONFIG_DEBUG_ON_FPGA_BOARD_ZX
     rate = fpga_board_rate[mod->id];
@@ -140,8 +141,13 @@ __out:
 static unsigned int clk_cpu_mod_get_parent(struct aic_clk_comm_cfg *comm_cfg)
 {
     struct aic_clk_cpu_cfg *mod = to_clk_cpu_mod(comm_cfg);
+    u32 index =
+            (readl(cmu_reg(mod->offset_reg)) >> mod->mux_bit) & mod->mux_mask;
 
-    return (readl(cmu_reg(mod->offset_reg)) >> mod->mux_bit) & mod->mux_mask;
+    if (index < mod->num_parents)
+        return mod->parent_ids[index];
+    else
+        return 0;
 }
 
 static int clk_cpu_mod_set_parent(struct aic_clk_comm_cfg *comm_cfg,

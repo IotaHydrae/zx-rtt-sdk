@@ -31,15 +31,15 @@ menu "Display Panels"
 
     config AIC_PANEL_DBI_ILI9488
         bool "ZX MIPI DBI SPI ili9488 panel"
-        depends on AIC_DISP_MIPI_DBI_SPI
+        depends on AIC_DISP_MIPI_DBI
 
     config AIC_PANEL_DBI_ILI9341
         bool "ZX MIPI DBI SPI ili9341 panel"
-        depends on AIC_DISP_MIPI_DBI_SPI
+        depends on AIC_DISP_MIPI_DBI
 
     config AIC_PANEL_DBI_ST77903
         bool "ZX MIPI DBI SPI st77903 panel"
-        depends on AIC_DISP_MIPI_DBI_SPI
+        depends on AIC_DISP_MIPI_DBI
 
     config AIC_PANEL_DBI_ILI9486L
         bool "ZX MIPI DBI ili9486l panel"

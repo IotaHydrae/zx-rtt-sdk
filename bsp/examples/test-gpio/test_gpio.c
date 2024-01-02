@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -60,10 +58,6 @@ static rt_uint8_t test_gpio_pin_check(char *arg_pin)
         printf("pin set default PD.15\n");
         pin = rt_pin_get(INPUT_KEY_PIN);
     } else {
-#if (defined AIC_DISP_RGB_DRV || defined AIC_PM_DRV || defined AIC_I2S_DRV)
-        printf("RGB or PowerManagement or I2S might cause pinmux-conflict!!\n");
-        return 0;
-#endif
         printf("pin set: [%s]\n", arg_pin);
         pin = rt_pin_get(arg_pin);
     }

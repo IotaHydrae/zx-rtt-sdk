@@ -545,7 +545,7 @@ void hal_gpai_config_dma(struct aic_gpai_ch *chan)
     config.src_maxburst = GPAI_SRC_RX_MAXBURST;
     config.dst_maxburst = GPAI_DST_RX_MAXBURST;
     config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-    config.dst_addr_width = DMA_SLAVE_BUSWIDTH_16_BYTES;
+    config.dst_addr_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
 
     info = &chan->dma_rx_info;
 

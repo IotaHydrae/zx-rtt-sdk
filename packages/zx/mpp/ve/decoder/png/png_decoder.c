@@ -58,7 +58,7 @@ static int alloc_phy_buffer(struct png_dec_ctx *s, int width, int height)
 		}
 	}
 
-#if defined(AIC_CHIP_M3C)
+#if defined(AIC_CHIP_M3C) || defined(AIC_CHIP_M3A)
 	s->lz77_mpp_buf = (struct ve_buffer *)mpp_alloc(sizeof(struct ve_buffer));
 	s->lz77_mpp_buf->phy_addr = 0x30040000;
 	aicos_dcache_clean_invalid_range((unsigned long *)(ulong)0x30040000, LZ77_WINDOW_SIZE);
@@ -88,7 +88,7 @@ static int free_phy_buffer(struct png_dec_ctx *s) {
 		s->palette_mpp_buf = NULL;
 	}
 
-#if defined(AIC_CHIP_M3C)
+#if defined(AIC_CHIP_M3C) || defined(AIC_CHIP_M3A)
 	if (s->lz77_mpp_buf) {
 		mpp_free(s->lz77_mpp_buf);
 		s->lz77_mpp_buf = NULL;

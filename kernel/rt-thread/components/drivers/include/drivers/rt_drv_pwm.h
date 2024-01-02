@@ -38,7 +38,7 @@ struct rt_pwm_configuration
     */
     rt_bool_t  complementary;
 
-#ifdef AIC_PWM_DRV
+#if defined(AIC_PWM_DRV) || defined(AIC_EPWM_DRV)
     rt_uint32_t irq_mode;
     rt_uint32_t pul_cnt;
 #endif
@@ -72,7 +72,7 @@ rt_err_t rt_device_pwm_register(struct rt_device_pwm *device, const char *name, 
 
 rt_err_t rt_pwm_enable(struct rt_device_pwm *device, int channel);
 rt_err_t rt_pwm_disable(struct rt_device_pwm *device, int channel);
-#ifdef AIC_PWM_DRV
+#if defined(AIC_PWM_DRV) || defined(AIC_EPWM_DRV)
 rt_err_t rt_pwm_set_pul(struct rt_device_pwm *device, int channel, rt_uint32_t irq_mode, rt_uint32_t period, rt_uint32_t pulse, rt_uint32_t pul_cnt);
 #endif
 #ifdef AIC_XPWM_DRV

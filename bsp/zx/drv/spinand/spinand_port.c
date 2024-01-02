@@ -401,7 +401,6 @@ rt_err_t rt_hw_mtd_spinand_init(struct aic_spinand *flash)
         g_mtd_partitions[i].pages_per_block = flash->info->pages_per_eraseblock;
         g_mtd_partitions[i].oob_size = flash->info->oob_size;
         g_mtd_partitions[i].oob_free = 32;
-        g_mtd_partitions[i].plane_num = flash->info->is_die_select;
         g_mtd_partitions[i].ops = &spinand_ops;
         g_mtd_partitions[i].block_start = p->start / blocksize;
         g_mtd_partitions[i].block_end = (p->start + p->size - 1) / blocksize;

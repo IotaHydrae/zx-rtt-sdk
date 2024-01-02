@@ -9,7 +9,7 @@
 
 #define DEV_FORMAT "/dev/sd%c"
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_msc_buf[32];
+USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_msc_buf[ALIGN_UP(USB_SIZEOF_MSC_CBW, CONFIG_USB_ALIGN_SIZE)];
 
 static struct usbh_msc g_msc_class[CONFIG_USBHOST_MAX_MSC_CLASS];
 static uint32_t g_devinuse = 0;
@@ -119,7 +119,7 @@ int usbh_bulk_cbw_csw_xfer(struct usbh_msc *msc_class, struct CBW *cbw, struct C
     /* Send the CBW */
     nbytes = usbh_msc_bulk_out_transfer(msc_class, (uint8_t *)cbw, USB_SIZEOF_MSC_CBW, CONFIG_USBHOST_MSC_TIMEOUT);
     if (nbytes < 0) {
-        USB_LOG_ERR("cbw transfer error\r\n");
+        USB_LOG_ERR("CBW transfer error, return -%d\r\n", -nbytes);
         goto __err_exit;
     }
 
@@ -138,7 +138,8 @@ int usbh_bulk_cbw_csw_xfer(struct usbh_msc *msc_class, struct CBW *cbw, struct C
         }
 
         if (nbytes < 0) {
-            USB_LOG_ERR("msc data transfer error\r\n");
+            USB_LOG_ERR("MSC data transfer [0x%x] error, return -%d/%d\r\n",
+                        cbw->CB[0], -nbytes, cbw->dDataLength);
             goto __err_exit;
         }
     }
@@ -147,7 +148,7 @@ int usbh_bulk_cbw_csw_xfer(struct usbh_msc *msc_class, struct CBW *cbw, struct C
     memset(csw, 0, USB_SIZEOF_MSC_CSW);
     nbytes = usbh_msc_bulk_in_transfer(msc_class, (uint8_t *)csw, USB_SIZEOF_MSC_CSW, CONFIG_USBHOST_MSC_TIMEOUT);
     if (nbytes < 0) {
-        USB_LOG_ERR("csw transfer error\r\n");
+        USB_LOG_ERR("CSW transfer error, return -%d\r\n" -nbytes);
         goto __err_exit;
     }
 
@@ -155,12 +156,12 @@ int usbh_bulk_cbw_csw_xfer(struct usbh_msc *msc_class, struct CBW *cbw, struct C
 
     /* check csw status */
     if (csw->dSignature != MSC_CSW_Signature) {
-        USB_LOG_ERR("csw signature error\r\n");
+        USB_LOG_ERR("Invalid CSW signature 0x%08x\r\n", csw->dSignature);
         return -EINVAL;
     }
 
     if (csw->bStatus != 0) {
-        USB_LOG_ERR("csw bStatus %d\r\n", csw->bStatus);
+        USB_LOG_ERR("CSW bStatus %d\r\n", csw->bStatus);
         return -EINVAL;
     }
 __err_exit:

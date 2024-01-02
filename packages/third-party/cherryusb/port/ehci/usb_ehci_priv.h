@@ -81,6 +81,7 @@ struct ehci_qtd_hw {
     void * buffer EHCI_DESC_HW_ALIGN;
     void * align_buffer;
     uint32_t buffer_len;
+    uint32_t align_buffer_len;
     char dir_in; /* 0=out, 1=in */
 #endif
 } __attribute__((aligned(EHCI_DESC_ALIGN)));

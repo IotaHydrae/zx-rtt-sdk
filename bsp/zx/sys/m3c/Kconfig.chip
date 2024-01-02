@@ -564,5 +564,8 @@ config AIC_PM_DRV_VER
 # xxx driver global option
 #--------------------------------------------
 
+config AIC_PSRAM_SIZE
+    hex 
+    default 0x400000
 
 endmenu

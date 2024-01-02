@@ -96,7 +96,7 @@ static heap_def_t heap_def[MAX_MEM_REGION] = {
         .end = (size_t)(&__psram_sw_heap_end),
     },
     #endif
-#elif defined(AIC_CHIP_M3C)
+#elif defined(AIC_CHIP_M3C) || defined(AIC_CHIP_M3A)
     #ifdef AIC_SRAM_CMA_EN
     {
         .name = "scma",

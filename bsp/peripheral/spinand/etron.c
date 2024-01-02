@@ -1,35 +1,24 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include "inc/spinand.h"
 #include "inc/manufacturer.h"
 
-#define SPINAND_MFR_ETRON		0xD5
-
-struct spi_nand_cmd_cfg etron_cmd_cfg_table[] = {
-    /*opcode    opcode_bits addr_bytes	addr_bits	dummy_bytes	data_nbits*/
-    { SPINAND_CMD_READ_FROM_CACHE, 1, 2, 1, 1, 1 },
-    { SPINAND_CMD_READ_FROM_CACHE_X2, 1, 2, 1, 1, 2 },
-    { SPINAND_CMD_READ_FROM_CACHE_X4, 1, 2, 1, 1, 4 },
-    { SPINAND_CMD_PROG_LOAD, 1, 2, 1, 0, 1 },
-    { SPINAND_CMD_PROG_LOAD_X4, 1, 2, 1, 0, 4 },
-    { SPINAND_CMD_END },
-};
+#define SPINAND_MFR_ETRON 0xD5
 
 const struct aic_spinand_info etron_spinand_table[] = {
-    /*devid page_size oob_size block_per_lun pages_per_eraseblock is_die_select*/
+    /*devid page_size oob_size block_per_lun pages_per_eraseblock planes_per_lun
+    is_die_select*/
     /*EM73C044VCF-H*/
-    { 0x25, 2048, 64, 1024, 64, 0, "etron 128MB: 2048+64@64@1024",
-      etron_cmd_cfg_table },
+    { DEVID(0x25), PAGESIZE(2048), OOBSIZE(64), BPL(1024), PPB(64), PLANENUM(1),
+      DIE(0), "etron 128MB: 2048+64@64@1024", cmd_cfg_table },
     /*EM73D044VCO-H*/
-    { 0x3A, 2048, 128, 2048, 64, 0, "etron 256MB: 2048+128@64@2048",
-      etron_cmd_cfg_table },
+    { DEVID(0x3A), PAGESIZE(2048), OOBSIZE(128), BPL(2048), PPB(64),
+      PLANENUM(1), DIE(0), "etron 256MB: 2048+128@64@2048", cmd_cfg_table },
     /*EM73E044VCE-H*/
-    { 0x3B, 2048, 128, 4096, 64, 0, "etron 512MB: 2048+128@64@4096",
-      etron_cmd_cfg_table },
+    { DEVID(0x3B), PAGESIZE(2048), OOBSIZE(128), BPL(4096), PPB(64),
+      PLANENUM(1), DIE(0), "etron 512MB: 2048+128@64@4096", cmd_cfg_table },
 };
 
 const struct aic_spinand_info *etron_spinand_detect(struct aic_spinand *flash)

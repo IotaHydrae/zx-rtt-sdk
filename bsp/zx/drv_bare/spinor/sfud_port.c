@@ -31,6 +31,25 @@
 
 #define SFUD_READ_SFDP_FREQ 50000000
 
+#if defined(AIC_QSPI_DRV_V10)
+#if defined(AIC_BOOTLOADER)
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 8
+#else
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#endif
+#elif defined(AIC_QSPI_DRV_V11) || defined(AIC_QSPI_DRV_V12)
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 8
+#elif defined(AIC_QSPI_DRV_V20)
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#else
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#endif
+
 #define QSPI_MAX_CNT 4
 struct aic_qspi_bus
 {
@@ -363,10 +382,12 @@ sfud_flash *sfud_probe(u32 spi_bus)
     struct qspi_master_dma_config dmacfg;
     memset(&dmacfg, 0, sizeof(dmacfg));
     dmacfg.port_id = qspi->dma_port_id;
-    dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-    dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-    dmacfg.tx_max_burst = 1;
-    dmacfg.rx_max_burst = 8;
+
+    dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
+    dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
+    dmacfg.tx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
+    dmacfg.rx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
+
     ret = hal_qspi_master_dma_config(&qspi->handle, &dmacfg);
     if (ret) {
         pr_err("qspi dma config failed.\n");

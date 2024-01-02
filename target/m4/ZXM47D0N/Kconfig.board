@@ -588,6 +588,8 @@ config AIC_USING_SID
     default n
     select AIC_SID_DRV
 
+source "bsp/zx/drv/efuse/Kconfig.dev"
+
 #---------------------------
 # ce device global option
 #---------------------------

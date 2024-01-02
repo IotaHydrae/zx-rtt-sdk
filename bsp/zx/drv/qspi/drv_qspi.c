@@ -16,6 +16,20 @@
 
 #define ASYNC_DATA_SIZE 64
 
+#if defined(AIC_QSPI_DRV_V10)
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#elif defined(AIC_QSPI_DRV_V11) || defined(AIC_QSPI_DRV_V12)
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 8
+#elif defined(AIC_QSPI_DRV_V20)
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#else
+#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
+#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#endif
+
 struct aic_qspi {
     struct rt_spi_bus dev;
     char *name;
@@ -391,14 +405,11 @@ static rt_err_t qspi_configure(struct rt_spi_device *device,
             struct qspi_master_dma_config dmacfg;
             rt_memset(&dmacfg, 0, sizeof(dmacfg));
             dmacfg.port_id = qspi->dma_port_id;
-            dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-            dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-            dmacfg.tx_max_burst = 1;
-#ifdef AIC_DMA_DRV_V10
-            dmacfg.rx_max_burst = 1;
-#else
-            dmacfg.rx_max_burst = 8;
-#endif
+            dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
+            dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
+            dmacfg.tx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
+            dmacfg.rx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
+
             ret = hal_qspi_master_dma_config(&qspi->handle, &dmacfg);
             if (ret) {
                 pr_err("qspi dma config failed.\n");

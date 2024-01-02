@@ -216,6 +216,8 @@ static bool read_basic_table(sfud_flash *flash, sfdp_para_header *basic_header) 
         SFUD_INFO("Warning: Can't read JEDEC basic flash parameter table.");
         return false;
     }
+
+
     /* print JEDEC basic flash parameter table info */
     SFUD_DEBUG("JEDEC basic flash parameter table info:");
     SFUD_DEBUG("MSB-LSB  3    2    1    0");
@@ -240,7 +242,7 @@ static bool read_basic_table(sfud_flash *flash, sfdp_para_header *basic_header) 
         return false;
     }
     /* get write granularity */
-    //TODO 目前为 1.0 所提供的方式，后期支持 V1.5 及以上的方式读取 page size
+    //TODO At present, the way provided by V1.0, later support V1.5 and above to read page size.
     switch ((table[0] & (0x01 << 2)) >> 2) {
     case 0:
         sfdp->write_gran = 1;
@@ -380,7 +382,8 @@ static bool read_basic_table(sfud_flash *flash, sfdp_para_header *basic_header) 
 		         * supported.
 		         */
                 flash->flags |= SNOR_F_HAS_16BIT_SR | SNOR_F_NO_READ_CR;
-                flash->quad_enable = spi_nor_sr2_bit1_quad_enable;
+
+                flash->quad_enable = spi_nor_quad_enable;
                 break;
 
             case BFPT_DWORD15_QER_SR1_BIT6:

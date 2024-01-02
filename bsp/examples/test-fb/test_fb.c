@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +49,7 @@ static struct mpp_fb *g_fb = NULL;
 
 /* Functions */
 
-void usage(char *program)
+static void usage(char *program)
 {
     printf("Usage: %s [options]: \n", program);
     printf("\t -n, --get_layer_num \n");
@@ -165,15 +163,30 @@ int set_layer_cfg(int fd, int id, int enable, int width, int height)
     int ret = 0;
     struct aicfb_layer_data layer = {0};
 
-    if ((id < 0) || (enable < 0) || (width < 0) || (height < 0)) {
+    if ((id != AICFB_LAYER_TYPE_UI) || (enable < 0) ||
+        (width < 0) || (height < 0)) {
         pr_err("Invalid argument.\n");
         return -1;
     }
 
+    /* Get the current configuration of UI layer */
     layer.layer_id = id;
-    layer.enable = enable;
-    layer.scale_size.width = layer.buf.size.width;
-    layer.scale_size.height = layer.buf.size.height;
+    ret = mpp_fb_ioctl(g_fb, AICFB_GET_LAYER_CONFIG, &layer);
+    if (ret < 0) {
+        pr_err("ioctl() return %d\n", ret);
+        return ret;
+    }
+    if (width > layer.buf.size.width || height > layer.buf.size.height) {
+        pr_err("Width %d x Height %d is out of range.\n", width, height);
+        return -1;
+    }
+
+    layer.enable      = enable;
+    layer.buf.crop_en = 1;
+    layer.buf.crop.x  = 0;
+    layer.buf.crop.y  = 0;
+    layer.buf.crop.width = width;
+    layer.buf.crop.height = height;
     ret = mpp_fb_ioctl(g_fb, AICFB_UPDATE_LAYER_CONFIG, &layer);
     if (ret < 0)
         pr_err("ioctl() return %d\n", ret);

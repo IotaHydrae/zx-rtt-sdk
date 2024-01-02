@@ -23,6 +23,7 @@ struct aic_amic
     struct rt_audio_device audio;
     aic_audio_ctrl codec;
     rt_uint8_t volume;
+    uint8_t index;
 };
 
 static struct aic_amic amic_dev;

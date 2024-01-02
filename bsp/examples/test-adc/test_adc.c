@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 #include <stdlib.h>
 #include <string.h>
@@ -22,8 +20,11 @@
 #define AIC_GPAI_NAME               "gpai"
 
 #ifdef AIC_ADCIM_DM_DRV
-#define ADC_CHAN_GPAI11             11
-#define ADC_CHAN_TSEN3              15
+#ifdef AIC_GPAI_DRV
+#define ADC_CHAN_GPAI             AIC_GPAI_CH_NUM
+#else
+#define ADC_CHAN_GPAI             0
+#endif
 #endif
 
 #define GPAI_AVG_SAMPLES_NUM        8
@@ -187,8 +188,8 @@ static void gpai_check_adc_by_dma(void)
     for(i = 0; i < ADC_TEST_DATA_COUNT; i++) {
         if (dma_data[i] != g_expect_data[i]) {
             printf("[%d] Failed%d/%d\n", i, dma_data[i], g_expect_data[i]);
-        } else {
             failed_count++;
+        } else {
             printf("[%d] OK! %d/%d\n",i, dma_data[i], g_expect_data[i]);
         }
     }
@@ -252,7 +253,7 @@ static int adc_dm_test(u32 chan)
 {
     u32 size = 0;
 
-    if (chan <= ADC_CHAN_GPAI11) {
+    if (chan <= ADC_CHAN_GPAI) {
         gen_adc_data(&size);
         hal_dm_chan_store(chan);
         hal_adcdm_sram_write(g_sram_data, 0, ADC_DM_SRAM_SIZE);

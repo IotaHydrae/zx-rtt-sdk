@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0*
- *
  */
 #include <string.h>
 #include <ctype.h>
@@ -47,7 +45,6 @@ static int clk_dump(char *argv)
         if (ret < 0)
             continue;
     }
-
 
     return 0;
 }
@@ -158,38 +155,37 @@ static void cmd_cmu_usage(char *program)
     printf("\t -a, \tall clk info \n");
     printf("\t -f [id] or [name],\tget clk info by id or name\n");
     printf("\t -p [id] or [name],\tget clk parent by id or name\n");
-    printf("\t -s [id],\t\tset clk rate\n");
+    printf("\t -s [id],\t\tset clk rate by id\n");
+    printf("\t -h ,\tusage\n");
 }
 
-
-static char sopts[] = "a:f:p:s:";
+static char sopts[] = "af:p:s:h";
 static struct option lopts[] = {
-    {"-a all clk info ",    required_argument, NULL, 'a'},
+    {"-a all clk info ",    no_argument, NULL, 'a'},
     {"-f clk info ",        required_argument, NULL, 'f'},
     {"-p clk parent",       required_argument, NULL, 'p'},
     {"-s set rate",         required_argument, NULL, 's'},
-    {"-h help",             required_argument, NULL, 'h'},
+    {"-h help",             no_argument, NULL, 'h'},
     {0, 0, 0, 0}
     };
 
 static int cmd_test_cmu(int argc, char **argv)
 {
-    int opt, ret;
+    int opt;
 
     printf("--------------------------------------------------------------------------\n");
 	printf("Clk-ID    |        NAME        |        Hz        |        enable        |\n");
 
     if (argc < 2) {
-        ret = clk_dump(0);
-        if (ret < 0)
-            goto __out;
+        clk_dump("0");
+        goto __out;
     }
 
     optind = 0;
     while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) != -1) {
         switch (opt) {
         case 'a':
-            clk_dump(optarg);
+            clk_dump("0");
             break;
         case 'f':
             clk_get_info(optarg, GET_INFO);
@@ -218,9 +214,8 @@ MSH_CMD_EXPORT_ALIAS(cmd_test_cmu, test_clock, Test CMU CLK);
 #include <console.h>
 static int cmd_test_cmu_bare(int argc, char *argv[])
 {
-    clk_dump(0);
+    clk_dump("0");
     return 0;
 }
 CONSOLE_CMD(test_clock, cmd_test_cmu_bare, "Test CMU CLK.");
 #endif
-

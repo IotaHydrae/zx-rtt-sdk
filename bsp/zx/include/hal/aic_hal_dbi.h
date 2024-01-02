@@ -1,5 +1,4 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -47,6 +46,9 @@
 #define DBI_CTL_SPI_FORMAT_MASK         GENMASK(27, 24)
 #define DBI_CTL_SPI_FORMAT(x)           (((x) & 0xF)<<24)
 
+#define DBI_I8080_IDEL                  BIT(4)
+#define DBI_I8080_IDEL_SHIFT            4
+
 #define DBI_I8080_TX_FIFO_EMPTY         BIT(1)
 #define DBI_I8080_TX_FIFO_EMPTY_SHIFT   1
 #define DBI_I8080_RD_FIFO_FLUSH         BIT(21)
@@ -55,6 +57,9 @@
 #define DBI_I8080_RD_FIFO_DEPTH_SHIFT   8
 #define DBI_I8080_WR_FIFO_DEPTH_MASK    GENMASK(6, 0)
 #define DBI_I8080_WR_FIFO_DEPTH_SHIFT   0
+
+#define DBI_SPI_IDEL                    BIT(4)
+#define DBI_SPI_IDEL_SHIFT              4
 
 #define DBI_SPI_TX_FIFO_EMPTY           BIT(1)
 #define DBI_SPI_TX_FIFO_EMPTY_SHIFT     1

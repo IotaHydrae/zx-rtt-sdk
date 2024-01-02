@@ -324,6 +324,18 @@ if GetDepend('AIC_HRTIMER_DRV'):
     if GetDepend('DRIVER_HAL_EN'):
         src += Glob('hal/pwmcs/hal_cap.c')
 
+if GetDepend('AIC_CAP_DRV'):
+    if GetDepend('DRIVER_DRV_EN'):
+        src += Glob('drv/cap/*.c')
+    if GetDepend('DRIVER_HAL_EN'):
+        src += Glob('hal/pwmcs/hal_cap.c')
+
+if GetDepend('AIC_EPWM_DRV'):
+    if GetDepend('DRIVER_DRV_EN'):
+        src += Glob('drv/epwm/*.c')
+    if GetDepend('DRIVER_HAL_EN'):
+        src += Glob('hal/pwmcs/hal_epwm.c')
+
 # CAN driver
 if GetDepend('AIC_CAN_DRV'):
     if GetDepend('DRIVER_DRV_EN'):
@@ -356,12 +368,48 @@ if GetDepend('AIC_CE_DRV'):
     if GetDepend('DRIVER_HAL_EN'):
         src += Glob('hal/ce/*.c')
 
-if GetDepend('AIC_LPCE_DRV'):
+# OSR CE driver
+if GetDepend('AIC_OSR_CE_DRV'):
     if GetDepend('DRIVER_DRV_EN'):
-        src += Glob('drv/lpce/*.c')
+        src += Glob('drv/osrce/*.c')
     if GetDepend('DRIVER_HAL_EN'):
-        src += Glob('hal/lpce/*.c')
+        src += Glob('hal/osrce/utility*.c')
+    if GetDepend('DRIVER_BARE_DRV_EN'):
+        src += Glob('drv_bare/osrce/*.c')
 
+if GetDepend('AIC_SKE_DRV'):
+    if GetDepend('DRIVER_DRV_EN'):
+        src += Glob('drv/osrce/ske/*.c')
+    if GetDepend('DRIVER_HAL_EN'):
+        src += Glob('hal/osrce/hal_ske*.c')
+    if GetDepend('DRIVER_BARE_DRV_EN'):
+        src += Glob('drv_bare/osrce/ske/*.c')
+
+if GetDepend('AIC_PKE_DRV'):
+    if GetDepend('DRIVER_DRV_EN'):
+        src += Glob('drv/osrce/pke/*.c')
+    if GetDepend('DRIVER_HAL_EN'):
+        src += Glob('hal/osrce/hal_pke*.c')
+    if GetDepend('DRIVER_BARE_DRV_EN'):
+        src += Glob('drv_bare/osrce/pke/*.c')
+
+if GetDepend('AIC_HASH_DRV'):
+    if GetDepend('DRIVER_DRV_EN'):
+        src += Glob('drv/osrce/hash_hmac/*.c')
+    if GetDepend('DRIVER_HAL_EN'):
+        src += Glob('hal/osrce/hal_hash*.c')
+    if GetDepend('DRIVER_BARE_DRV_EN'):
+        src += Glob('drv_bare/osrce/hash_hmac/*.c')
+
+if GetDepend('AIC_TRNG_DRV'):
+    if GetDepend('DRIVER_DRV_EN'):
+        src += Glob('drv/osrce/trng/*.c')
+    if GetDepend('DRIVER_HAL_EN'):
+        src += Glob('hal/osrce/hal_trng*.c')
+    if GetDepend('DRIVER_BARE_DRV_EN'):
+        src += Glob('drv_bare/osrce/trng/*.c')
+
+# I2S driver
 if GetDepend('AIC_I2S_DRV'):
     if GetDepend('DRIVER_DRV_EN'):
         src += Glob('drv/i2s/*.c')

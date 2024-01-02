@@ -3,7 +3,7 @@ Import('PRJ_KERNEL')
 from building import *
 
 cwd = GetCurrentDir()
-src = Glob('*.c')
+src = []
 CPPPATH = []
 
 if GetDepend('AIC_I2S_CODEC_SELECT'):

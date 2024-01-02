@@ -1,29 +1,18 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include "inc/spinand.h"
 #include "inc/manufacturer.h"
 
-#define SPINAND_MFR_TOSHIBA		0x98
-
-struct spi_nand_cmd_cfg toshiba_cmd_cfg_table[] = {
-    /*opcode    opcode_bits addr_bytes	addr_bits	dummy_bytes	data_nbits*/
-    { SPINAND_CMD_READ_FROM_CACHE, 1, 2, 1, 1, 1 },
-    { SPINAND_CMD_READ_FROM_CACHE_X2, 1, 2, 1, 1, 2 },
-    { SPINAND_CMD_READ_FROM_CACHE_X4, 1, 2, 1, 1, 4 },
-    { SPINAND_CMD_PROG_LOAD, 1, 2, 1, 0, 1 },
-    { SPINAND_CMD_PROG_LOAD_X4, 1, 2, 1, 0, 4 },
-    { SPINAND_CMD_END },
-};
+#define SPINAND_MFR_TOSHIBA 0x98
 
 const struct aic_spinand_info toshiba_spinand_table[] = {
-    /*devid page_size oob_size block_per_lun pages_per_eraseblock is_die_select*/
+    /*devid page_size oob_size block_per_lun pages_per_eraseblock planes_per_lun
+    is_die_select*/
     /*TC58CVG1S3HRAIJ*/
-    { 0xEB, 2048, 128, 2048, 64, 0, "toshiba 256MB: 2048+128@64@2048",
-      toshiba_cmd_cfg_table },
+    { DEVID(0xEB), PAGESIZE(2048), OOBSIZE(128), BPL(2048), PPB(64),
+      PLANENUM(1), DIE(0), "toshiba 256MB: 2048+128@64@2048", cmd_cfg_table },
 };
 
 const struct aic_spinand_info *toshiba_spinand_detect(struct aic_spinand *flash)

@@ -1,8 +1,3 @@
-/*
-*
-*  Desc: OMX_AudioRenderComponent
-*/
-
 #ifndef _OMX_AUDIO_RENDER_COMPONENT_H_
 #define _OMX_AUDIO_RENDER_COMPONENT_H_
 
@@ -106,9 +101,7 @@ typedef struct AUDIO_RENDER_DATA_TYPE {
     OMX_S8  *pDumpAudioFilePath;
 #endif
 
-    pthread_mutex_t sWaitReayFrameLock;
     OMX_S32 nWaitReayFrameFlag;
 
 }AUDIO_RENDER_DATA_TYPE;
 #endif
-

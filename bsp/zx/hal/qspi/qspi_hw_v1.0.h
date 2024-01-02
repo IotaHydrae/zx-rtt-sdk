@@ -1,5 +1,4 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -787,7 +786,7 @@ static inline int qspi_hw_bit_mode_read(u32 base, u8 *rx_buf, u32 rx_len)
         /* Read rx bits */
         rxbits = readl(QSPI_REG_BMRXD(base));
         for (i = 0; i < dolen; i++)
-            p[i] = (rxbits >> ((3 - i) * 8)) & 0xFF;
+            p[i] = (rxbits >> (i * 8)) & 0xFF;
         p += dolen;
         remain -= dolen;
     }
@@ -814,7 +813,7 @@ static inline int qspi_hw_bit_mode_write(u32 base, const u8 *tx_buf, u32 tx_len)
             dolen = 4;
         /* Prepare and write tx bits */
         for (i = 0; i < dolen; i++)
-            txbits |= p[i] << ((3 - i) * 8);
+            txbits |= p[i] << (i * 8);
         writel(txbits, QSPI_REG_BMTXD(base));
 
         /* Configure tx length and start transfer */

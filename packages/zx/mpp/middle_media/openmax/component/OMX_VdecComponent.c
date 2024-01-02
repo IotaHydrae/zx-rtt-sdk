@@ -1,8 +1,3 @@
-/*
-*
-*  Desc: OMX_VdecComponent
-*/
-
 #include "OMX_VdecComponent.h"
 
 #define  aic_pthread_mutex_lock(mutex)\
@@ -999,6 +994,7 @@ static int OMX_VdecGiveBackAllPackets(VDEC_DATA_TYPE *pVdecDataType)
                 pVdecDataType->nGiveBackPacktOkNum++;
             } else {
                 pVdecDataType->nGiveBackPacktFailNum++;
+                usleep(5*1000);
                 continue;// must give back ok ,so retry to give back
             }
             aic_pthread_mutex_lock(&pVdecDataType->sInPktLock);
@@ -1315,7 +1311,8 @@ _AIC_MSG_GET_:
                     logd("pAdecDataType->nGiveBackPacktOkNum:%"PRId32",pAdecDataType->nGiveBackPacktFailNum:%"PRId32"\n"
                         ,pVdecDataType->nGiveBackPacktOkNum
                         ,pVdecDataType->nGiveBackPacktFailNum);
-                    break;
+                    usleep(5*1000);
+                    continue;
                 }
             }
         }
@@ -1476,4 +1473,3 @@ _EXIT:
     printf("[%s:%d]OMX_VdecComponentThread EXIT\n",__FUNCTION__,__LINE__);
     return (void*)OMX_ErrorNone;
 }
-

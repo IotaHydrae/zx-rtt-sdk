@@ -1162,11 +1162,18 @@ __STATIC_INLINE void csi_dcache_invalid_range(phy_addr_t addr, u32 dsize)
 
     __DSB();
 
+#ifdef __riscv_xthead
     while (op_size > 0) {
         __DCACHE_IPA(op_addr);
         op_addr += CACHE_LINE_SIZE;
         op_size -= CACHE_LINE_SIZE;
     }
+#else
+    register unsigned long c_addr asm("a5") = op_addr;
+    unsigned long end = op_addr + op_size;
+    for (; c_addr < end; c_addr += CACHE_LINE_SIZE)
+        asm volatile (".long 0x02a7800b"); /* dcache.ipa a5 */
+#endif
 
     __DSB();
     __ISB();
@@ -1194,11 +1201,18 @@ __STATIC_INLINE void csi_dcache_clean_range(phy_addr_t addr, u32 dsize)
 
     __DSB();
 
+#ifdef __riscv_xthead
     while (op_size > 0) {
         __DCACHE_CPA(op_addr);
         op_addr += CACHE_LINE_SIZE;
         op_size -= CACHE_LINE_SIZE;
     }
+#else
+    register unsigned long c_addr asm("a5") = op_addr;
+    unsigned long end = op_addr + op_size;
+    for (; c_addr < end; c_addr += CACHE_LINE_SIZE)
+        asm volatile (".long 0x0297800b"); /* dcache.cpa a5 */
+#endif
 
     __DSB();
     __ISB();
@@ -1226,11 +1240,18 @@ __STATIC_INLINE void csi_dcache_clean_invalid_range(phy_addr_t addr, u32 dsize)
 
     __DSB();
 
+#ifdef __riscv_xthead
     while (op_size > 0) {
         __DCACHE_CIPA(op_addr);
         op_addr += CACHE_LINE_SIZE;
         op_size -= CACHE_LINE_SIZE;
     }
+#else
+    register unsigned long c_addr asm("a5") = op_addr;
+    unsigned long end = op_addr + op_size;
+    for (; c_addr < end; c_addr += CACHE_LINE_SIZE)
+        asm volatile (".long 0x02b7800b"); /* dcache.cipa a5 */
+#endif
 
     __DSB();
     __ISB();

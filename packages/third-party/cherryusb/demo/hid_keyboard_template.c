@@ -1,8 +1,8 @@
 #include "usbd_core.h"
 #include "usbd_hid.h"
 
-#define USBD_VID           0xffff
-#define USBD_PID           0xffff
+#define USBD_VID           0x33C3
+#define USBD_PID           0x6788
 #define USBD_MAX_POWER     100
 #define USBD_LANGID_STRING 1033
 

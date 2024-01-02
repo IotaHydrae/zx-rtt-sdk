@@ -1,0 +1,262 @@
+#-----------------------------
+# OSR CE devices local parameter
+#-----------------------------
+menu "Crypto Engine Parameter"
+    depends on AIC_USING_OSR_CE
+
+    config AIC_UTILITY_PRINT_BUF
+	bool "Enable UTILITY PRINT BUF"
+	default y
+	depends on AIC_USING_OSR_CE
+
+    config AIC_UTILITY_SEC
+	bool "Enable UTILITY SEC"
+	default y
+	depends on AIC_USING_OSR_CE
+
+    menuconfig AIC_SKE_DRV
+        bool "Enable SKE hardware encryption algorithm"
+        default y
+        depends on AIC_OSR_CE_DRV
+
+	config AIC_SKE_SECURE
+		bool "Enable SKE secure"
+		default y
+		depends on AIC_SKE_DRV
+
+	config AIC_SKE_ALG_TI_NO
+		int "First order and secoend order implementtation of algorithm"
+        	range 1 2
+		default 2
+		depends on AIC_SKE_DRV
+
+	if AIC_SKE_DRV
+
+		menuconfig AIC_SKE_ALGORITHMS
+			bool "SKE algorithms"
+			default y
+			depends on AIC_SKE_DRV
+	
+			if AIC_SKE_ALGORITHMS
+			
+			    config AIC_SKE_SM4_SUPPORT
+			        bool "SM4"
+			        default y
+			        depends on AIC_SKE_DRV
+			
+			endif
+
+		menuconfig AIC_SKE_MODE
+			bool "SKE mode"
+			default y
+			depends on AIC_SKE_DRV
+
+			if AIC_SKE_MODE
+
+			    config AIC_SKE_MODE_ECB_SUPPORT
+			        bool "ECB"
+			        default y
+			        depends on AIC_SKE_DRV
+
+			    config AIC_SKE_MODE_CBC_SUPPORT
+			        bool "CBC"
+			        default y
+			        depends on AIC_SKE_DRV
+
+			    config AIC_SKE_MODE_CFB_SUPPORT
+			        bool "CFB"
+			        default y
+			        depends on AIC_SKE_DRV
+
+			    config AIC_SKE_MODE_OFB_SUPPORT
+			        bool "OFB"
+			        default y
+			        depends on AIC_SKE_DRV
+
+			    config AIC_SKE_MODE_CTR_SUPPORT
+			        bool "CTR"
+			        default y
+			        depends on AIC_SKE_DRV
+
+			endif
+	endif
+    
+    menuconfig AIC_PKE_DRV
+        bool "Enable PKE hardware encryption algorithm"
+        default y
+        depends on AIC_OSR_CE_DRV
+
+	config AIC_PKE_SECURE
+		bool "Enable PKE"
+		default y
+		depends on AIC_PKE_DRV
+
+	config AIC_PKE_SEC
+		bool "Define secure version"
+		default y
+		depends on AIC_PKE_DRV
+
+	config AIC_PKE_OPERAND_MAX_BIT_LEN
+		int "Set operand max bit len"
+		default 4096
+		depends on AIC_PKE_DRV
+
+	config AIC_PKE_ECCP_MAX_BIT_LEN
+		int "Set operand max bit len"
+		default 638
+		depends on AIC_PKE_DRV
+
+	if AIC_PKE_DRV
+
+		config AIC_PKE_RSA_SUPPORT
+			bool "RSA"
+			default y
+			depends on AIC_PKE_DRV
+
+		if AIC_PKE_RSA_SUPPORT
+
+			config AIC_PKE_RSASSA_PSS_SUPPORT
+				bool "RSASSA PSS"
+				default y
+				depends on AIC_PKE_RSA_SUPPORT
+
+		endif
+
+		config AIC_PKE_ECDH_SUPPORT
+			bool "ECDH"
+			default y
+			depends on AIC_PKE_DRV
+
+		config AIC_PKE_ECDSA_SUPPORT
+			bool "ECDSA"
+			default y
+			depends on AIC_PKE_DRV
+
+		config AIC_PKE_SM2_SUPPORT
+			bool "SM2"
+			default y
+			depends on AIC_PKE_DRV
+
+	endif
+    
+    menuconfig AIC_HASH_DRV
+        bool "Enable HASH hardware encryption algorithm"
+        default y
+        depends on AIC_OSR_CE_DRV
+
+	config AIC_HASH_MUL_THREAD
+		bool "Enable HASH MUL THREAD"
+		default y
+		depends on AIC_HASH_DRV
+
+	config AIC_HASH_DMA
+		bool "Enable HASH DMA"
+		default y
+		select AIC_HASH_ADDRESS_HIGH_LOW
+		depends on AIC_HASH_DRV
+
+	config AIC_HASH_ADDRESS_HIGH_LOW
+		bool "DMA in/out adderess with high 32bit and low 32bit"
+		default y
+		depends on AIC_HASH_DMA
+		depends on AIC_HASH_DRV
+
+	config AIC_HASH_DMA_RAM_BASE
+		hex "ram for hash dma, just for temporary use"
+		default 0xF0040000
+		depends on AIC_HASH_DMA
+
+	config AIC_HASH_NODE
+		bool "support node style"
+		default y
+		depends on AIC_HASH_DRV
+
+	config AIC_HASH_DMA_NODE
+		bool "support dma node style"
+		default y
+		depends on AIC_HASH_DMA
+
+	config AIC_HASH_PBKDF2
+		bool "support PBKDF2"
+		default y
+		depends on AIC_HASH_DRV
+
+	config AIC_HASH_AIC_HASH_PBKDF2_HIGH_SPEED
+		bool "support PBKDF2 high speed"
+		default y
+		depends on AIC_HASH_PBKDF2
+
+	config AIC_HASH_ANSI_X9_63_KDF
+		bool "support ansi_x9.63_kdf"
+		default y
+		depends on AIC_HASH_DRV
+
+	if AIC_HASH_DRV
+
+		menuconfig AIC_HASH_ALGORITHMS
+			bool "HASH algorithms"
+			default y
+			depends on AIC_HASH_DRV
+	
+			if AIC_HASH_ALGORITHMS
+			
+			    config AIC_HASH_SHA1_SUPPORT
+			        bool "SHA1"
+			        default y
+			        depends on AIC_HASH_DRV
+			
+			    config AIC_HASH_SHA224_SUPPORT
+			        bool "SHA224"
+			        default y
+			        depends on AIC_HASH_DRV
+			
+			    config AIC_HASH_SHA256_SUPPORT
+			        bool "SHA256"
+			        default y
+			        depends on AIC_HASH_DRV
+
+			    config AIC_HASH_SM3_SUPPORT
+			        bool "SM3"
+			        default y
+			        depends on AIC_HASH_DRV
+			
+			endif
+	endif
+    
+    menuconfig AIC_TRNG_DRV
+        bool "Enable TRNG hardware encryption algorithm"
+        default y
+        depends on AIC_OSR_CE_DRV
+
+	config AIC_TRNG_GENERATE_BY_HARDWARE
+		bool "Enable TRNG GENERATE"
+		default y
+		depends on AIC_TRNG_DRV
+
+	config AIC_TRNG_RO_ENTROPY
+		bool "Enable Ring Oscillator entropy"
+		default y
+		depends on AIC_TRNG_DRV
+
+	config AIC_TRNG_TERO_ENTROPY
+		bool "Enable Transient Effect Ring Oscillator entropy"
+		default n
+		depends on AIC_TRNG_DRV
+
+	config AIC_TRNG_DELAY_COUNTER
+		int "Set delay counter"
+		default 10
+		depends on AIC_TRNG_DRV
+
+	config AIC_TRNG_TIMEOUT_COUNTER_THRESHOLD
+		int "Set timeout counter threshold"
+		default 100000
+		depends on AIC_TRNG_DRV
+
+	config AIC_TRNG_ERROR_COUNTER_THRESHOLD
+		int "Set error counter threshold"
+		default 20
+		depends on AIC_TRNG_DRV
+
+endmenu
+

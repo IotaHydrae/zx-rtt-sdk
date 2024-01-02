@@ -3,7 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
 #include "usb_ehci_priv.h"
+#include "usb_hc_ehci.h"
 
 struct ehci_hcd g_ehci_hcd;
 
@@ -23,9 +25,53 @@ static const uint8_t g_ehci_speed[4] = {
 };
 
 #ifdef CONFIG_USB_DCACHE_ENABLE
+
+#define EHCI_QH_HDR_ALIGN_SIZE  \
+            ALIGN_UP(sizeof(struct ehci_qh), EHCI_DESC_ALIGN)
+#define EHCI_QTD_HDR_ALIGN_SIZE  \
+            ALIGN_UP(sizeof(struct ehci_qtd), EHCI_DESC_ALIGN)
+
+static uint8_t g_usb_ehci_buf[CONFIG_USB_EHCI_FRAME_LIST_SIZE] __ALIGNED(EHCI_DESC_ALIGN);
+
 void usb_ehci_dcache_clean(uintptr_t addr, uint32_t len);
 void usb_ehci_dcache_invalidate(uintptr_t addr, uint32_t len);
 void usb_ehci_dcache_clean_invalidate(uintptr_t addr, uint32_t len);
+
+static int usb_ehci_buf_alloc(struct ehci_qtd_hw *qtd, uint32_t len)
+{
+    if (len % EHCI_DESC_ALIGN)
+        qtd->align_buffer_len = ALIGN_UP(len, EHCI_DESC_ALIGN);
+    else
+        qtd->align_buffer_len = len;
+
+    if (qtd->align_buffer_len > CONFIG_USB_EHCI_FRAME_LIST_SIZE) {
+        USB_LOG_INFO("Need alloc %d buf for cacheline algined\n",
+                     qtd->align_buffer_len);
+        qtd->align_buffer = aicos_malloc_align(0, qtd->align_buffer_len,
+                                               EHCI_DESC_ALIGN);
+        if (!qtd->align_buffer) {
+            USB_LOG_ERR("alloc error.\r\n");
+            return -5;
+        }
+    } else {
+        qtd->align_buffer = g_usb_ehci_buf;
+    }
+
+    return 0;
+}
+
+static void usb_ehci_buf_free(struct ehci_qtd_hw *qtd)
+{
+    if (!qtd->align_buffer)
+        return;
+
+    /* Whether the buf is allocated dynamically */
+    if (qtd->align_buffer != g_usb_ehci_buf)
+        aicos_free_align(0, qtd->align_buffer);
+
+    qtd->align_buffer = NULL;
+    qtd->align_buffer_len = 0;
+}
 
 static int usb_ehci_qtd_flush(struct ehci_qtd_hw *qtd)
 {
@@ -35,7 +81,8 @@ static int usb_ehci_qtd_flush(struct ehci_qtd_hw *qtd)
     * accessed.
     */
 
-    usb_ehci_dcache_clean_invalidate((uintptr_t)&qtd->hw, sizeof(struct ehci_qtd_hw));
+    usb_ehci_dcache_clean_invalidate((uintptr_t)&qtd->hw,
+                                     EHCI_QTD_HDR_ALIGN_SIZE);
 
     return 0;
 }
@@ -50,7 +97,7 @@ static int usb_ehci_qh_flush(struct ehci_qh_hw *qh)
     * be reloaded from D-Cache.
     */
 
-    usb_ehci_dcache_clean_invalidate((uintptr_t)&qh->hw, sizeof(struct ehci_qh_hw));
+    usb_ehci_dcache_clean_invalidate((uintptr_t)&qh->hw, EHCI_QH_HDR_ALIGN_SIZE);
 
     /* Then flush all of the qTD entries in the queue */
     if ((qh->first_qtd & QTD_LIST_END) == 0) {
@@ -125,10 +172,7 @@ static struct ehci_qtd_hw *ehci_qtd_alloc(void)
 static void ehci_qtd_free(struct ehci_qtd_hw *qtd)
 {
 #ifdef CONFIG_USB_DCACHE_ENABLE
-    if (qtd->align_buffer) {
-        aicos_free_align(0, qtd->align_buffer);
-        qtd->align_buffer = 0;
-    }
+    usb_ehci_buf_free(qtd);
 #endif
     for (uint32_t i = 0; i < CONFIG_USB_EHCI_QTD_NUM; i++) {
         if (&ehci_qtd_pool[i] == qtd) {
@@ -161,25 +205,25 @@ static inline void ehci_qh_add_head(struct ehci_qh_hw *head, struct ehci_qh_hw *
     n->hw.hlp = head->hw.hlp;
     usb_ehci_qh_flush(n);
 
-    usb_ehci_dcache_invalidate((uintptr_t)&head->hw, CACHE_LINE_SIZE);
+    usb_ehci_dcache_invalidate((uintptr_t)&head->hw, EHCI_QH_HDR_ALIGN_SIZE);
     head->hw.hlp = QH_HLP_QH(n);
-    usb_ehci_dcache_clean((uintptr_t)&head->hw, CACHE_LINE_SIZE);
+    usb_ehci_dcache_clean((uintptr_t)&head->hw, EHCI_QH_HDR_ALIGN_SIZE);
 }
 
 static inline void ehci_qh_remove(struct ehci_qh_hw *head, struct ehci_qh_hw *n)
 {
     struct ehci_qh_hw *tmp = head;
 
-    usb_ehci_dcache_invalidate((uintptr_t)&tmp->hw, CACHE_LINE_SIZE);
+    usb_ehci_dcache_invalidate((uintptr_t)&tmp->hw, EHCI_QH_HDR_ALIGN_SIZE);
 
     while (EHCI_ADDR2QH(tmp->hw.hlp) && EHCI_ADDR2QH(tmp->hw.hlp) != n) {
         tmp = EHCI_ADDR2QH(tmp->hw.hlp);
-        usb_ehci_dcache_invalidate((uintptr_t)&tmp->hw, CACHE_LINE_SIZE);
+        usb_ehci_dcache_invalidate((uintptr_t)&tmp->hw, EHCI_QH_HDR_ALIGN_SIZE);
     }
 
     if (tmp) {
         tmp->hw.hlp = n->hw.hlp;
-        usb_ehci_dcache_clean((uintptr_t)&tmp->hw, CACHE_LINE_SIZE);
+        usb_ehci_dcache_clean((uintptr_t)&tmp->hw, EHCI_QH_HDR_ALIGN_SIZE);
     }
 }
 
@@ -287,13 +331,11 @@ static void ehci_qtd_bpl_fill(struct ehci_qtd_hw *qtd, uint32_t bufaddr, size_t 
     uint32_t rest;
 
 #ifdef CONFIG_USB_DCACHE_ENABLE
-    if (((bufaddr % CACHE_LINE_SIZE) != 0) ||
-        (((bufaddr + buflen) % CACHE_LINE_SIZE) != 0)) {
-        qtd->align_buffer = aicos_malloc_align(0, buflen, CACHE_LINE_SIZE);
-        if (NULL == qtd->align_buffer) {
-            USB_LOG_ERR("alloc error.\r\n");
+    if (((bufaddr % EHCI_DESC_ALIGN) != 0) ||
+        (((bufaddr + buflen) % EHCI_DESC_ALIGN) != 0)) {
+        int ret = usb_ehci_buf_alloc(qtd, buflen);
+        if (ret)
             return;
-        }
 
         /* out direction */
         if (qtd->dir_in == 0) {
@@ -303,13 +345,14 @@ static void ehci_qtd_bpl_fill(struct ehci_qtd_hw *qtd, uint32_t bufaddr, size_t 
         qtd->buffer = (void *)(uintptr_t)bufaddr;
         qtd->buffer_len = buflen;
         bufaddr = (uint32_t)(uintptr_t)qtd->align_buffer;
+        rest = qtd->align_buffer_len;
     } else {
-
-        qtd->align_buffer = 0;
+        usb_ehci_buf_free(qtd);
         qtd->buffer = (void *)(uintptr_t)bufaddr;
         qtd->buffer_len = buflen;
+        rest = buflen;
     }
-    usb_ehci_dcache_clean_invalidate((uintptr_t)bufaddr, buflen);
+    usb_ehci_dcache_clean_invalidate((uintptr_t)bufaddr, rest);
 #endif
 
     qtd->hw.bpl[0] = bufaddr;
@@ -692,7 +735,8 @@ static void ehci_qh_scan_qtds(struct ehci_qh_hw *qh, struct ehci_pipe *pipe)
     if ((qh->first_qtd & QTD_LIST_END) == 0) {
         qtd = (struct ehci_qtd_hw *)(uintptr_t)qh->first_qtd;
         while (qtd) {
-            usb_ehci_dcache_invalidate((uintptr_t)&qtd->hw, sizeof(struct ehci_qtd));
+            usb_ehci_dcache_invalidate((uintptr_t)&qtd->hw,
+                                       EHCI_QTD_HDR_ALIGN_SIZE);
 
             if (qtd->hw.next_qtd & QTD_LIST_END) {
                 next = NULL;
@@ -725,7 +769,7 @@ static void ehci_check_qh(struct ehci_qh_hw *qhead, struct ehci_qh_hw *qh, struc
     struct usbh_urb *urb;
     uint32_t token;
 
-    usb_ehci_dcache_invalidate((uintptr_t)&qh->hw, sizeof(struct ehci_qh));
+    usb_ehci_dcache_invalidate((uintptr_t)&qh->hw, EHCI_QH_HDR_ALIGN_SIZE);
 
     token = qh->hw.overlay.token;
 
@@ -845,7 +889,8 @@ int usb_hc_init(void)
     g_async_qh_head.hw.overlay.token = QTD_TOKEN_STATUS_HALTED;
     g_async_qh_head.first_qtd = QTD_LIST_END;
 
-    usb_ehci_dcache_clean((uintptr_t)&g_async_qh_head.hw, sizeof(struct ehci_qh_hw));
+    usb_ehci_dcache_clean((uintptr_t)&g_async_qh_head.hw,
+                          EHCI_QH_HDR_ALIGN_SIZE);
 
     memset(g_framelist, 0, sizeof(uint32_t) * CONFIG_USB_EHCI_FRAME_LIST_SIZE);
 
@@ -857,6 +902,9 @@ int usb_hc_init(void)
         g_periodic_qh_head[i].hw.overlay.alt_next_qtd = QTD_LIST_END;
         g_periodic_qh_head[i].hw.overlay.token = QTD_TOKEN_STATUS_HALTED;
         g_periodic_qh_head[i].first_qtd = QTD_LIST_END;
+
+        usb_ehci_dcache_clean((uintptr_t)&g_periodic_qh_head[i].hw,
+                              EHCI_QH_HDR_ALIGN_SIZE);
 
         interval = 1 << i;
         for (uint32_t j = interval - 1; j < CONFIG_USB_EHCI_FRAME_LIST_SIZE; j += interval) {
@@ -879,7 +927,6 @@ int usb_hc_init(void)
         }
     }
 
-    usb_ehci_dcache_clean((uintptr_t)g_periodic_qh_head, EHCI_PERIOIDIC_QH_NUM * sizeof(struct ehci_qh_hw));
     usb_ehci_dcache_clean((uintptr_t)g_framelist, CONFIG_USB_EHCI_FRAME_LIST_SIZE * sizeof(uint32_t));
 
     usb_hc_low_level_init();

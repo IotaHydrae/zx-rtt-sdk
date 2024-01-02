@@ -198,3 +198,7 @@ if AIC_PWM_BACKLIGHT
         default 80
         range 0 100
 endif
+
+config AIC_PANEL_SPI_EMULATION
+    bool
+    default n

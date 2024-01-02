@@ -309,7 +309,7 @@ rt_err_t rt_pwm_get(struct rt_device_pwm *device, struct rt_pwm_configuration *c
     return result;
 }
 
-#ifdef AIC_PWM_DRV
+#if defined(AIC_PWM_DRV) || defined(AIC_EPWM_DRV)
 rt_err_t rt_pwm_set_pul(struct rt_device_pwm *device, int channel, rt_uint32_t irq_mode, rt_uint32_t period, rt_uint32_t pulse, rt_uint32_t pul_cnt)
 {
     rt_err_t result = RT_EOK;
@@ -438,7 +438,7 @@ static int pwm(int argc, char **argv)
                     rt_kprintf("Get info of device: [%s] error.\n", pwm_device);
                 }
             }
-#ifdef AIC_PWM_DRV
+#if defined(AIC_PWM_DRV) || defined(AIC_EPWM_DRV)
             else if (!strcmp(argv[1], "set_pul"))
             {
                 if(argc == 7)
@@ -575,7 +575,7 @@ static int pwm(int argc, char **argv)
         rt_kprintf("pwm enable  <channel>                                                 - enable pwm channel\n");
         rt_kprintf("pwm disable <channel>                                                 - disable pwm channel\n");
         rt_kprintf("pwm get     <channel>                                                 - get pwm channel info\n");
-#ifdef AIC_PWM_DRV
+#if defined(AIC_PWM_DRV) || defined(AIC_EPWM_DRV)
         rt_kprintf("pwm set_pul <channel> <irq_mode> <period> <pulse> <pulse cnt>         - set pwm pulse\n");
 #endif
 #ifdef AIC_XPWM_DRV

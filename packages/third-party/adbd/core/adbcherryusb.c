@@ -20,6 +20,7 @@
 #ifdef LPKG_ADB_TR_CHERRYUSB_ENABLE
 #include "usbd_core.h"
 #include "usbd_cdc.h"
+#include "adb.h"
 
 #define WINUSB_ADB
 #define WCID_VENDOR_CODE 0x17
@@ -403,13 +404,38 @@ USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t read_buffer[WINUSB_EP_MPS];
 
 volatile bool ep_tx_busy_flag = false;
 
+static rt_err_t usbd_interface_enable(winusb_device_t wd)
+{
+    rt_ringbuffer_init(wd->rrb, wd->rrb->buffer_ptr, 1024);
+
+    /* setup first out ep read transfer */
+    usbd_ep_start_read(WINUSB_OUT_EP, read_buffer, WINUSB_EP_MPS);
+
+    wd->enabled = RT_TRUE;
+
+    return RT_EOK;
+}
+
+static rt_err_t usbd_interface_disable(winusb_device_t wd)
+{
+    if (!wd->enabled)
+        return RT_EOK;
+
+    wd->enabled = RT_FALSE;
+
+    rt_wqueue_wakeup(&(wd->rq), (void *)(POLLHUP));
+    rt_wqueue_wakeup(&(wd->wq), (void *)(POLLHUP));
+
+    return RT_EOK;
+}
+
 void usbd_event_handler(uint8_t event)
 {
     winusb_device_t wd = &adb_winusb_device;
 
     switch (event) {
         case USBD_EVENT_RESET:
-            wd->enabled = RT_FALSE;
+            usbd_interface_disable(wd);
             break;
         case USBD_EVENT_CONNECTED:
             break;
@@ -420,9 +446,7 @@ void usbd_event_handler(uint8_t event)
         case USBD_EVENT_SUSPEND:
             break;
         case USBD_EVENT_CONFIGURED:
-            wd->enabled = RT_TRUE;
-            /* setup first out ep read transfer */
-            usbd_ep_start_read(WINUSB_OUT_EP, read_buffer, WINUSB_EP_MPS);
+            usbd_interface_enable(wd);
             break;
         case USBD_EVENT_SET_REMOTE_WAKEUP:
             break;
@@ -623,4 +647,5 @@ int adb_winusb_init(void)
 }
 
 INIT_PREV_EXPORT(adb_winusb_init);
+
 #endif

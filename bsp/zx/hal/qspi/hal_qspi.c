@@ -13,7 +13,7 @@
 #include <hal_qspi.h>
 #include "qspi_internal.h"
 
-#if defined(AIC_QSPI_DRV_V11)
+#if defined(AIC_QSPI_DRV_V11) || defined(AIC_QSPI_DRV_V12)
 #include "qspi_hw_v1.1.h"
 #elif defined(AIC_QSPI_DRV_V20)
 #include "qspi_hw_v2.0.h"
@@ -602,9 +602,10 @@ static int qspi_master_transfer_dma_sync(qspi_master_handle *h,
         dmacfg.direction = DMA_MEM_TO_DEV;
         dmacfg.src_addr = (unsigned long)t->tx_data;
         dmacfg.dst_addr = (unsigned long)QSPI_REG_TXD(base);
+
 #ifndef AIC_DMA_DRV_V20
-        dmacfg.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-        dmacfg.src_maxburst = 1;
+        dmacfg.src_addr_width = qspi->dma_cfg.tx_bus_width;
+        dmacfg.src_maxburst = qspi->dma_cfg.tx_max_burst;
         dmacfg.dst_addr_width = qspi->dma_cfg.tx_bus_width;
         dmacfg.dst_maxburst = qspi->dma_cfg.tx_max_burst;
 #else
@@ -664,7 +665,7 @@ static int qspi_master_transfer_dma_sync(qspi_master_handle *h,
         dmacfg.dst_addr = (unsigned long)t->rx_data;
 
 #ifndef AIC_DMA_DRV_V20
-        dmacfg.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+        dmacfg.src_addr_width = qspi->dma_cfg.rx_bus_width;
         dmacfg.src_maxburst = qspi->dma_cfg.rx_max_burst;
         dmacfg.dst_addr_width = qspi->dma_cfg.rx_bus_width;
         dmacfg.dst_maxburst = qspi->dma_cfg.rx_max_burst;
@@ -930,7 +931,7 @@ static int qspi_master_transfer_dma_async(struct qspi_master_state *qspi,
         dmacfg.dst_addr = (unsigned long)t->rx_data;
 
 #ifndef AIC_DMA_DRV_V20
-        dmacfg.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+        dmacfg.src_addr_width = qspi->dma_cfg.rx_bus_width;
         dmacfg.src_maxburst = qspi->dma_cfg.rx_max_burst;
         dmacfg.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
         dmacfg.dst_maxburst = 1;
