@@ -20,7 +20,10 @@ ZX-RTT-SDK 包含了屏幕驱动、触摸功能和 UI 框架等，方便用户�
 
 # 使用说明
 
-开发文档见 `doc/m3-doc.tar.gz`
+开发文档
+[M3 Doc](http://doc.panel-tag.cn/m3/m3.html)
+
+[M3C/M3A Doc](http://doc.panel-tag.cn/m3c_m3a/m3c_m3a.html)
 
 # 下载方式
 
