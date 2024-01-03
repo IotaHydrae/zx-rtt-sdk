@@ -6,7 +6,7 @@
 #
 # Project options
 #
-CONFIG_PRJ_DEFCONFIG_FILENAME="ZXM37D0_rt-thread_defconfig"
+CONFIG_PRJ_DEFCONFIG_FILENAME="ZXM37D0_rtt_defconfig"
 
 #
 # -- Important: If following options have been changed, you need save & rerun menuconfig before changing any other options.
