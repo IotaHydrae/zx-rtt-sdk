@@ -214,6 +214,8 @@ typedef struct {
     {SFUD_MF_ID_NOR_MEM, 0x21, 0x18, NORMAL_SPI_READ|DUAL_OUTPUT|DUAL_IO|QUAD_OUTPUT|QUAD_IO},     \
     /* ZB25VQ128 */                                                                                \
     {SFUD_MF_ID_ZBIT, 0x40, 0x18, NORMAL_SPI_READ|DUAL_OUTPUT|DUAL_IO|QUAD_OUTPUT},                \
+    /* ZB25VQ64C */                                                                                \
+    {SFUD_MF_ID_ZBIT, 0x40, 0x17, NORMAL_SPI_READ|DUAL_OUTPUT|DUAL_IO|QUAD_OUTPUT},                \
     /* ZB25VQ16C */                                                                                \
     {SFUD_MF_ID_ZBIT, 0x40, 0x15, NORMAL_SPI_READ|DUAL_OUTPUT|DUAL_IO|QUAD_OUTPUT},                \
     /* ZD25Q64B */                                                                                 \

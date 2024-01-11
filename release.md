@@ -1,3 +1,8 @@
+# V1.0.2 #
+## 新增 ##
+- 支持ZX3D00
+- 新增widgets app
+
 # V1.0.1 #
 ## 新增 ##
 - 支持Model 3C,Model 3A
