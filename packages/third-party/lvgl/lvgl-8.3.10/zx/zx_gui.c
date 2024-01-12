@@ -375,7 +375,7 @@ int zx_gui_init(void)
     rt_err_t err;
 
     err = rt_thread_init(&__zx_gui_thread, "zx_gui", __zx_gui_entry, RT_NULL,
-           &__zx_gui_thread_stack[0], sizeof(__zx_gui_thread_stack), 25, 0);
+           &__zx_gui_thread_stack[0], sizeof(__zx_gui_thread_stack), 25, 10);
     if(err != RT_EOK)
     {
         LOG_E("Failed to create zx gui thread");
