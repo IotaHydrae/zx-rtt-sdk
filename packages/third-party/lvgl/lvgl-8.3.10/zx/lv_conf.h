@@ -79,4 +79,6 @@
 #define LV_ATTRIBUTE_FAST_MEM   __attribute__((section(".ram.code")))
 #endif
 
+#define LV_COLOR_SCREEN_TRANSP 1
+
 #endif

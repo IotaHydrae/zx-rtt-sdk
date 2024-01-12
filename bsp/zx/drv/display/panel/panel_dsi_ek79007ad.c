@@ -18,6 +18,7 @@ static int panel_enable(struct aic_panel *panel)
     panel_dsi_setup_realmode(panel);
 
     panel_de_timing_enable(panel, 0);
+    aic_mdelay(100);
     panel_backlight_enable(panel, 0);
 
     return 0;
