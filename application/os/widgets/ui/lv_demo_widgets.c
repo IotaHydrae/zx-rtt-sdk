@@ -100,7 +100,7 @@ static lv_obj_t * t3;
 
 #ifdef ZX_TOUCH_NONE
 
-static int lv_obj_set_scroll_y(lv_obj_t *obj, int y)
+static void lv_obj_set_scroll_y(lv_obj_t *obj, int y)
 {
     lv_obj_scroll_to_y(obj, y, LV_ANIM_OFF);
 }
@@ -249,7 +249,7 @@ void lv_demo_widgets(void)
     color_changer_create(tv);
 
 #ifdef ZX_TOUCH_NONE
-    lv_timer_t *t1 = lv_timer_create(tab_changer_task_cb, 3000, NULL);
+    lv_timer_create(tab_changer_task_cb, 3000, NULL);
 #endif
 }
 
