@@ -20,12 +20,17 @@ struct aic_pinmux aic_pinmux_config[] = {
 #ifdef AIC_USING_UART0
     /* uart0 */
     {5, PIN_PULL_DIS, 3, "PA.0"},
-    {5, PIN_PULL_DIS, 3, "PA.1"},
+    {5, PIN_PULL_UP, 3, "PA.1"},
 #endif
 #ifdef AIC_USING_UART1
     /* uart1 */
     {5, PIN_PULL_DIS, 3, "PA.2"},
     {5, PIN_PULL_DIS, 3, "PA.3"},
+#endif
+#ifdef AIC_USING_UART2
+    /* uart2 */
+    {5, PIN_PULL_DIS, 3, "PD.4"},
+    {5, PIN_PULL_DIS, 3, "PD.5"},
 #endif
 #ifdef AIC_USING_CAN0
     /* can0 */
@@ -275,6 +280,14 @@ struct aic_pinmux aic_pinmux_config[] = {
     {1, PIN_PULL_DIS, 3, "PC.7"},
     {1, PIN_PULL_DIS, 3, "PC.2"},
     {1, PIN_PULL_DIS, 3, "PC.3"},
+
+
+    {1, PIN_PULL_DIS, 3, "PA.2"},
+    {1, PIN_PULL_DIS, 3, "PA.3"},
+    {1, PIN_PULL_DIS, 3, "PA.4"},
+    {1, PIN_PULL_DIS, 3, "PA.5"},
+    {1, PIN_PULL_DIS, 3, "PC.0"},
+    {1, PIN_PULL_DIS, 3, "PC.1"},
 };
 
 void aic_board_pinmux_init(void)

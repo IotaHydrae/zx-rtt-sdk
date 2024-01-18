@@ -20,7 +20,7 @@ struct aic_pinmux aic_pinmux_config[] = {
 #ifdef AIC_USING_UART0
     /* uart0 */
     {5, PIN_PULL_DIS, 3, "PA.0"},
-    {5, PIN_PULL_DIS, 3, "PA.1"},
+    {5, PIN_PULL_UP, 3, "PA.1"},
 #endif
 #ifdef AIC_USING_UART1
     /* uart1 */
