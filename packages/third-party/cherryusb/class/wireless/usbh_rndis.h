@@ -8,6 +8,9 @@
 
 #include "usb_cdc.h"
 
+#include "lwip/netif.h"
+#include "lwip/pbuf.h"
+
 struct usbh_rndis {
     struct usbh_hubport *hport;
 
@@ -24,6 +27,9 @@ struct usbh_rndis {
     uint32_t link_speed;
     bool link_status;
     uint8_t mac[6];
+
+    uint16_t bulkin_wMaxPacketSize;
+    uint16_t bulkout_wMaxPacketSize;
 };
 
 #ifdef __cplusplus
@@ -37,6 +43,9 @@ int usbh_rndis_keepalive(struct usbh_rndis *rndis_class);
 
 void usbh_rndis_run(struct usbh_rndis *rndis_class);
 void usbh_rndis_stop(struct usbh_rndis *rndis_class);
+
+err_t usbh_rndis_linkoutput(struct netif *netif, struct pbuf *p);
+void usbh_rndis_rx_thread(void *argument);
 
 #ifdef __cplusplus
 }

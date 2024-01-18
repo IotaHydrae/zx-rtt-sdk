@@ -44,6 +44,17 @@ extern "C" {
 #define CLASS_INFO_DEFINE __attribute__((section("usbh_class_info"))) __USED __ALIGNED(1)
 #endif
 
+#define USBH_EP_INIT(ep, ep_desc)                                            \
+    do {                                                                     \
+        ep = ep_desc;                                                        \
+        USB_LOG_INFO("Ep=%02x Attr=%02u Mps=%d Interval=%02u Mult=%02u\r\n", \
+                     ep_desc->bEndpointAddress,                              \
+                     USB_GET_ENDPOINT_TYPE(ep_desc->bmAttributes),           \
+                     USB_GET_MAXPACKETSIZE(ep_desc->wMaxPacketSize),         \
+                     ep_desc->bInterval,                                     \
+                     USB_GET_MULT(ep_desc->bmAttributes));                   \
+    } while (0)
+
 static inline void usbh_control_urb_fill(struct usbh_urb *urb,
                                          usbh_pipe_t pipe,
                                          struct usb_setup_packet *setup,
