@@ -270,6 +270,10 @@ struct aic_pinmux aic_pinmux_config[] = {
 #endif
 
     {1, PIN_PULL_DIS, 3, "PD.19"},  // LCD_RESET
+    {1, PIN_PULL_DIS, 3, "PD.15"},  // KEY1
+    {1, PIN_PULL_DIS, 3, "PD.16"},  // KEY2
+    {1, PIN_PULL_DIS, 3, "PD.17"},  // KEY3
+    {1, PIN_PULL_DIS, 3, "PD.18"},  // KEY4
 };
 
 void aic_board_pinmux_init(void)
@@ -297,6 +301,6 @@ void aic_board_pinmux_init(void)
     hal_gpio_set_output(g,p);
     aic_mdelay(20);
     hal_gpio_clr_output(g,p);
-    aic_mdelay(100);
+    aic_mdelay(120);
     hal_gpio_set_output(g,p);
 }

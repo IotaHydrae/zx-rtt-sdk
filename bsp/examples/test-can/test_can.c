@@ -1,53 +1,66 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  */
+
 #include <rtthread.h>
 #include "rtdevice.h"
 #include <aic_core.h>
 
-#define CAN_DEV_RX_NAME       "can0"
-#define CAN_DEV_TX_NAME       "can1"
-
-static struct rt_semaphore rx_sem;
-static rt_device_t can_dev;
-static rt_device_t can_dev_rx;
-
+#define CAN_DEV_NAME       "can0"      /* CAN 设备名称 */
+ 
+static struct rt_semaphore rx_sem;     /* 用于接收消息的信号量 */
+static rt_device_t can_dev;            /* CAN 设备句柄 */
+ 
+/* 接收数据回调函数 */
 static rt_err_t can_rx_call(rt_device_t dev, rt_size_t size)
 {
+    /* CAN 接收到数据后产生中断，调用此回调函数，然后发送接收信号量 */
     rt_sem_release(&rx_sem);
 
     return RT_EOK;
 }
-
+ 
 static void can_rx_thread(void *parameter)
 {
     int i;
-    rt_err_t ret;
+    rt_err_t res;
     struct rt_can_msg rxmsg = {0};
 
-    rxmsg.hdr = -1;
+    /* 设置接收回调函数 */
+    rt_device_set_rx_indicate(can_dev, can_rx_call);
 
-    ret = rt_sem_take(&rx_sem, 200);
-    if (ret == -RT_ETIMEOUT)
+#if 0
+    struct rt_can_filter_item items[5] =
     {
-        rt_kprintf("CAN receive timeout\n");
-        goto __exit;
+        RT_CAN_FILTER_ITEM_INIT(0x100, 0, 0, 1, 0x700, RT_NULL, RT_NULL), /* std,match ID:0x100~0x1ff，hdr 为 - 1，设置默认过滤表 */
+        RT_CAN_FILTER_ITEM_INIT(0x300, 0, 0, 1, 0x700, RT_NULL, RT_NULL), /* std,match ID:0x300~0x3ff，hdr 为 - 1 */
+        RT_CAN_FILTER_ITEM_INIT(0x211, 0, 0, 1, 0x7ff, RT_NULL, RT_NULL), /* std,match ID:0x211，hdr 为 - 1 */
+        RT_CAN_FILTER_STD_INIT(0x486, RT_NULL, RT_NULL),                  /* std,match ID:0x486，hdr 为 - 1 */
+        {0x555, 0, 0, 1, 0x7ff, 7,}                                       /* std,match ID:0x555，hdr 为 7，指定设置 7 号过滤表 */
+    };
+    struct rt_can_filter_config cfg = {5, 1, items}; /* 一共有 5 个过滤表 */
+    /* 设置硬件过滤表 */
+    res = rt_device_control(can_dev, RT_CAN_CMD_SET_FILTER, &cfg);
+    RT_ASSERT(res == RT_EOK);
+#endif
+
+    while (1)
+    {
+        /* hdr 值为 - 1，表示直接从 uselist 链表读取数据 */
+        rxmsg.hdr = -1;
+        /* 阻塞等待接收信号量 */
+        rt_sem_take(&rx_sem, RT_WAITING_FOREVER);
+        /* 从 CAN 读取一帧数据 */
+        rt_device_read(can_dev, 0, &rxmsg, sizeof(rxmsg));
+        /* 打印数据 ID 及内容 */
+        rt_kprintf("ID:%x", rxmsg.id);
+        for (i = 0; i < 8; i++)
+        {
+            rt_kprintf("%2x", rxmsg.data[i]);
+        }
+
+        rt_kprintf("\n");
     }
-
-    rt_device_read(can_dev_rx, 0, &rxmsg, sizeof(rxmsg));
-
-    rt_kprintf("ID:0x%08x ", rxmsg.id);
-    for (i = 0; i < 8; i++)
-        rt_kprintf("0x%02x ", rxmsg.data[i]);
-
-    rt_kprintf("\n");
-
-__exit:
-    rt_sem_release(&rx_sem);
-    rt_sem_detach(&rx_sem);
-    rt_device_close(can_dev);
-    rt_device_close(can_dev_rx);
 }
 
 int can_sample(int argc, char *argv[])
@@ -56,46 +69,33 @@ int can_sample(int argc, char *argv[])
     rt_err_t res;
     rt_size_t  size;
     rt_thread_t thread;
-
-    can_dev_rx = rt_device_find(CAN_DEV_RX_NAME);
-    if (!can_dev_rx)
+    char can_name[RT_NAME_MAX];
+    if (argc == 2)
     {
-        rt_kprintf("find %s failed!\n", CAN_DEV_RX_NAME);
-        return -RT_ERROR;
+        rt_strncpy(can_name, argv[1], RT_NAME_MAX);
     }
-
-    res = rt_device_open(can_dev_rx, RT_DEVICE_FLAG_INT_TX | RT_DEVICE_FLAG_INT_RX);
-    RT_ASSERT(res == RT_EOK);
-    res = rt_device_control(can_dev_rx, RT_CAN_CMD_SET_BAUD, (void *)CAN1MBaud);
-    RT_ASSERT(res == RT_EOK);
-
-    struct rt_can_filter_item items[1] =
+    else
     {
-        RT_CAN_FILTER_ITEM_INIT(0x100, 0, 0, 0, 0x700, RT_NULL, RT_NULL),
-    };
-
-    struct rt_can_filter_config cfg = {1, 1, items};
-
-    res = rt_device_control(can_dev_rx, RT_CAN_CMD_SET_FILTER, &cfg);
-
-    rt_device_set_rx_indicate(can_dev_rx, can_rx_call);
-
-    can_dev = rt_device_find(CAN_DEV_TX_NAME);
+        rt_strncpy(can_name, CAN_DEV_NAME, RT_NAME_MAX);
+    }
+    /* 查找 CAN 设备 */
+    can_dev = rt_device_find(can_name);
     if (!can_dev)
     {
-        rt_kprintf("find %s failed!\n", CAN_DEV_TX_NAME);
-        return -RT_ERROR;
+        rt_kprintf("find %s failed!\n", can_name);
+        return RT_ERROR;
     }
 
-    rt_sem_init(&rx_sem, "rx_sem", 0, RT_IPC_FLAG_PRIO);
+    /* 初始化 CAN 接收信号量 */
+    rt_sem_init(&rx_sem, "rx_sem", 0, RT_IPC_FLAG_FIFO);
 
+    /* 以中断接收及发送方式打开 CAN 设备 */
     res = rt_device_open(can_dev, RT_DEVICE_FLAG_INT_TX | RT_DEVICE_FLAG_INT_RX);
     RT_ASSERT(res == RT_EOK);
-
     res = rt_device_control(can_dev, RT_CAN_CMD_SET_BAUD, (void *)CAN1MBaud);
     RT_ASSERT(res == RT_EOK);
-
-    thread = rt_thread_create("can_rx", can_rx_thread, RT_NULL, 8192, 25, 10);
+    /* 创建数据接收线程 */
+    thread = rt_thread_create("can_rx", can_rx_thread, RT_NULL, 1024, 15, 10);
     if (thread != RT_NULL)
     {
         rt_thread_startup(thread);
@@ -105,10 +105,11 @@ int can_sample(int argc, char *argv[])
         rt_kprintf("create can_rx thread failed!\n");
     }
 
-    msg.id = 0x1FF;
-    msg.ide = RT_CAN_STDID;
-    msg.rtr = RT_CAN_DTR;
-    msg.len = 8;
+    msg.id = 0x78;              /* ID 为 0x78 */
+    msg.ide = RT_CAN_STDID;     /* 标准格式 */
+    msg.rtr = RT_CAN_DTR;       /* 数据帧 */
+    msg.len = 8;                /* 数据长度为 8 */
+    /* 待发送的 8 字节数据 */
     msg.data[0] = 0x00;
     msg.data[1] = 0x11;
     msg.data[2] = 0x22;
@@ -117,7 +118,7 @@ int can_sample(int argc, char *argv[])
     msg.data[5] = 0x55;
     msg.data[6] = 0x66;
     msg.data[7] = 0x77;
-
+    /* 发送一帧 CAN 数据 */
     size = rt_device_write(can_dev, 0, &msg, sizeof(msg));
     if (size == 0)
     {
@@ -127,4 +128,34 @@ int can_sample(int argc, char *argv[])
     return res;
 }
 
+void can_send_test(void)
+{
+    struct rt_can_msg msg = {0};
+    rt_size_t  size;
+    static rt_uint8_t num = 0;
+    
+    msg.id = 0x78;              /* ID 为 0x78 */
+    msg.ide = RT_CAN_STDID;     /* 标准格式 */
+    msg.rtr = RT_CAN_DTR;       /* 数据帧 */
+    msg.len = 8;                /* 数据长度为 8 */
+ 
+    /* 待发送的 8 字节数据 */
+    msg.data[0] = 0x00;
+    msg.data[1] = num++;
+    msg.data[2] = 0x22;
+    msg.data[3] = 0x33;
+    msg.data[4] = num++;
+    msg.data[5] = 0x55;
+    msg.data[6] = 0x66;
+    msg.data[7] = 0x77;
+    /* 发送一帧 CAN 数据 */
+    size = rt_device_write(can_dev, 0, &msg, sizeof(msg));
+    if (size == 0)
+    {
+        rt_kprintf("can dev write data failed!\n");
+    }
+}
+ 
+/* 导出到 msh 命令列表中 */
 MSH_CMD_EXPORT(can_sample, can device sample);
+MSH_CMD_EXPORT(can_send_test, can send test);

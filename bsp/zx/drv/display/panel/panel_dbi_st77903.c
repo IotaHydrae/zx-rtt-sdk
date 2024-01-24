@@ -28,7 +28,7 @@ static const u8 st77903_commands[] = {
                 0x77,   0x77,   0x77,   0x77,   0x77,   0x77,
     0xec,  6,   0x00,   0x55,   0x00,   0x00,   0x00,   0x08,
     0x36,  1,   0x0c,
-    0x3a,  1,   0x06,   // 0x5: RGB565, 0x6:RGB666, 0x7: RGB888
+    0x3a,  1,   0x05,   // 0x5: RGB565, 0x6:RGB666, 0x7: RGB888
     0xb2,  1,   0x09,
     0xb3,  1,   0x01,
     0xb4,  1,   0x01,
@@ -62,16 +62,16 @@ static struct aic_panel_funcs st77903_funcs = {
 };
 
 static struct display_timing st77903_timing = {
-    .pixelclock   = 13000000,
+    .pixelclock   = 13000000,   // 13 * 4(16/4) 52M QSPI CLK
 
     .hactive      = 360,
-    .hback_porch  = 20,
-    .hfront_porch = 20,
-    .hsync_len    = 20, // 420
+    .hback_porch  = 10,
+    .hfront_porch = 10,
+    .hsync_len    = 14, // 400
 
-    .vactive      = 480, // 530
+    .vactive      = 488, // 530
     .vback_porch  = 20,
-    .vfront_porch = 20,
+    .vfront_porch = 8,
     .vsync_len    = 10,
 };
 
@@ -84,7 +84,7 @@ static struct spi_cfg spi = {
 
 static struct panel_dbi dbi = {
     .type = SPI,
-    .format = SPI_4SDA_RGB666,
+    .format = SPI_4SDA_RGB565,
     .first_line = 0x61,
     .other_line = 0x60,
     .spi = &spi,
