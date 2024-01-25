@@ -86,6 +86,7 @@ void __st7701_init(void)
     hal_gpio_clr_output(__gpio_sda_g, __gpio_sda_p);
     hal_gpio_clr_output(__gpio_sck_g, __gpio_sck_p);
 
+#if 0
     pin = hal_gpio_name2pin(PANEL_ST7701_RESET_GPIO);
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
@@ -96,6 +97,7 @@ void __st7701_init(void)
     aic_delay_ms(80);
     hal_gpio_set_output(g, p);
     aic_delay_ms(120);
+#endif
 
     __spi_send_cmd (0xF0);
     __spi_send_data (0x55);
@@ -691,10 +693,9 @@ void __st7701_init(void)
 
 static int panel_enable(struct aic_panel *panel)
 {
-    __st7701_init();
-
     panel_di_enable(panel, 0);
     panel_de_timing_enable(panel, 0);
+    __st7701_init();
     panel_backlight_enable(panel, 0);
 
     return 0;

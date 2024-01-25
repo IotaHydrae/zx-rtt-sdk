@@ -307,10 +307,15 @@ void aic_board_pinmux_init(void)
         hal_gpio_set_drive_strength(g, p, aic_pinmux_config[i].drive);
     }
 
-    pin = hal_gpio_name2pin("PC.7");
+    pin = hal_gpio_name2pin("PD.3");
 
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
     hal_gpio_direction_output(g, p);
-    hal_gpio_set_output(g,p);
+    hal_gpio_set_output(g, p);
+    aic_mdelay(80);
+    hal_gpio_clr_output(g, p);
+    aic_mdelay(80);
+    hal_gpio_set_output(g, p);
+    aic_mdelay(120);
 }

@@ -134,7 +134,7 @@ static void test_timer_cb(lv_timer_t *timer_first)
     }
 }
 
-static int g_flag_curtain = 0;   //-1:打开   0:暂停    1:关闭
+static volatile int g_flag_curtain = 0;   //-1:打开   0:暂停    1:关闭
 static int g_value_curtain = 50; //进度
 static bool label_curtain_flag = false;
 
@@ -146,10 +146,9 @@ static void test_timer_curtain_cb(lv_timer_t *timer)
         if (g_value_curtain >= 0 && g_value_curtain < 100)
         {
             if(label_curtain_flag == false)
-            {
-                lv_label_set_text(test_obj.label_curtain_second, "正在打开窗帘");
                 label_curtain_flag = true;
-            }
+
+            lv_label_set_text(test_obj.label_curtain_second, "正在打开窗帘");
             lv_bar_set_value(test_obj.bar_curtain_second, ++g_value_curtain, LV_ANIM_ON);
         }
         else
@@ -165,10 +164,9 @@ static void test_timer_curtain_cb(lv_timer_t *timer)
         if (g_value_curtain <= 100 && g_value_curtain > 0)
         {
             if(label_curtain_flag == false)
-            {
-                lv_label_set_text(test_obj.label_curtain_second, "正在打开窗帘");
                 label_curtain_flag = true;
-            }
+            
+            lv_label_set_text(test_obj.label_curtain_second, "正在关闭窗帘");
             lv_bar_set_value(test_obj.bar_curtain_second, --g_value_curtain, LV_ANIM_ON);
         }
         else
@@ -182,6 +180,43 @@ static void test_timer_curtain_cb(lv_timer_t *timer)
         break;
     }
 }
+
+static lv_timer_t * timer_jpg = NULL;
+static lv_obj_t* img_player = NULL;
+#define SRC2_PATH_HEAD "L:/rodata/"
+static void jpg_player(lv_timer_t *t)
+{
+    if(img_player)
+    {
+        char _path[64];
+        static int i = 0;
+        lv_snprintf(_path, sizeof(_path), SRC2_PATH_HEAD"fresh_air_jpg/%03d.jpg", i++);
+        lv_img_set_src(img_player, _path);
+        lv_obj_align(img_player, LV_ALIGN_CENTER, 0, 0);
+        if(i == 61)
+            i = 0;
+    }
+}
+
+static void btn_not_disturb_first_cb(lv_event_t *e) //勿扰
+{
+    lv_obj_t *new_scr;
+    lv_obj_t *old_scr;
+    old_scr = lv_scr_act();
+    new_scr = lv_obj_create(NULL);
+    lv_timer_del(test_obj.timer_first);
+    lv_timer_del(test_obj.timer_curtain_second);
+    lv_scr_load(new_scr);
+    lv_obj_del_async(old_scr);
+    lv_obj_clean(lv_layer_top());
+    lv_obj_set_style_bg_color(new_scr, lv_color_black(), 0);
+    img_player = lv_img_create(new_scr);
+    lv_img_cache_set_size(3);
+    timer_jpg = lv_timer_create(jpg_player, 25, NULL);
+    
+    rt_kprintf("test\n");
+}
+
 static void btn_more_first_cb(lv_event_t *e) //更多
 {
     extern void lv_demo_benchmark(void);
@@ -382,6 +417,8 @@ void page_first(void)
     lv_img_set_src(test_obj.img_not_disturb_first, IMG_NTO_DISTURB_FIRST);
     lv_obj_align(test_obj.img_not_disturb_first, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(test_obj.img_not_disturb_first, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(test_obj.img_not_disturb_first, btn_not_disturb_first_cb, LV_EVENT_CLICKED, NULL);
+
     // lv_obj_set_style_opa(test_obj.img_not_disturb_first, LV_OPA_90, LV_PART_MAIN | LV_STATE_PRESSED);
 
     // test_obj.small_img_not_disturb_first = lv_img_create(test_obj.btn_not_disturb_first);
