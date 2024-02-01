@@ -126,5 +126,6 @@ source "application/os/ZX3D95/Kconfig"
 source "application/os/custdemo/Kconfig"
 source "application/os/widgets/Kconfig"
 source "application/os/jpegplayer/Kconfig"
+source "application/os/meter_demo/Kconfig"
 
 endmenu
