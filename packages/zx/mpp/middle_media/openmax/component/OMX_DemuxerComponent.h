@@ -1,7 +1,4 @@
-/*
-*
-*  Desc: OMX_DemuxerComponent
-*/
+
 
 #ifndef _OMX_DEMUXER_COMPONENT_H_
 #define _OMX_DEMUXER_COMPONENT_H_

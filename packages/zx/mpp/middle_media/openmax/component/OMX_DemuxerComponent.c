@@ -1,7 +1,3 @@
-/*
-*
-*  Desc: OMX_DemuxerComponent
-*/
 
 
 #include "OMX_DemuxerComponent.h"
@@ -1437,6 +1433,11 @@ _AIC_MSG_GET_:
                 goto _AIC_MSG_GET_;
             }
         }
+        // skip other pkt type
+        if (sPkt.type != MPP_MEDIA_TYPE_VIDEO && sPkt.type != MPP_MEDIA_TYPE_AUDIO) {
+            pDemuxerDataType->nNeedPeek = 1;
+            goto _AIC_MSG_GET_;
+        }
 
         if (sPkt.type == MPP_MEDIA_TYPE_VIDEO) {
              OMX_BOOL bFind = OMX_FALSE;
@@ -1448,7 +1449,7 @@ _AIC_MSG_GET_:
             if (OMX_DemuxerListEmpty(&pDemuxerDataType->sOutVideoEmptyPkt,pDemuxerDataType->sVideoPktLock)) {
                 if (OMX_DemuxerListEmpty(&pDemuxerDataType->sOutVideoReadyPkt,pDemuxerDataType->sVideoPktLock)
                     && OMX_DemuxerListEmpty(&pDemuxerDataType->sOutAudioReadyPkt,pDemuxerDataType->sAudioPktLock)) {
-                    loge("sOutVideoReadyPkt\n");
+                    //loge("sOutVideoReadyPkt\n");
                     aic_msg_wait_new_msg(&pDemuxerDataType->sMsgQue, 0);
                 }
                 pDemuxerDataType->nNeedPeek = 0;
@@ -1538,7 +1539,7 @@ _AIC_MSG_GET_:
             if (OMX_DemuxerListEmpty(&pDemuxerDataType->sOutAudioEmptyPkt,pDemuxerDataType->sAudioPktLock)) {
                 if (OMX_DemuxerListEmpty(&pDemuxerDataType->sOutVideoReadyPkt,pDemuxerDataType->sVideoPktLock)
                     && OMX_DemuxerListEmpty(&pDemuxerDataType->sOutAudioReadyPkt,pDemuxerDataType->sAudioPktLock)) {
-                    loge("sOutAudioReadyPkt\n");
+                    //loge("sOutAudioReadyPkt\n");
                     aic_msg_wait_new_msg(&pDemuxerDataType->sMsgQue, 0);
                 }
                 pDemuxerDataType->nNeedPeek = 0;

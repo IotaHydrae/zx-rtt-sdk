@@ -33,11 +33,14 @@ struct aic_memheap
 };
 
 struct aic_memheap aic_memheaps[] = {
-#ifdef AIC_SRAM_SW_EN
-    {MEM_SRAM_SW, "heap_sram_sw", (void *)&__sram_sw_heap_start, (void *)&__sram_sw_heap_end},
-#endif
-#ifdef AIC_SRAM_CMA_EN
-    {MEM_SRAM_CMA, "heap_sram_cma", (void *)&__sram_cma_heap_start, (void *)&__sram_cma_heap_end},
+// 32K sram only used by png decoder after system startup
+#if 0
+    #ifdef AIC_SRAM_SW_EN
+        {MEM_SRAM_SW, "heap_sram_sw", (void *)&__sram_sw_heap_start, (void *)&__sram_sw_heap_end},
+    #endif
+    #ifdef AIC_SRAM_CMA_EN
+        {MEM_SRAM_CMA, "heap_sram_cma", (void *)&__sram_cma_heap_start, (void *)&__sram_cma_heap_end},
+    #endif
 #endif
 #ifdef AIC_PSRAM_CMA_EN
     {MEM_PSRAM_CMA, "heap_cma", (void *)&__psram_cma_heap_start, (void *)&__psram_cma_heap_end},

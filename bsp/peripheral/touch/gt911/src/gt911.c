@@ -237,6 +237,8 @@ static rt_size_t gt911_read_point(struct rt_touch_device *touch, void *buf,
     static rt_uint8_t pre_touch = 0;
     static int8_t pre_id[GT911_MAX_TOUCH] = { 0 };
 
+    rt_memset(buf, 0, sizeof(struct rt_touch_data) * read_num);
+
     /* point status register */
     cmd[0] = (rt_uint8_t)((GT911_READ_STATUS >> 8) & 0xFF);
     cmd[1] = (rt_uint8_t)(GT911_READ_STATUS & 0xFF);

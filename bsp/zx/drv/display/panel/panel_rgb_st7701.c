@@ -58,7 +58,6 @@ static void __spi_send_data(uint8_t c)
 
 void __st7701_init(void)
 { 
-    unsigned int g, p;
     long pin;
 
     pin = hal_gpio_name2pin(PANEL_ST7701_CS_GPIO);

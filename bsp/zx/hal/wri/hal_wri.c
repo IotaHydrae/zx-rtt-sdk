@@ -370,10 +370,16 @@ enum aic_reboot_reason aic_judge_reboot_reason(enum aic_warm_reset_type hw,
 
 void aic_set_reboot_reason(enum aic_reboot_reason r)
 {
+    u32 cur = 0;
     u8 reason_num = WRI_REBOOT_REASON_MASK >> WRI_REBOOT_REASON_SHIFT;
 
+    cur = readl(WRI_BOOT_INFO);
+     /* If it's valid already, so ignore the current request */
+    if (cur & WRI_REBOOT_REASON_MASK)
+        return;
+
     writel_bits(r, WRI_REBOOT_REASON_MASK, WRI_REBOOT_REASON_SHIFT,
-                WRI_SYS_BAK);
+                WRI_BOOT_INFO);
 
     if (r <= reason_num)
         pr_debug("Set reboot reason %d\n", r);
@@ -388,7 +394,7 @@ enum aic_reboot_reason aic_get_reboot_reason(void)
         return g_last_reboot.reason;
 
     val = readl_bits(WRI_REBOOT_REASON_MASK, WRI_REBOOT_REASON_SHIFT,
-                     WRI_SYS_BAK);
+                     WRI_BOOT_INFO);
     if (val)
         aic_set_reboot_reason(REBOOT_REASON_COLD);
 

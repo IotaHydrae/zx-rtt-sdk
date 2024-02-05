@@ -20,6 +20,8 @@ Supported UI frameworks, default is LVGL-8.3.10
 
 Development documentation
 
+[M4 Doc](http://doc.panel-tag.cn/m4/m4.html)
+
 [M3 Doc](http://doc.panel-tag.cn/m3/m3.html)
 
 [M3C/M3A Doc](http://doc.panel-tag.cn/m3c_m3a/m3c_m3a.html)

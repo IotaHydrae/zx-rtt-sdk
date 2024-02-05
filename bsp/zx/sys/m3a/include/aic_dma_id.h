@@ -18,4 +18,6 @@
 #define DMA_ID_UART3        19
 #define DMA_ID_XSPI         24
 
+#define AIC_DMA_PORTS       25
+
 #endif

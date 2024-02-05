@@ -8,7 +8,7 @@
 #include "aic_osal.h"
 #include "aic_common.h"
 
-#ifdef KERNEL_BAREMETAL
+#ifdef AIC_CONSOLE_BARE_DRV
 #include "console.h"
 #endif
 
@@ -232,7 +232,7 @@ static int cmd_test_cache(int argc, char **argv)
 #ifdef RT_USING_FINSH
 MSH_CMD_EXPORT_ALIAS(cmd_test_cache, test_cache, Cache operation test);
 #endif
-#ifdef KERNEL_BAREMETAL
+#ifdef AIC_CONSOLE_BARE_DRV
 CONSOLE_CMD(test_cache, cmd_test_cache, "Cache operation test");
 #endif
 
@@ -346,6 +346,6 @@ static int cmd_meminfo(int argc, char **argv)
 #ifdef RT_USING_FINSH
 MSH_CMD_EXPORT_ALIAS(cmd_meminfo, meminfo, Show the memory information);
 #endif
-#ifdef KERNEL_BAREMETAL
+#ifdef AIC_CONSOLE_BARE_DRV
 CONSOLE_CMD(meminfo, cmd_meminfo, "Show the memory information");
 #endif

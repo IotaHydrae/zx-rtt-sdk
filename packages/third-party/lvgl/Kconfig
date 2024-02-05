@@ -43,6 +43,3 @@ if LPKG_USING_LVGL
 
 endif
 
-menuconfig LPKG_USING_LV_MUSIC_DEMO
-    bool "lvgl music demo"
-    default n

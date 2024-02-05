@@ -1,17 +1,25 @@
 #include <lvgl.h>
-#include <rtthread.h>
-#include <rtdevice.h>
 #include <zx_gui.h>
 #include <zx_port.h>
 #include <zx_port_indev.h>
 #include <aic_dec.h>
-#include <drivers/watchdog.h>
-
-#define DBG_TAG    "ZX_GUI"
-#define DBG_LVL    DBG_INFO
-#include <rtdbg.h>
 
 #define SLEEP_PERIOD 3
+
+#ifndef CACHE_IMG_NUM
+#define CACHE_IMG_NUM 15
+#endif
+
+void __attribute__((weak)) zx_ui_entry(void)
+{
+}
+
+#if defined(KERNEL_RTTHREAD)
+#define DBG_TAG    "ZX_GUI"
+#define DBG_LVL    DBG_INFO
+#include <rtthread.h>
+#include <rtdevice.h>
+#include <rtdbg.h>
 
 static struct rt_thread __zx_gui_thread;
 
@@ -21,20 +29,12 @@ static ALIGN(8) rt_uint8_t __zx_gui_thread_stack[1024 * 256];    // 256K for fre
 static ALIGN(8) rt_uint8_t __zx_gui_thread_stack[1024 * 16];    // 16K
 #endif
 
-#define ZX_GUI_MQ_SIZE    256
+#define ZX_GUI_MQ_SIZE    64
 
-#ifdef AIC_CHIP_M3
-#define ZX_GUI_MQ_NUM     8
-#else
 #define ZX_GUI_MQ_NUM     16
-#endif
 
 #define ZX_GUI_EVENT_TIMEOUT  2
 #define ZX_GUI_MQ_TIMEOUT  2
-
-#ifndef CACHE_IMG_NUM
-#define CACHE_IMG_NUM 15
-#endif
 
 static rt_mutex_t __zx_gui_mutex = RT_NULL;
 
@@ -46,10 +46,6 @@ static rt_mq_t __zx_gui_send_mq = RT_NULL;
 static zx_gui_event_cb __zx_e_cb;
 static zx_gui_mq_cb __zx_mq_cb;
 static zx_gui_loop_cb __zx_l_cb;
-
-void __attribute__((weak)) zx_ui_entry(void)
-{
-}
 
 #ifdef RT_USING_PM
 struct rt_semaphore pm_sem;
@@ -360,6 +356,78 @@ rt_err_t zx_gui_send_mq(const void *buffer, rt_size_t size, bool toui)
         }        
     }
 }
+#else
+#include <FreeRTOS.h>
+#include <semphr.h>
+#include <timers.h>
+#include <event_groups.h>
+
+static SemaphoreHandle_t g_zx_gui_sem = NULL;
+
+static void __zx_gui_entry(void *parameter)
+{
+    zx_gui_lock(portMAX_DELAY);
+
+    lv_init();
+    zx_port_disp_init();
+    zx_port_indev_init();
+    lv_img_cache_set_size(CACHE_IMG_NUM);
+    aic_dec_create();   // png/jpg dec
+
+    zx_ui_entry();
+    zx_gui_unlock();
+
+    /* handle the tasks of LVGL */
+    while(1)
+    {
+        zx_gui_lock(portMAX_DELAY);
+        lv_task_handler();
+        zx_gui_unlock();
+
+        vTaskDelay(pdMS_TO_TICKS(SLEEP_PERIOD));
+    }
+
+    vTaskDelete(NULL);
+}
+
+/**
+ * @brief    This function will get zx gui lock.
+ *
+ * @note     Executing this function will task zx gui lock.
+ *
+ * @param    timeout is a timeout ms (unit: ms).
+ *
+ * @return   Return the operation status. 0 is ok, -1 is not ok.
+ *
+ */
+int zx_gui_lock(uint32_t timeout)
+{
+    if (!g_zx_gui_sem)
+        return -1;
+    if (pdTRUE == xSemaphoreTake(g_zx_gui_sem, timeout)) {
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
+/**
+ * @brief    This function will release zx gui lock.
+ *
+ * @note     Executing this function will release zx gui lock.
+ *
+ *
+ * @return   Return the operation status. 0 is ok, -1 is not ok.
+ *
+ */
+int zx_gui_unlock(void)
+{
+    if (!g_zx_gui_sem)
+        return -1;
+    xSemaphoreGive(g_zx_gui_sem);
+    return 0;
+}
+#endif
 
 /**
  * @brief    This function will init zx gui.
@@ -372,6 +440,7 @@ rt_err_t zx_gui_send_mq(const void *buffer, rt_size_t size, bool toui)
  */
 int zx_gui_init(void)
 {
+#if defined(KERNEL_RTTHREAD)
     rt_err_t err;
 
     err = rt_thread_init(&__zx_gui_thread, "zx_gui", __zx_gui_entry, RT_NULL,
@@ -382,6 +451,14 @@ int zx_gui_init(void)
         return -1;
     }
     rt_thread_startup(&__zx_gui_thread);
+#else
+    g_zx_gui_sem = xSemaphoreCreateMutex();
+#ifdef LPKG_USING_FREETYPE
+    xTaskCreate(__zx_gui_entry, "zx_gui", 128 * 1024, NULL, 5, NULL);
+#else
+    xTaskCreate(__zx_gui_entry, "zx_gui", 16 * 1024, NULL, 5, NULL);
+#endif
+#endif
 
     return 0;
 }

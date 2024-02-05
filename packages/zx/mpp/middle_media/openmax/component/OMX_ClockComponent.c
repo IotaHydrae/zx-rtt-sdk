@@ -1,7 +1,3 @@
-/*
-*
-*  Desc: OMX_ClockComponent
-*/
 
 #include "OMX_ClockComponent.h"
 

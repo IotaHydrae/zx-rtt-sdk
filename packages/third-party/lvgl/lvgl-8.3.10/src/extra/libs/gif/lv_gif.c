@@ -95,6 +95,15 @@ void lv_gif_set_src(lv_obj_t * obj, const void * src)
 
 }
 
+void lv_gif_set_loop_count(lv_obj_t * obj, uint16_t loop_count)
+{
+    lv_gif_t * gifobj = (lv_gif_t *) obj;
+
+    if(gifobj->gif) {
+        gifobj->gif->set_count = loop_count;
+    }
+}
+
 void lv_gif_restart(lv_obj_t * obj)
 {
     lv_gif_t * gifobj = (lv_gif_t *) obj;

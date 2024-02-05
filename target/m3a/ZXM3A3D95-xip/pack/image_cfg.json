@@ -1,6 +1,6 @@
 {
     "spi-nor": { // Device, The name should be the same with string in image:info:media:type
-        "size": "16m", // Size of SPI NAND
+        "size": "16m", // Size of SPI NOR
         "partitions": {
             "spl":        { "size": "256k" },
             "os":         { "size": "2m" },
@@ -42,7 +42,7 @@
                "part": ["os"]
            },
             "rodata": {
-                "file": "data.fatfs",
+                "file": "rodata.fatfs",
                 "attr": ["mtd", "optional"],
                 "part": ["rodata"]
             },

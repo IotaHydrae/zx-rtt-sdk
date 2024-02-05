@@ -22,21 +22,14 @@
 
 #if defined(AIC_QSPI_DRV_V10)
 #if defined(AIC_BOOTLOADER)
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
 #define DMA_SLAVE_MAXBURST_DEFAULT 8
 #else
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
 #define DMA_SLAVE_MAXBURST_DEFAULT 1
 #endif
-#elif defined(AIC_QSPI_DRV_V11) || defined(AIC_QSPI_DRV_V12)
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
-#define DMA_SLAVE_MAXBURST_DEFAULT 8
 #elif defined(AIC_QSPI_DRV_V20)
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
 #define DMA_SLAVE_MAXBURST_DEFAULT 1
 #else
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
-#define DMA_SLAVE_MAXBURST_DEFAULT 1
+#define DMA_SLAVE_MAXBURST_DEFAULT 8
 #endif
 
 static struct aic_qspi qspi_controller[] = {
@@ -351,8 +344,8 @@ u32 qspi_configure(struct aic_qspi *qspi,
     memset(&dmacfg, 0, sizeof(dmacfg));
     dmacfg.port_id = qspi->dma_port_id;
 
-    dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
-    dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
+    dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
+    dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
     dmacfg.tx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
     dmacfg.rx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
 

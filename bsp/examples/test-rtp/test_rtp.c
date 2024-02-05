@@ -7,6 +7,8 @@
 #include <sys/time.h>
 #include <rtthread.h>
 #include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "rtdevice.h"
 #include "aic_core.h"
 #include "aic_log.h"
@@ -33,6 +35,9 @@
 #define AIC_DRAW_POINT_NUM              1000
 #define AIC_CALI_MIN_INTERVAL           150
 #define AIC_PDED_INVAILD_THRESHOLD      30
+#define AIC_CALI_POINT_NUM              7
+
+#define AIC_POINTERCAL_PATH             "/data/config/rtp_pointercal"
 
 static rt_device_t g_rtp_dev = RT_NULL;
 static rt_thread_t  g_rtp_thread = RT_NULL;
@@ -184,8 +189,20 @@ static void rtp_entry(void *parameter)
     int max = (int)(long)parameter;
     data = (struct rt_touch_data *)rt_malloc(sizeof(struct rt_touch_data));
 
-    rt_kprintf("Try to read %d points from RTP ...\n", max);
+    char cal_buf[sizeof(float) * AIC_CALI_POINT_NUM];
+    int cali_cnt;
 
+    int fd = open(AIC_POINTERCAL_PATH, O_RDONLY);
+    if (fd >= 0) {
+        read(fd, cal_buf, AIC_CALI_POINT_NUM * sizeof(float));
+        for (cali_cnt = 0; cali_cnt < AIC_CALI_POINT_NUM; cali_cnt++) {
+            g_cal.a[cali_cnt] = *(int *)(cal_buf + cali_cnt * sizeof(float));
+        }
+        close(fd);
+    }
+
+    rt_kprintf("Try to read %d points from RTP ...\n", max);
+    rt_device_control(g_rtp_dev, RT_TOUCH_CTRL_PDEB_VALID_CHECK, RT_NULL);
     while (cnt < max){
         if (rt_sem_take(g_rtp_sem, RT_WAITING_FOREVER)!=RT_EOK)
             break;
@@ -215,6 +232,25 @@ static void rtp_entry(void *parameter)
 static rt_err_t rtp_rx_callback(rt_device_t g_rtp_dev, rt_size_t size)
 {
     rt_sem_release(g_rtp_sem);
+    return 0;
+}
+
+static int rtp_save_cali_param(calibration *cal)
+{
+    int cali_cnt;
+    char cal_buf[sizeof(float) * AIC_CALI_POINT_NUM];
+    int fd = open(AIC_POINTERCAL_PATH, O_WRONLY | O_CREAT);
+
+    if (fd > 0) {
+        for (cali_cnt = 0; cali_cnt < AIC_CALI_POINT_NUM; cali_cnt++) {
+            memcpy(cal_buf + cali_cnt * sizeof(float), &cal->a[cali_cnt],
+                   sizeof(float));
+        }
+        write(fd, cal_buf, AIC_CALI_POINT_NUM * sizeof(float));
+        close(fd);
+    } else {
+        rt_kprintf("open file failed!\n");
+    }
     return 0;
 }
 
@@ -282,6 +318,8 @@ static int rtp_perform_calibration(calibration *cal)
     /* If we got here, we're OK, so assign scaling to a[6] and return */
     cal->a[6] = (int)scaling;
 
+    rtp_save_cali_param(cal);
+
     return 1;
 }
 
@@ -299,7 +337,7 @@ static void rtp_get_valid_point(calibration *cal, int index,
     int invalid_pressure_cnt = 0;
 
     g_rtp_sem = rt_sem_create("dsem", 0, RT_IPC_FLAG_FIFO);
-
+    rt_device_control(g_rtp_dev, RT_TOUCH_CTRL_PDEB_VALID_CHECK, RT_NULL);
     do {
         if (rt_sem_take(g_rtp_sem, RT_WAITING_FOREVER)!=RT_EOK)
             break;
@@ -313,8 +351,9 @@ static void rtp_get_valid_point(calibration *cal, int index,
             continue;
         }
 
-        rt_kprintf("X = %d, Y = %d, data->event%d\n", data->x_coordinate,
-                   data->y_coordinate, data->event);
+        // rt_kprintf("X = %d, Y = %d, data->event%d\n", data->x_coordinate,
+        //            data->y_coordinate, data->event);
+
         if (data->event != RT_TOUCH_EVENT_DOWN && data->event != RT_TOUCH_EVENT_MOVE)
             break;
 

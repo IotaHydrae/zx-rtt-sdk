@@ -1,3 +1,4 @@
+
 #include "OMX_AudioRenderComponent.h"
 
 #define  aic_pthread_mutex_lock(mutex)\
@@ -1134,12 +1135,13 @@ _AIC_MSG_GET_:
             aic_pthread_mutex_unlock(&pAudioRenderDataType->sInFrameLock);
 
             clock_gettime(CLOCK_REALTIME,&before);
-            aic_msg_wait_new_msg(&pAudioRenderDataType->sMsgQue, 0);
+            aic_msg_wait_new_msg(&pAudioRenderDataType->sMsgQue, AUDIO_RENDER_WAIT_FRAME_INTERVAL);
             clock_gettime(CLOCK_REALTIME,&after);
             diff = (after.tv_sec - before.tv_sec)*1000*1000 + (after.tv_nsec - before.tv_nsec)/1000;
 
-            if (diff > 100*1000) {
+            if (diff > AUDIO_RENDER_WAIT_FRAME_MAX_TIME) {
                 printf("[%s:%d]:%ld\n",__FUNCTION__,__LINE__,diff);
+                 pAudioRenderDataType->nFlags  |= AUDIO_RENDER_INPORT_SEND_ALL_FRAME_FLAG;
             }
             nEmptyNum++;
             goto _AIC_MSG_GET_;
@@ -1185,7 +1187,7 @@ _AIC_MSG_GET_:
                     pAudioRenderDataType->sPreCorrectMediaTime = pFrameNode->sFrameInfo.pts;
                     // whether need to wait????
                     if (pAudioRenderDataType->eClockState != OMX_TIME_ClockStateRunning) {
-                        aic_msg_wait_new_msg(&pAudioRenderDataType->sMsgQue, 1*1000);
+                        aic_msg_wait_new_msg(&pAudioRenderDataType->sMsgQue, 10*1000);
                         goto _AIC_MSG_GET_;
                     }
                     printf("[%s:%d]video start time arrive\n",__FUNCTION__,__LINE__);
@@ -1324,3 +1326,4 @@ _EXIT:
     printf("OMX_AudioRenderComponentThread EXIT\n");
     return (void*)OMX_ErrorNone;
 }
+

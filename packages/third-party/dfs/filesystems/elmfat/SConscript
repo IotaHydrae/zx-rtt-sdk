@@ -9,7 +9,7 @@ CPPPATH = [cwd]
 if GetDepend('AIC_SDMC_DRV'):
     src += Glob('sdmc_disk/*.c')
 
-if GetDepend('AIC_USB_DRV'):
+if GetDepend('AIC_USB_HOST_EHCI_DRV'):
     src += Glob('usb_disk/*.c')
 
 if GetDepend('AIC_SPINAND_DRV'):

@@ -161,17 +161,6 @@ source "bsp/zx/drv/sdmc/Kconfig"
 comment "Analog Related:"
 
 #---------------------------
-# RTP device global option
-#---------------------------
-
-config AIC_USING_RTP
-    bool "Using RTP"
-    default n
-    select AIC_RTP_DRV
-
-source "bsp/zx/drv/rtp/Kconfig"
-
-#---------------------------
 # TSEN device global option
 #---------------------------
 

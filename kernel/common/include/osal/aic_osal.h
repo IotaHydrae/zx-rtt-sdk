@@ -13,6 +13,19 @@
 #include <rtconfig.h>
 #include <aic_common.h>
 
+/* Common malloc align */
+typedef void *(*aicos_malloc1_t)(size_t);
+typedef void (*aicos_free1_t)(void *);
+typedef void *(*aicos_malloc2_t)(unsigned int, size_t);
+typedef void (*aicos_free2_t)(unsigned int, void *);
+
+void *_aicos_malloc_align_(size_t size, size_t align, unsigned int type, void *func);
+void _aicos_free_align_(void *ptr, unsigned int type, void *func);
+
+/* Irq */
+void aicos_irq_enter(void);
+void aicos_irq_exit(void);
+
 /* New define */
 typedef void *aicos_thread_t;
 typedef void (*aic_thread_entry_t)(void *argument);
@@ -20,13 +33,6 @@ typedef void *aicos_sem_t;
 typedef void *aicos_mutex_t;
 typedef void *aicos_event_t;
 typedef void *aicos_queue_t;
-
-typedef struct {
-    int item_size;
-    int depth;
-    void *buf;
-    void *q;
-} osal_queue_def_t;
 
 #if defined(KERNEL_RTTHREAD)
 #include "aic_osal_rtthread.h"
@@ -115,7 +121,9 @@ static inline void aicos_msleep(uint32_t delay) {}
  static inline void aicos_irq_disable(unsigned int irq) {}
  static inline void aicos_irq_enter(void) {}
  static inline void aicos_irq_exit(void) {}
+ #if !defined(KERNEL_FREERTOS)
  static inline bool aicos_in_irq(void) {return false;}
+ #endif
 
  //--------------------------------------------------------------------+
  // Cache API

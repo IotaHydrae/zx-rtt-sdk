@@ -1,7 +1,4 @@
-/*
-*
-*  Desc: OMX_AdecComponent
-*/
+
 
 #ifndef _OMX_ADEC_COMPONENT_H_
 #define _OMX_ADEC_COMPONENT_H_
@@ -114,6 +111,9 @@ typedef struct ADEC_DATA_TYPE {
     struct mpp_list sOutReadyFrame;
     struct mpp_list sOutProcessingFrame;
     pthread_mutex_t sOutFrameLock;
+
+    OMX_S8 nWaitForReadyPkt;
+    OMX_S8 nWaitForEmptyFrame;
 
 }ADEC_DATA_TYPE;
 

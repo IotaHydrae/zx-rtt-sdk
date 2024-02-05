@@ -70,11 +70,13 @@ static inline void aicos_irq_disable(unsigned int irq)
     drv_irq_disable(irq);
 }
 
+#if !defined(KERNEL_FREERTOS)
 extern unsigned int g_aicos_irq_nested_cnt;
 static inline int aicos_in_irq(void)
 {
     return g_aicos_irq_nested_cnt;
 }
+#endif
 
 //--------------------------------------------------------------------+
 // Cache API

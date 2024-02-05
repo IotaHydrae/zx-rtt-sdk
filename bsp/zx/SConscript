@@ -163,6 +163,7 @@ if GetDepend('AIC_SDMC_DRV'):
         src += Glob('hal/sdmc/*.c')
     if GetDepend('DRIVER_BARE_DRV_EN'):
         src += Glob('drv_bare/sdmc/*.c')
+        src += Glob('drv_bare/block/*.c')
 
 # bare MTD driver
 if GetDepend('AIC_MTD_BARE_DRV'):
@@ -225,6 +226,9 @@ if GetDepend('AIC_SIMPLE_PANEL'):
 
 if GetDepend('AIC_PANEL_DSI_XM91080'):
     src += Glob('drv/display/panel/panel_dsi_xm91080.c')
+
+if GetDepend('AIC_PANEL_DSI_GV9503'):
+    src += Glob('drv/display/panel/panel_dsi_gv9503.c')
 
 if GetDepend('AIC_PANEL_DSI_ST7797'):
     src += Glob('drv/display/panel/panel_dsi_st7797.c')

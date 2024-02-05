@@ -11,8 +11,10 @@
 extern "C" {
 #endif
 
+#ifdef __RTTHREAD__
 #include <rtthread.h>
 #include <rtdevice.h>
+#endif
 
 int tpc_run(const char *name);
 

@@ -20,6 +20,7 @@ struct aic_panel *aic_find_panel(u32 connector_type);
 extern struct aic_panel aic_panel_rgb;
 extern struct aic_panel aic_panel_lvds;
 extern struct aic_panel dsi_xm91080;
+extern struct aic_panel dsi_gv9503;
 extern struct aic_panel dsi_st7797;
 extern struct aic_panel dsi_fl7705n;
 extern struct aic_panel dsi_icnl9707;
@@ -53,6 +54,18 @@ void panel_send_command(u8 *para_cmd, u32 size, struct aic_panel *panel);
 void panel_get_gpio(struct gpio_desc *desc, char *name);
 
 void panel_gpio_set_value(struct gpio_desc *desc, u32 value);
+
+#ifdef AIC_PANEL_SPI_EMULATION
+struct panel_spi_device {
+    struct gpio_desc cs;
+    struct gpio_desc sdi;
+    struct gpio_desc scl;
+};
+
+void panel_spi_data_wr(u8 data);
+void panel_spi_cmd_wr(u8 cmd);
+void panel_spi_device_emulation(char *cs, char *sdi, char *scl);
+#endif
 
 #endif /* _PANEL_COM_H_ */
 

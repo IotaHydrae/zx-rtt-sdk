@@ -66,6 +66,12 @@
 
 #define VIRTUAL_CHANNEL  0
 
+/* mipi-dsi lp rate, range [10M, 20M], default 10M */
+#define MIPI_DSI_LP_RATE    (10 * 1000 * 1000)
+
+/* mipi-dsi dcs get display id from screen when panel enable */
+#define DCS_GET_DISPLAY_ID  0
+
 /**
  * FB ROTATION options
  */
@@ -109,7 +115,7 @@
 /**
  * TE PIN
  *
- * M2, just support { "PC.6", "PD.2", "PF.15" }
+ * M3C/M3A, just support { "PC.6", "PD.2", "PF.15" }
  * M3, just support { "PC.6", "PA.1" }
  */
 #  define TE_PIN      "PC.6"

@@ -159,7 +159,17 @@ int aicmac_init(uint32_t port)
 
     memset(dctl, 0, sizeof(dctl));
 
-    /* phy reset */
+    /* HW Low-Level Init */
+    aicmac_low_level_init(port, ENABLE);
+
+    /* Software reset */
+    aicmac_sw_reset(port);
+    /* Wait for software reset */
+    while (aicmac_get_sw_reset_status(port) == SET) {
+    
+    }
+    
+    /* phy reset must after mac reset */
     if (mac_config[port].phyrst_gpio_name) {
         pin = hal_gpio_name2pin(mac_config[port].phyrst_gpio_name);
         g = GPIO_GROUP(pin);
@@ -171,16 +181,6 @@ int aicmac_init(uint32_t port)
         aicos_mdelay(50);
         hal_gpio_set_output(g, p);
         aicos_mdelay(50);
-    }
-
-    /* HW Low-Level Init */
-    aicmac_low_level_init(port, ENABLE);
-
-    /* Software reset */
-    aicmac_sw_reset(port);
-    /* Wait for software reset */
-    while (aicmac_get_sw_reset_status(port) == SET) {
-    
     }
 
     aicos_udelay(1000);

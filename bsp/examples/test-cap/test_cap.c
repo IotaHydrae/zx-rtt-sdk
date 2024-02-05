@@ -12,7 +12,7 @@
 struct aic_cap_usr {
     rt_uint8_t id;
     rt_uint32_t freq;
-    rt_uint32_t duty;
+    float duty;
 };
 
 /* callback function */
@@ -23,7 +23,8 @@ static rt_err_t cap_cb(rt_device_t dev, rt_size_t size)
 #ifdef ULOG_USING_ISR_LOG
     struct aic_cap_usr *data = (struct aic_cap_usr *)dev->user_data;
 
-    rt_kprintf("cap%d: freq:%dHz, duty:%d%%\n", data->id, data->freq, data->duty);
+    rt_kprintf("cap%d: freq:%dHz, duty:%d.%02d%%\n",
+        data->id, data->freq, (rt_uint32_t)data->duty, (rt_uint32_t)(data->duty * 100) % 100);
 
     for (int i = 0; i < size; i++)
         rt_kprintf("%s: pulsewidth:%d us\n", &dev->parent.name, inputcap_data[i].pulsewidth_us);

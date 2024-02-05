@@ -57,11 +57,11 @@ static void cal_frame_rate()
     if (start_cal == 0) {
         start_cal = 1;
         start.tv_sec = 0;
-        start.tv_usec = aic_get_time_us();
+        start.tv_usec = (long)aic_get_time_us();
     }
 
     end.tv_sec = 0;
-    end.tv_usec = aic_get_time_us();
+    end.tv_usec = (long)aic_get_time_us();
     gap = get_time_gap(&start, &end);
     if (gap >= interval) {
         draw_fps = cal_fps(gap, frame_cnt);
@@ -142,15 +142,15 @@ static void sync_disp_buf(lv_disp_drv_t * drv, lv_color_t * color_p, const lv_ar
 
 static void fbdev_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t *color_p)
 {
-    int index = 0;
     lv_disp_t * disp = _lv_refr_get_disp_refreshing();
     lv_disp_draw_buf_t * draw_buf = lv_disp_get_draw_buf(disp);
 
     if (!disp->driver->direct_mode || draw_buf->flushing_last) {
+        int index = 0;
         if (disp->driver->direct_mode)
-            aicos_dcache_clean_invalid_range((unsigned long *)info.framebuffer, (unsigned long)info.smem_len * 2);
+            aicos_dcache_clean_invalid_range((ulong *)color_p, (ulong)ALIGN_UP(info.smem_len * 2, CACHE_LINE_SIZE));
         else
-            aicos_dcache_clean_invalid_range((unsigned long *)color_p, (unsigned long)info.smem_len);
+            aicos_dcache_clean_invalid_range((ulong *)color_p, (ulong)ALIGN_UP(info.smem_len, CACHE_LINE_SIZE));
 
         if ((void *)color_p == (void *)info.framebuffer)
             index = 0;
@@ -178,37 +178,30 @@ static void fbdev_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t 
                 }
             }
         }
-
         cal_frame_rate();
         lv_disp_flush_ready(drv);
-    }
-    else {
+    } else {
         lv_disp_flush_ready(drv);
     }
 }
 
 void zx_port_disp_init(void)
 {
-    void *buf1 = RT_NULL;
-    void *buf2 = RT_NULL;
+    void *buf1 = NULL;
+    void *buf2 = NULL;
     uint32_t fb_size;
-    rt_err_t result;
 
     g_fb = mpp_fb_open();
     if (g_fb == 0) {
-        LOG_E("can't find aic framebuffer device!");
+        LV_LOG_ERROR("can't find aic framebuffer device!");
         return;
     }
 
-    result = mpp_fb_ioctl(g_fb, AICFB_GET_SCREENINFO, &info);
-    if (result != RT_EOK) {
-        LOG_E("get device fb info failed!");
-        return;
-    }
+    mpp_fb_ioctl(g_fb, AICFB_GET_SCREENINFO, &info);
 
     g_ge = mpp_ge_open();
     if (!g_ge) {
-        LOG_E("ge open fail\n");
+        LV_LOG_ERROR("ge open fail\n");
         return;
     }
 
@@ -221,18 +214,12 @@ void zx_port_disp_init(void)
     }
 #endif
 
-    RT_ASSERT(info.bits_per_pixel == 16 || info.bits_per_pixel == 24
-              || info.bits_per_pixel == 32);
-
     buf1 = (void *)info.framebuffer;
     buf2 = (void *)((uint8_t *)info.framebuffer + fb_size);
 
     lv_disp_draw_buf_init(&disp_buf, buf2, buf1,
                           info.width * info.height);
     lv_disp_drv_init(&disp_drv);
-
-    rt_kprintf("info.bits_per_pixel: %d\n", info.bits_per_pixel);
-    rt_kprintf("info.width: %d, info.height: %d\n", info.width, info.height);
 
     /*Set a display buffer*/
     disp_drv.draw_buf = &disp_buf;

@@ -28,4 +28,6 @@
 #define DMA_ID_UART7        23
 #define DMA_ID_XSPI         24
 
+#define AIC_DMA_PORTS       25
+
 #endif

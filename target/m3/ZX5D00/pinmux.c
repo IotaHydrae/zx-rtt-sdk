@@ -302,7 +302,6 @@ struct aic_pinmux aic_pinmux_config[] = {
     {4, PIN_PULL_DIS, 3, "PF.15"},
 #endif
 #endif
-    {1, PIN_PULL_DIS, 3, "PA.2"},   // CAT1
     {1, PIN_PULL_DIS, 3, "PC.6"},
     {1, PIN_PULL_DIS, 3, "PE.10"},  // SD卡不支持热拔插, 修改bsp/zx/drv/sdmc/drv_sdcard.c - SD_CHECK_PIN
 };
@@ -325,7 +324,10 @@ void aic_board_pinmux_init(void)
         hal_gpio_set_drive_strength(g, p, aic_pinmux_config[i].drive);
     }
 
-    pin = hal_gpio_name2pin("PA.2");
+    /*
+     * LCD power
+     */
+    pin = hal_gpio_name2pin("PE.0");
 
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
@@ -336,14 +338,10 @@ void aic_board_pinmux_init(void)
     aic_mdelay(50);
     hal_gpio_set_output(g, p);
 
-    pin = hal_gpio_name2pin("PE.0");
-
+    pin = hal_gpio_name2pin("PA.2");
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
-
     hal_gpio_set_func(g, p, 1);
     hal_gpio_direction_output(g, p);
-    hal_gpio_clr_output(g, p);
-    aic_mdelay(50);
     hal_gpio_set_output(g, p);
 }

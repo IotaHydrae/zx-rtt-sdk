@@ -7,12 +7,31 @@
 
 #define SPINAND_MFR_TOSHIBA 0x98
 
+int toshiba_ecc_get_status(struct aic_spinand *flash, u8 status)
+{
+    switch (status & STATUS_ECC_MASK) {
+        case STATUS_ECC_NO_BITFLIPS:
+            return 0;
+        case STATUS_ECC_HAS_1_4_BITFLIPS:
+            return 4;
+        case STATUS_ECC_UNCOR_ERROR:
+            return -SPINAND_ERR_ECC;
+        case STATUS_ECC_MASK:
+            return 4;
+        default:
+            break;
+    }
+
+    return -SPINAND_ERR;
+}
+
 const struct aic_spinand_info toshiba_spinand_table[] = {
     /*devid page_size oob_size block_per_lun pages_per_eraseblock planes_per_lun
     is_die_select*/
     /*TC58CVG1S3HRAIJ*/
     { DEVID(0xEB), PAGESIZE(2048), OOBSIZE(128), BPL(2048), PPB(64),
-      PLANENUM(1), DIE(0), "toshiba 256MB: 2048+128@64@2048", cmd_cfg_table },
+      PLANENUM(1), DIE(0), "toshiba 256MB: 2048+128@64@2048", cmd_cfg_table,
+      toshiba_ecc_get_status },
 };
 
 const struct aic_spinand_info *toshiba_spinand_detect(struct aic_spinand *flash)

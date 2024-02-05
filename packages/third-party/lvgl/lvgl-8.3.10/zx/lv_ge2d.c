@@ -20,6 +20,7 @@
 
 #define SIN(x) (sin((x)* PI / 180.0))
 #define COS(x) (cos((x)* PI / 180.0))
+#define ALIGN_1024B(x) ((x+1023) & (~1023))
 
 typedef struct _img_info {
     uint32_t img_size;
@@ -132,7 +133,6 @@ void lv_draw_aic_ctx_init(lv_disp_drv_t * drv, lv_draw_ctx_t * draw_ctx)
         }
 #endif
         mpp_fb_close(g_fb);
-        rt_kprintf("lv_draw_aic_ctx_init:%d, %d\n", g_info.width, g_info.height);
     }
 
     lv_draw_sw_init_ctx(drv, draw_ctx);
@@ -245,11 +245,11 @@ static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_d
     int dst_crop_w;
     int dst_crop_h;
     lv_area_t blend_area;
-    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
     struct ge_bitblt blt = { 0 };
     lv_color_t * dest_buf = draw_ctx->buf;
     lv_coord_t dest_width = lv_area_get_width(draw_ctx->buf_area);
     lv_coord_t dest_height = lv_area_get_height(draw_ctx->buf_area);
+    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
 
     if (draw_dsc->zoom == LV_IMG_ZOOM_NONE && draw_dsc->angle == 0) {
         if(!_lv_area_intersect(&blend_area, coords, clip_area))
@@ -373,7 +373,7 @@ static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_d
 
     /* ctrl */
     blt.ctrl.flags = draw_dsc->angle / 900;
-    if(draw_dsc->opa < LV_OPA_MAX && frame->buf.format != MPP_FMT_ARGB_8888)
+    if(draw_dsc->opa >= LV_OPA_MAX && frame->buf.format != MPP_FMT_ARGB_8888)
         blt.ctrl.alpha_en = 0;
     else
         blt.ctrl.alpha_en = 1;
@@ -385,7 +385,7 @@ static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_d
     if (AICFB_FORMAT == MPP_FMT_RGB_565 && draw_dsc->zoom == 256)
         blt.ctrl.dither_en = 1;
 #endif
-    aicos_dcache_clean_invalid_range((unsigned long *)dest_buf, (unsigned long)g_info.smem_len);
+    aicos_dcache_clean_invalid_range((ulong *)dest_buf, (ulong)ALIGN_UP(g_info.smem_len, CACHE_LINE_SIZE));
     ret = mpp_ge_bitblt(g_ge, &blt);
     if (ret < 0) {
         LV_LOG_ERROR("bitblt fail\n");
@@ -405,18 +405,40 @@ static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_d
     return LV_RES_OK;
 }
 
+static int get_bpp_by_fmt(enum mpp_pixel_format fmt)
+{
+    if (fmt == MPP_FMT_ARGB_8888)
+        return 4;
+    else if (fmt == MPP_FMT_RGB_888)
+        return 3;
+    else if (fmt == MPP_FMT_RGB_565)
+        return 2;
+
+    return 4;
+}
+
 static int ge_run_rotate(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_dsc,
                     struct mpp_frame *frame, const lv_area_t *blend_area, const lv_area_t *coords)
 
 {
     int ret;
     struct ge_rotation rot = { 0 };
-    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
     lv_color_t * dest_buf = draw_ctx->buf;
+    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
     lv_coord_t dest_width = lv_area_get_width(draw_ctx->buf_area);
     lv_coord_t dest_height = lv_area_get_height(draw_ctx->buf_area);
     lv_coord_t blend_width = lv_area_get_width(blend_area);
     lv_coord_t blend_height = lv_area_get_height(blend_area);
+
+    int32_t zoom = 256;
+    int out_w = 0;
+    int out_h = 0;
+    int out_stride = 0;
+    int out_size = 0;
+    u32 out_addr = 0;
+    u32 out_addr_align = 0;
+    int out_pivot_x = 0;
+    int out_pivot_y = 0;
 
     /* src buf */
     rot.src_buf.buf_type = MPP_PHY_ADDR;
@@ -424,18 +446,79 @@ static int ge_run_rotate(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw
         || frame->buf.format == MPP_FMT_RGBA_8888
         || frame->buf.format == MPP_FMT_RGB_888
         || frame->buf.format == MPP_FMT_RGB_565) {
-        rot.src_buf.phy_addr[0] = frame->buf.phy_addr[0];
-        rot.src_buf.stride[0] = frame->buf.stride[0];
-        rot.src_buf.format = frame->buf.format;
+
+        if (draw_dsc->zoom == LV_IMG_ZOOM_NONE) {
+            rot.src_buf.phy_addr[0] = frame->buf.phy_addr[0];
+            rot.src_buf.stride[0] = frame->buf.stride[0];
+            rot.src_buf.format = frame->buf.format;
+            rot.src_buf.size.width = frame->buf.size.width;
+            rot.src_buf.size.height = frame->buf.size.height;
+            rot.src_rot_center.x = draw_dsc->pivot.x;
+            rot.src_rot_center.y = draw_dsc->pivot.y;
+        } else {
+            struct ge_bitblt blt = { 0 };
+            int bpp = get_bpp_by_fmt(frame->buf.format);
+
+            zoom =  draw_dsc->zoom;
+            out_w = (frame->buf.size.width * zoom) >> 8;
+            out_h = (frame->buf.size.height * zoom) >> 8;
+            out_pivot_x = (draw_dsc->pivot.x * zoom) >> 8;
+            out_pivot_y = (draw_dsc->pivot.y * zoom) >> 8;
+            out_stride = ALIGN_UP(out_w * bpp, 8);
+            out_size = out_stride * out_h;
+            out_addr = (u32)(ulong)aicos_malloc(MEM_CMA, out_size + 1023 + CACHE_LINE_SIZE);
+            if (out_addr == 0) {
+                LV_LOG_ERROR("malloc fail\n");
+                goto failed;
+            }
+
+            out_addr_align = ALIGN_1024B(out_addr);
+            aicos_dcache_clean_invalid_range((ulong *)((ulong)out_addr_align), ALIGN_UP(out_size, CACHE_LINE_SIZE));
+
+            /* src buf */
+            blt.src_buf.buf_type = MPP_PHY_ADDR;
+            blt.src_buf.phy_addr[0] = frame->buf.phy_addr[0];
+            blt.src_buf.stride[0] = frame->buf.stride[0];
+            blt.src_buf.format = frame->buf.format;
+            blt.src_buf.size.width = frame->buf.size.width;
+            blt.src_buf.size.height = frame->buf.size.height;
+
+            /* dst buf */
+            blt.dst_buf.buf_type = MPP_PHY_ADDR;
+            blt.dst_buf.phy_addr[0] = out_addr_align;
+            blt.dst_buf.stride[0] = out_stride;
+            blt.dst_buf.format = frame->buf.format;
+            blt.dst_buf.size.width = out_w;
+            blt.dst_buf.size.height = out_h;
+
+            ret = mpp_ge_bitblt(g_ge, &blt);
+            if (ret < 0) {
+                LV_LOG_ERROR("bitblt fail\n");
+                goto failed;
+            }
+            ret = mpp_ge_emit(g_ge);
+            if (ret < 0) {
+                LV_LOG_ERROR("emit fail\n");
+                goto failed;
+            }
+            ret = mpp_ge_sync(g_ge);
+            if (ret < 0) {
+                LV_LOG_ERROR("sync fail\n");
+                goto failed;
+            }
+
+            rot.src_buf.phy_addr[0] = out_addr_align;
+            rot.src_buf.stride[0] = out_stride;
+            rot.src_buf.format = frame->buf.format;
+            rot.src_buf.size.width = out_w;
+            rot.src_buf.size.height = out_h;
+            rot.src_rot_center.x = out_pivot_x;
+            rot.src_rot_center.y = out_pivot_y;
+        }
     } else {
         LV_LOG_ERROR("frame unsupport format:%d\n", frame->buf.format);
         return LV_RES_INV;
     }
-    rot.src_buf.crop_en = 0;
-    rot.src_buf.size.width = frame->buf.size.width;
-    rot.src_buf.size.height = frame->buf.size.height;
-    rot.src_rot_center.x = draw_dsc->pivot.x;
-    rot.src_rot_center.y = draw_dsc->pivot.y;
 
     /* dst buf */
     rot.dst_buf.buf_type = MPP_PHY_ADDR;
@@ -467,27 +550,36 @@ static int ge_run_rotate(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw
     rot.ctrl.src_alpha_mode = 2;
     rot.ctrl.src_global_alpha = draw_dsc->opa;
 
-    aicos_dcache_clean_invalid_range((unsigned long *)dest_buf, (unsigned long)g_info.smem_len);
+    aicos_dcache_clean_invalid_range((ulong *)dest_buf, (ulong)ALIGN_UP(g_info.smem_len, CACHE_LINE_SIZE));
     ret = mpp_ge_rotate(g_ge, &rot);
     if (ret < 0) {
         LV_LOG_WARN("rotate fail\n");
-        return LV_RES_INV;
+        goto failed;
     }
     ret = mpp_ge_emit(g_ge);
     if (ret < 0) {
         LV_LOG_WARN("emit fail\n");
-        return LV_RES_INV;
+        goto failed;
     }
     ret = mpp_ge_sync(g_ge);
     if (ret < 0) {
         LV_LOG_WARN("sync fail\n");
-        return LV_RES_INV;
+        goto failed;
     }
 
+    if (out_addr)
+        aicos_free(MEM_CMA, (void*)(unsigned long)out_addr);
+
     return LV_RES_OK;
+
+failed:
+    if (out_addr)
+        aicos_free(MEM_CMA, (void*)(unsigned long)out_addr);
+
+    return LV_RES_INV;
 }
 
-static inline void RGB565_To_ARGB(unsigned short src_pixel, unsigned int* dst_color)
+static inline void rgb565_to_argb(unsigned short src_pixel, unsigned int* dst_color)
 {
     unsigned int a, r, g, b;
 
@@ -506,15 +598,16 @@ static int ge_run_fill(lv_draw_ctx_t * draw_ctx, unsigned int color, unsigned ch
 {
     int ret;
     struct ge_fillrect fill = { 0 };
-    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
     lv_color_t * dest_buf = draw_ctx->buf;
+    lv_disp_t * disp = _lv_refr_get_disp_refreshing();
     lv_coord_t dest_width = lv_area_get_width(draw_ctx->buf_area);
     lv_coord_t dest_height = lv_area_get_height(draw_ctx->buf_area);
     lv_coord_t blend_width = lv_area_get_width(blend_area);
     lv_coord_t blend_height = lv_area_get_height(blend_area);
+    int bpp = g_info.bits_per_pixel;
 
-    if (g_info.bits_per_pixel == 16) {
-        RGB565_To_ARGB((unsigned short)color, &color);
+    if (bpp == 16) {
+        rgb565_to_argb((unsigned short)color, &color);
     }
 
     /* fill info */
@@ -550,7 +643,7 @@ static int ge_run_fill(lv_draw_ctx_t * draw_ctx, unsigned int color, unsigned ch
     fill.ctrl.src_alpha_mode = 1;
     fill.ctrl.src_global_alpha = opa;
 
-    aicos_dcache_clean_invalid_range((unsigned long *)dest_buf, (unsigned long)g_info.smem_len);
+    aicos_dcache_clean_invalid_range((ulong *)dest_buf, (ulong)ALIGN_UP(g_info.smem_len, CACHE_LINE_SIZE));
     ret =  mpp_ge_fillrect(g_ge, &fill);
     if (ret < 0) {
         LV_LOG_WARN("fillrect1 fail\n");
@@ -571,7 +664,7 @@ static int ge_run_fill(lv_draw_ctx_t * draw_ctx, unsigned int color, unsigned ch
 }
 
 bool is_fix_angle(int angle) {
-    if (angle == 0 || angle == 900 || angle == 1800 ||angle == 2700)
+    if (angle == 0 || angle == 900 || angle == 1800 || angle == 2700)
         return true;
     else
         return false;
@@ -756,10 +849,10 @@ LV_ATTRIBUTE_FAST_MEM void lv_draw_aic_img_decoded(struct _lv_draw_ctx_t * draw_
             struct mpp_frame frame;
             memcpy(&frame, src_buf, sizeof(frame));
 
-            if (is_fix_angle(draw_dsc->angle)) {
-                ge_run_blit(draw_ctx, draw_dsc, &frame, &blend_area, coords);
-            } else if (draw_dsc->angle > 0 && draw_dsc->zoom == LV_IMG_ZOOM_NONE) {
+            if (!draw_dsc->antialias || !is_fix_angle(draw_dsc->angle)) {
                 ge_run_rotate(draw_ctx, draw_dsc, &frame, &blend_area, coords);
+            } else if (draw_dsc->angle == 0) {
+                ge_run_blit(draw_ctx, draw_dsc, &frame, &blend_area, coords);
             } else {
                 LV_LOG_ERROR("unsupported angle:%d zoom:%d\n", draw_dsc->angle, draw_dsc->zoom);
                 return;

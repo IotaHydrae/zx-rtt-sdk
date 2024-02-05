@@ -7,13 +7,16 @@
  * Date           Author       Notes
  * 2021-01-13     RiceChen     the first version
  */
-#include <rtdevice.h>
-#include <rtthread.h>
 #include "zx_tp.h"
 #include "zx_port_indev.h"
 #include "zx_gui.h"
 
-#define THREAD_PRIORITY   25
+#if defined(KERNEL_RTTHREAD)
+#include <rtdevice.h>
+#include <rtthread.h>
+
+#ifndef ZX_TOUCH_NONE
+#define THREAD_PRIORITY   24
 #define THREAD_STACK_SIZE 4096
 #define THREAD_TIMESLICE  5
 
@@ -22,6 +25,8 @@ static rt_sem_t     touch_sem = RT_NULL;
 static rt_device_t  dev = RT_NULL;
 static struct rt_touch_data *read_data;
 static struct rt_touch_info info;
+
+extern void zx_touch_inputevent_cb(rt_int16_t x, rt_int16_t y, rt_uint8_t state);
 
 static void __touch_entry(void *parameter)
 {
@@ -115,3 +120,10 @@ int tpc_run(const char *name)
 
     return 0;
 }
+#endif
+#else
+int tpc_run(const char *name)
+{
+    return 0;
+}
+#endif

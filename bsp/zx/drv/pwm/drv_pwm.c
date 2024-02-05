@@ -22,12 +22,12 @@ static void aic_pwm_default_action(void)
         /*       CBD,          CBU,          CAD, */
         PWM_ACT_NONE, PWM_ACT_NONE, PWM_ACT_NONE,
         /*      CAU,           PRD,         ZRO  */
-        PWM_ACT_LOW,  PWM_ACT_HIGH, PWM_ACT_NONE};
+        PWM_ACT_LOW,  PWM_ACT_NONE, PWM_ACT_HIGH};
     struct aic_pwm_action action1 = {
         /*       CBD,          CBU,          CAD, */
         PWM_ACT_NONE, PWM_ACT_NONE, PWM_ACT_NONE,
         /*      CAU,           PRD,         ZRO  */
-        PWM_ACT_LOW, PWM_ACT_HIGH,  PWM_ACT_NONE};
+        PWM_ACT_LOW, PWM_ACT_NONE,  PWM_ACT_HIGH};
 
 #ifdef AIC_USING_PWM0
     hal_pwm_ch_init(0, PWM_MODE_UP_COUNT, 0, &action0, &action1);

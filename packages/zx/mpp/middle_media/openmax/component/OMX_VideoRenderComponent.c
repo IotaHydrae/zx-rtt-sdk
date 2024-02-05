@@ -1,3 +1,5 @@
+
+
 #include "OMX_VideoRenderComponent.h"
 
 #define  aic_pthread_mutex_lock(mutex)\
@@ -1671,10 +1673,10 @@ static void* OMX_VideoRenderComponentThread(void* pThreadData)
     //prctl(PR_SET_NAME,(u32)"VideoRender");
     OMX_PORT_TUNNELEDINFO *pTunneldClock;
     pTunneldClock = &pVideoRenderDataType->sInPortTunneledInfo[VIDEO_RENDER_PORT_IN_CLOCK_INDEX];
-
     OMX_S32 nEmptyNum = 0;
-
+    struct timespec pev = {0},cur = {0};
     pVideoRenderDataType->nWaitReayFrameFlag = 1;
+
     while(1) {
 _AIC_MSG_GET_:
         if (aic_msg_get(&pVideoRenderDataType->sMsgQue, &message) == 0) {
@@ -1751,11 +1753,12 @@ _AIC_MSG_GET_:
             aic_pthread_mutex_unlock(&pVideoRenderDataType->sInFrameLock);
 
             clock_gettime(CLOCK_REALTIME,&before);
-            aic_msg_wait_new_msg(&pVideoRenderDataType->sMsgQue, 0);
+            aic_msg_wait_new_msg(&pVideoRenderDataType->sMsgQue, VIDEO_RENDER_WAIT_FRAME_INTERVAL);
             clock_gettime(CLOCK_REALTIME,&after);
             diff = (after.tv_sec - before.tv_sec)*1000*1000 + (after.tv_nsec - before.tv_nsec)/1000;
-            if (diff > 50*1000) {
+            if (diff >  VIDEO_RENDER_WAIT_FRAME_MAX_TIME) {
                 printf("[%s:%d]:%ld\n",__FUNCTION__,__LINE__,diff);
+               pVideoRenderDataType->nFlags  |= VIDEO_RENDER_INPORT_SEND_ALL_FRAME_FLAG;
             }
             nEmptyNum++;
             goto _AIC_MSG_GET_;
@@ -1786,7 +1789,7 @@ _AIC_MSG_GET_:
                     OMX_SetConfig(pTunneldClock->pTunneledComp,OMX_IndexConfigTimeClientStartTime, &sTimeStamp);
                     // whether need to wait????
                     if (pVideoRenderDataType->eClockState != OMX_TIME_ClockStateRunning) {
-                        aic_msg_wait_new_msg(&pVideoRenderDataType->sMsgQue, 1*1000);
+                        aic_msg_wait_new_msg(&pVideoRenderDataType->sMsgQue, 10*1000);
                         goto _AIC_MSG_GET_;
                     }
                     printf("[%s:%d]audio start time arrive\n",__FUNCTION__,__LINE__);
@@ -1876,18 +1879,17 @@ _AIC_MSG_GET_:
                 OMX_S32 data1,data2;
                 OMX_TICKS sDelayime;
                 OMX_VIDEO_SYNC_TYPE eSyncType;
-                static struct timespec pev = {0},cur = {0};
+
                 //loge("!!!!!!!!!!!!!!! ReadyFrame!!!!!!!!! \n");
                 eSyncType = OMX_VdieoRenderProcessVideoSync(pVideoRenderDataType,&pFrameNode->sFrameInfo,&sDelayime);
                 //eSyncType = OMX_VIDEO_SYNC_SHOW;
-
                 if (pev.tv_sec == 0) {
                     clock_gettime(CLOCK_REALTIME,&pev);
                 } else {
                     long diff = 0;
                     clock_gettime(CLOCK_REALTIME,&cur);
                     diff = (cur.tv_sec - pev.tv_sec)*1000*1000 + (cur.tv_nsec - pev.tv_nsec)/1000;
-                    if (diff > 42*1000) {
+                    if (diff > 100*1000) {
                         printf("[%s:%d]:%ld,sDelayime:%"PRId64",eSyncType:%d,pts:%lld\n"
                                 ,__FUNCTION__,__LINE__
                                 ,diff
@@ -1895,7 +1897,6 @@ _AIC_MSG_GET_:
                                 ,eSyncType
                                 ,pFrameNode->sFrameInfo.pts);
                     }
-
                     pev = cur;
                 }
 
@@ -2008,3 +2009,4 @@ _EXIT:
     printf("[%s:%d]OMX_VideoRenderComponentThread EXIT\n",__FUNCTION__,__LINE__);
     return (void*)OMX_ErrorNone;
 }
+

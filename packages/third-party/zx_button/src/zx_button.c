@@ -79,10 +79,7 @@ uint8_t zx_button_get_repeat(btn_handle_t btn_handle)
 	btn_data_t* handle = (btn_data_t*)btn_handle;
 	return handle->repeat;
 }
-extern void uart0_sent_calibration(void);		//校准指令
-extern void set_uart0_timer(void);
-extern int g_uart0_calibration_flag;
-extern bool g_calibration_flag;
+
 static void button_handler(uint8_t scan_start, btn_data_t* handle)
 {
 	uint8_t read_gpio_level = handle->get_level(scan_start, handle->state == 0 || handle->state == 2, handle->hardware_data);
@@ -145,10 +142,6 @@ static void button_handler(uint8_t scan_start, btn_data_t* handle)
 				} else if(handle->repeat == 3) {
 					handle->event = (uint8_t)BUTTON_DOUBLE_CLICK;
 					BTN_EVENT_CB(BUTTON_DOUBLE_CLICK); // repeat hit
-					uart0_sent_calibration();
-					g_uart0_calibration_flag = 2;
-					g_calibration_flag = false;
-					set_uart0_timer();
 				}
 				handle->state = 0;
 			}

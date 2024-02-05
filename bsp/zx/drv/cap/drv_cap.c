@@ -11,6 +11,11 @@
 
 #include "hal_cap.h"
 
+struct aic_cap {
+    struct rt_inputcapture_device rtdev;
+    struct aic_cap_data *data;
+};
+
 static struct aic_cap *g_cap[AIC_CAP_CH_NUM];
 static struct aic_cap_data g_cap_info[] = {
 #ifdef AIC_USING_CAP0
@@ -84,7 +89,7 @@ static rt_err_t aic_cap_get_pulsewidth(struct rt_inputcapture_device *capture, r
     aic_capture = (struct aic_cap *)capture;
 
     aic_capture->data->freq = PWMCS_CLK_RATE / hal_cap_reg2(aic_capture->data->id);
-    aic_capture->data->duty = hal_cap_reg1(aic_capture->data->id) * 100 / hal_cap_reg2(aic_capture->data->id);
+    aic_capture->data->duty = (float)hal_cap_reg1(aic_capture->data->id) * 100 / (float)hal_cap_reg2(aic_capture->data->id);
 
     aic_capture->rtdev.parent.user_data = (void *)aic_capture->data;
 

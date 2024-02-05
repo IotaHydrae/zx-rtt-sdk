@@ -16,19 +16,7 @@
 
 #define ASYNC_DATA_SIZE 64
 
-#if defined(AIC_QSPI_DRV_V10)
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
-#define DMA_SLAVE_MAXBURST_DEFAULT 1
-#elif defined(AIC_QSPI_DRV_V11) || defined(AIC_QSPI_DRV_V12)
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
-#define DMA_SLAVE_MAXBURST_DEFAULT 8
-#elif defined(AIC_QSPI_DRV_V20)
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
-#define DMA_SLAVE_MAXBURST_DEFAULT 1
-#else
-#define DMA_SLAVE_BUSWIDTH_DEFAULT DMA_SLAVE_BUSWIDTH_4_BYTES
-#define DMA_SLAVE_MAXBURST_DEFAULT 1
-#endif
+#define DMA_SLAVE_MAXBURST_DEFAULT 0
 
 struct aic_qspi {
     struct rt_spi_bus dev;
@@ -202,11 +190,11 @@ static rt_uint32_t drv_qspi_send(struct aic_qspi *qspi,
     RT_ASSERT(message != RT_NULL);
 
     qspi_master_handle *h;
-    struct qspi_bm_transfer bm_t = {0};
+    struct qspi_bm_transfer bm_t = { 0 };
     h = &qspi->handle;
     if (h->bit_mode) {
         bm_t.tx_data = (uint8_t *)tx;
-        bm_t.tx_len = size;
+        bm_t.tx_bits_len = size;
         ret = hal_qspi_master_transfer_bit_mode(h, &bm_t);
         return ret;
     }
@@ -254,11 +242,11 @@ static rt_uint32_t drv_qspi_receive(struct aic_qspi *qspi,
     RT_ASSERT(size != 0);
 
     qspi_master_handle *h;
-    struct qspi_bm_transfer bm_t = {0};
+    struct qspi_bm_transfer bm_t = { 0 };
     h = &qspi->handle;
     if (h->bit_mode) {
         bm_t.rx_data = rx;
-        bm_t.rx_len = size;
+        bm_t.rx_bits_len = size;
         ret = hal_qspi_master_transfer_bit_mode(h, &bm_t);
         return ret;
     }
@@ -405,8 +393,9 @@ static rt_err_t qspi_configure(struct rt_spi_device *device,
             struct qspi_master_dma_config dmacfg;
             rt_memset(&dmacfg, 0, sizeof(dmacfg));
             dmacfg.port_id = qspi->dma_port_id;
-            dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
-            dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_DEFAULT;
+
+            dmacfg.tx_bus_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
+            dmacfg.rx_bus_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
             dmacfg.tx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
             dmacfg.rx_max_burst = DMA_SLAVE_MAXBURST_DEFAULT;
 

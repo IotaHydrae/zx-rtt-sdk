@@ -378,6 +378,29 @@ s32 aic_player_start(struct aic_player *player)
 
             logi("OMX_SetParameter!!!\n");
             video_port_format.eColorFormat = OMX_COLOR_FormatYUV420Planar;
+            if (video_port_format.eCompressionFormat == OMX_VIDEO_CodingMJPEG) {
+                if (strcmp(PRJ_CHIP,"m3a") == 0) {
+                    switch (AICFB_FORMAT) {
+                        case 0x00:
+                            video_port_format.eColorFormat = OMX_COLOR_Format32bitARGB8888;
+                            break;
+                        case 0x08:
+                            video_port_format.eColorFormat = OMX_COLOR_Format24bitRGB888;
+                            break;
+                        case 0x0a:
+                            video_port_format.eColorFormat = OMX_COLOR_Format16bitARGB1555;
+                            break;
+                        case 0x0e:
+                            video_port_format.eColorFormat = OMX_COLOR_Format16bitRGB565;
+                            break;
+                        default:
+                            loge("unsupport format:%d\n",AICFB_FORMAT);
+                            goto _EXIT;
+                    }
+                } else {
+                    video_port_format.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+                }
+            }
             video_port_format.nPortIndex = VDEC_PORT_IN_INDEX;
             //step7 set vdec param
             if (OMX_ErrorNone != OMX_SetParameter(player->vdecoder_handle, OMX_IndexParamVideoPortFormat,&video_port_format)) {
@@ -630,7 +653,7 @@ s32 aic_player_pause(struct aic_player *player)
     if (player->state == AIC_PLAYER_STATE_PAUSED) {
         logi("it is already in AIC_PLAYER_STATE_PAUSED\n");
         return aic_player_play(player);
-    } else if (player->state != AIC_PLAYER_STATE_PLAYING) {
+    } else if (player->state != AIC_PLAYER_STATE_PLAYING && player->state != AIC_PLAYER_STATE_PLAYBACK_COMPLETED) {
         loge("player->state:[%d] in AIC_PLAYER_STATE_STARTED or AIC_PLAYER_STATE_PAUSED ,it can not do this opt\n",player->state);
         return -1;
     }
@@ -681,6 +704,8 @@ static int do_seek(struct aic_player *player,u64 seek_time)
             goto _exit;
         }
         player->video_audio_seek_mask |= AIC_VIDEO;
+        player->video_audio_end_mask |= AIC_VIDEO;
+
     }
 
     if (player->media_info.has_audio && player->audio_render_handle && player->adecoder_handle) {
@@ -691,6 +716,7 @@ static int do_seek(struct aic_player *player,u64 seek_time)
             goto _exit;
         }
         player->video_audio_seek_mask |= AIC_AUDIO;
+        player->video_audio_end_mask |= AIC_AUDIO;
     }
 
     if (player->media_info.has_video && player->media_info.has_audio && player->clock_handle) {

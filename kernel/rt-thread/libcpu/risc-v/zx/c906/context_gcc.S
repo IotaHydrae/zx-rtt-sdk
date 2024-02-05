@@ -31,6 +31,16 @@ vPortYield:
     or      t1, t1, t2
     sb      t1, (t0)
 
+    /* make sure wite instruction is complete */
+    fence
+    lw      t1, (t0)
+    fence
+#ifdef __riscv_xthead
+    sync.is
+#else
+    .long   0x01b0000b
+#endif
+
     ret
 
 /*
@@ -372,3 +382,4 @@ rt_hw_interrupt_disable:
 rt_hw_interrupt_enable:
     csrw mstatus, a0
     ret
+

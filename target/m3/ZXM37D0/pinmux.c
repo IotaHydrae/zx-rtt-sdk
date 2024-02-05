@@ -21,6 +21,9 @@ struct aic_pinmux aic_pinmux_config[] = {
     /* uart0 */
     {5, PIN_PULL_DIS, 3, "PA.0"},
     {5, PIN_PULL_DIS, 3, "PA.1"},
+#ifdef AIC_DEV_UART0_MODE_RS485
+    {1, PIN_PULL_DIS, 3, AIC_UART0_PA_RS485_CTL_NAME},
+#endif
 #endif
 #ifdef AIC_USING_UART1
     /* uart1 */
@@ -232,6 +235,54 @@ struct aic_pinmux aic_pinmux_config[] = {
     {3, PIN_PULL_DIS, 3, "PE.16"},
     {3, PIN_PULL_DIS, 3, "PE.17"},
 #endif
+#ifdef AIC_USING_EPWM0
+    {7, PIN_PULL_DIS, 3, "PD.26"},
+    {7, PIN_PULL_DIS, 3, "PD.27"},
+#endif
+#ifdef AIC_USING_EPWM1
+    {7, PIN_PULL_DIS, 3, "PD.24"},
+    {7, PIN_PULL_DIS, 3, "PD.25"},
+#endif
+#ifdef AIC_USING_EPWM2
+    {7, PIN_PULL_DIS, 3, "PD.22"},
+    {7, PIN_PULL_DIS, 3, "PD.23"},
+#endif
+#ifdef AIC_USING_EPWM3
+    {7, PIN_PULL_DIS, 3, "PD.20"},
+    {7, PIN_PULL_DIS, 3, "PD.21"},
+#endif
+#ifdef AIC_USING_EPWM4
+    {7, PIN_PULL_DIS, 3, "PD.18"},
+    {7, PIN_PULL_DIS, 3, "PD.19"},
+#endif
+#ifdef AIC_USING_EPWM5
+    {7, PIN_PULL_DIS, 3, "PD.16"},
+    {7, PIN_PULL_DIS, 3, "PD.17"},
+#endif
+#ifdef AIC_USING_EPWM6
+    {7, PIN_PULL_DIS, 3, "PD.14"},
+    {7, PIN_PULL_DIS, 3, "PD.15"},
+#endif
+#ifdef AIC_USING_EPWM7
+    {7, PIN_PULL_DIS, 3, "PD.12"},
+    {7, PIN_PULL_DIS, 3, "PD.13"},
+#endif
+#ifdef AIC_USING_EPWM8
+    {7, PIN_PULL_DIS, 3, "PD.10"},
+    {7, PIN_PULL_DIS, 3, "PD.11"},
+#endif
+#ifdef AIC_USING_EPWM9
+    {7, PIN_PULL_DIS, 3, "PD.8"},
+    {7, PIN_PULL_DIS, 3, "PD.9"},
+#endif
+#ifdef AIC_USING_EPWM10
+    {7, PIN_PULL_DIS, 3, "PD.2"},
+    {7, PIN_PULL_DIS, 3, "PD.3"},
+#endif
+#ifdef AIC_USING_EPWM11
+    {7, PIN_PULL_DIS, 3, "PD.0"},
+    {7, PIN_PULL_DIS, 3, "PD.1"},
+#endif
 #ifdef AIC_USING_GPAI0
     {2, PIN_PULL_DIS, 3, "PA.0"},
 #endif
@@ -262,6 +313,12 @@ struct aic_pinmux aic_pinmux_config[] = {
     {2, PIN_PULL_DIS, 3, "PA.10"},
     {2, PIN_PULL_DIS, 3, "PA.11"},
 #endif
+#if (defined(AIC_USING_USB0_DEVICE) || defined(AIC_USING_USB0_HOST))
+    /* usb0 */
+    {2, PIN_PULL_DIS, 3, "PO.0"},   // USB-DM
+    {2, PIN_PULL_DIS, 3, "PO.1"},   // USB-DP
+    {1, PIN_PULL_DIS, 3, "PD.8"},   // USB-ID
+#endif
 #ifdef AIC_USING_DVP
     {3, PIN_PULL_DIS, 3, "PE.0"},
     {3, PIN_PULL_DIS, 3, "PE.1"},
@@ -274,6 +331,12 @@ struct aic_pinmux aic_pinmux_config[] = {
     {3, PIN_PULL_DIS, 3, "PE.8"},
     {3, PIN_PULL_DIS, 3, "PE.9"},
     {3, PIN_PULL_DIS, 3, "PE.10"},
+#endif
+#ifdef AIC_USING_RTP
+    {2, PIN_PULL_DIS, 3, "PA.8"},
+    {2, PIN_PULL_DIS, 3, "PA.9"},
+    {2, PIN_PULL_DIS, 3, "PA.10"},
+    {2, PIN_PULL_DIS, 3, "PA.11"},
 #endif
 };
 

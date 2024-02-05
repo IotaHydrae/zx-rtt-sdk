@@ -45,6 +45,9 @@ lv_obj_t * lv_gif_create(lv_obj_t * parent);
 void lv_gif_set_src(lv_obj_t * obj, const void * src);
 void lv_gif_restart(lv_obj_t * gif);
 
+// must call after lv_gif_set_src
+void lv_gif_set_loop_count(lv_obj_t * obj, uint16_t loop_count);
+
 /**********************
  *      MACROS
  **********************/

@@ -1,15 +1,11 @@
 ﻿/*
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <aos/kernel.h>
-#include <aos/debug.h>
 #include "ff.h"
-#include "soc.h"
 
 __WEAK int USB_disk_status(void)
 {

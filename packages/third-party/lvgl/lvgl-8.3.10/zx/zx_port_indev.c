@@ -11,22 +11,23 @@
  */
 #include <lvgl.h>
 #include <stdbool.h>
+#if defined(KERNEL_RTTHREAD)
 #include <rtthread.h>
 #include <../components/drivers/include/drivers/touch.h>
+#endif
 #include <zx_tp.h>
 
+#ifndef ZX_TOUCH_NONE
 static lv_indev_state_t last_state = LV_INDEV_STATE_REL;
 static rt_int16_t last_x = 0;
 static rt_int16_t last_y = 0;
 
-#ifndef ZX_TOUCH_NONE
 static void __input_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
     data->point.x = last_x;
     data->point.y = last_y;
     data->state = last_state;
 }
-#endif
 
 void zx_touch_inputevent_cb(rt_int16_t x, rt_int16_t y, rt_uint8_t state)
 {
@@ -43,6 +44,7 @@ void zx_touch_inputevent_cb(rt_int16_t x, rt_int16_t y, rt_uint8_t state)
         break;
     }
 }
+#endif
 
 void zx_port_indev_init(void)
 {

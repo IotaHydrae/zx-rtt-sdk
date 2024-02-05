@@ -24,12 +24,14 @@
 #define GLB_PWM_EN               0x014
 
 #define EPWM_CNT_PRDV(n)         ((((n) & 0xF) << 8) + 0x000)
+#define EPWM_CNT_V(n)            ((((n) & 0xF) << 8) + 0x008)
 #define EPWM_CNT_CONF(n)         ((((n) & 0xF) << 8) + 0x00C)
 #define EPWM_CNT_AV(n)           ((((n) & 0xF) << 8) + 0x014)
 #define EPWM_CNT_BV(n)           ((((n) & 0xF) << 8) + 0x018)
 #define EPWMA_ACT(n)             ((((n) & 0xF) << 8) + 0x020)
 #define EPWMB_ACT(n)             ((((n) & 0xF) << 8) + 0x024)
-#define EPWM_FLT_PRTCT(n)        ((((n) & 0xF) << 8) + 0x044)
+#define EPWM_SW_ACT(n)           ((((n) & 0xF) << 8) + 0x028)
+#define EPWM_ACT_SW_CT(n)        ((((n) & 0xF) << 8) + 0x02C)
 #define EPWM_ADC_INT_CTL(n)      ((((n) & 0xF) << 8) + 0x058)
 #define EPWM_ADC_INT_PRE(n)      ((((n) & 0xF) << 8) + 0x05C)
 #define EPWM_EVNT_FLAG(n)        ((((n) & 0xF) << 8) + 0x060)
@@ -55,6 +57,11 @@
 #define EPWM_INT_EN_SHITF        3
 #define EPWM_INT_SEL_SHIFT       0
 #define EPWM_INT_CLR             BIT(0)
+#define EPWM_ACT_SW_CT_UPDT      6
+#define EPWM_SWACT_UPDT          3 << EPWM_ACT_SW_CT_UPDT
+#define EPWM_ACT_SW_NONE         0x0
+#define EPWM_ACT_SW_HIGH         0xA
+#define EPWM_ACT_SW_LOW          0x5
 
 #ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC            1000000000
@@ -208,13 +215,11 @@ static void epwm_action_set(u32 ch, struct aic_epwm_action *act, char *name)
     u32 offset;
     u32 action = 0;
 
-    if (strcmp(name, "action0") == 0) {
+    if (strcmp(name, "action0") == 0)
         offset = EPWMA_ACT(ch);
-        epwm_reg_enable(EPWM_BASE + EPWM_FLT_PRTCT(ch), EPWM_A_INIT, 1);
-    } else {
+    else
         offset = EPWMB_ACT(ch);
-        epwm_reg_enable(EPWM_BASE + EPWM_FLT_PRTCT(ch), EPWM_B_INIT, 1);
-    }
+
     action |= (act->CBD << EPWMA_ACT_CNTDBV_SHIFT) |
           (act->CBU << EPWMA_ACT_CNTUBV_SHIFT) |
           (act->CAD << EPWMA_ACT_CNTDAV_SHIFT) |
@@ -240,6 +245,8 @@ int hal_epwm_enable(u32 ch)
         return -ERANGE;
     }
 
+    epwm_writel(EPWM_ACT_SW_NONE, EPWM_ACT_SW_CT(ch));
+
     epwm_action_set(ch, &arg->action0, "action0");
     epwm_action_set(ch, &arg->action1, "action1");
 
@@ -258,7 +265,16 @@ int hal_epwm_disable(u32 ch)
     }
 
     hal_log_debug("ch%d disable\n", ch);
+
+    if (arg->def_level)
+        epwm_writel(EPWM_ACT_SW_HIGH, EPWM_ACT_SW_CT(ch));
+    else
+        epwm_writel(EPWM_ACT_SW_LOW, EPWM_ACT_SW_CT(ch));
+
     epwm_writel((u32)EPWM_MODE_STOP_COUNT, EPWM_CNT_CONF(ch));
+
+    epwm_writel(0, EPWM_CNT_V(ch));
+
     return 0;
 }
 

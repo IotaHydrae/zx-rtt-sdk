@@ -20,7 +20,7 @@ static void aic_epwm_default_action(void)
         /*       CBD,          CBU,          CAD, */
         EPWM_ACT_NONE, EPWM_ACT_NONE, EPWM_ACT_NONE,
         /*      CAU,           PRD,         ZRO  */
-        EPWM_ACT_LOW,  EPWM_ACT_HIGH, EPWM_ACT_NONE};
+        EPWM_ACT_LOW, EPWM_ACT_HIGH, EPWM_ACT_NONE};
     struct aic_epwm_action action1 = {
         /*       CBD,          CBU,          CAD, */
         EPWM_ACT_NONE, EPWM_ACT_NONE, EPWM_ACT_NONE,
@@ -110,10 +110,10 @@ static rt_err_t drv_epwm_set_pul(struct rt_device_pwm *device,
     g_pulse_para[cfg->channel].duty_ns = cfg->pulse;
     g_pulse_para[cfg->channel].prd_ns = cfg->period;
 
-    hal_epwm_int_config(cfg->channel, cfg->irq_mode, 1);
-
     if (hal_epwm_set(cfg->channel, cfg->pulse, cfg->period))
         return -RT_ERROR;
+
+    hal_epwm_int_config(cfg->channel, cfg->irq_mode, 1);
 
     hal_epwm_enable(cfg->channel);
     return RT_EOK;
@@ -215,7 +215,7 @@ irqreturn_t aic_epwm_irq(int irq, void *arg)
             if (isr_cnt[i] == g_pulse_para[i].pulse_cnt) {
                 hal_epwm_set(i, g_pulse_para[i].prd_ns, g_pulse_para[i].prd_ns);
                 hal_epwm_int_config(i, 0, 0);
-                pr_info("\nisr cnt:%d,disabled the pwm%d interrupt now.\n", isr_cnt[i], i);
+                pr_info("\nisr cnt:%d,disabled the epwm%d interrupt now.\n", isr_cnt[i], i);
                 isr_cnt[i] = 0;
             }
             hal_epwm_clr_int(stat, i);

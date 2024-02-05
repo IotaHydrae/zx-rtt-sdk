@@ -27,6 +27,13 @@
 #define LV_USE_PERF_MONITOR 1
 #endif
 
+#if defined(KERNEL_BAREMETAL) || defined(KERNEL_FREERTOS)
+#define LV_TICK_CUSTOM 1
+#define LV_TICK_CUSTOM_INCLUDE <aic_time.h>
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR (aic_get_time_ms())    /*Expression evaluating to current system time in ms*/
+#define LV_DISP_DEF_REFR_PERIOD 10
+#endif
+
 #define LV_USE_FS_POSIX 1
 #if LV_USE_FS_POSIX
     #define LV_FS_POSIX_LETTER 'L'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
@@ -78,5 +85,7 @@
 #ifdef AIC_XIP
 #define LV_ATTRIBUTE_FAST_MEM   __attribute__((section(".ram.code")))
 #endif
+
+#define LV_COLOR_SCREEN_TRANSP 0
 
 #endif

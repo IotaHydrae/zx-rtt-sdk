@@ -10,6 +10,7 @@
 #include <string.h>
 #include <console.h>
 #include <aic_common.h>
+#include <aic_core.h>
 #include <aic_time.h>
 #include <aic_errno.h>
 #include <hexdump.h>
@@ -80,9 +81,14 @@ static int do_mtd_dump(int argc, char *argv[])
 {
     int err;
     struct mtd_dev *mtd;
-    u8 *data;
+    u8 *data = NULL;
     char *name;
     unsigned long offset, size;
+
+    if (argc < 4) {
+        mtd_help();
+        return -1;
+    }
 
     name = argv[1];
     offset = strtol(argv[2], NULL, 0);
@@ -94,7 +100,7 @@ static int do_mtd_dump(int argc, char *argv[])
         mtd_help();
         return -1;
     }
-    data = malloc(size);
+    data = aicos_malloc_align(0, size, CACHE_LINE_SIZE);
     if (data == NULL) {
         printf("Out of memory.\n");
         return -1;
@@ -105,7 +111,7 @@ static int do_mtd_dump(int argc, char *argv[])
     err = mtd_read(mtd, offset, data, size);
     if (!err)
         hexdump((void *)data, size, 1);
-    free(data);
+    aicos_free_align(0, data);
     return err;
 }
 
@@ -117,6 +123,11 @@ static int do_mtd_read(int argc, char *argv[])
     char *name;
     unsigned long addr, offset, size;
     u64 start_us;
+
+    if (argc < 5) {
+        mtd_help();
+        return -1;
+    }
 
     name = argv[1];
     addr = strtol(argv[2], NULL, 0);
@@ -148,6 +159,11 @@ static int do_mtd_erase(int argc, char *argv[])
     char *name;
     unsigned long offset, size;
 
+    if (argc < 4) {
+        mtd_help();
+        return -1;
+    }
+
     name = argv[1];
     offset = strtol(argv[2], NULL, 0);
     size = strtol(argv[3], NULL, 0);
@@ -170,6 +186,11 @@ static int do_mtd_write(int argc, char *argv[])
     char *name;
     unsigned long addr, offset, size;
     u64 start_us;
+
+    if (argc < 4) {
+        mtd_help();
+        return -1;
+    }
 
     name = argv[1];
     addr = strtol(argv[2], NULL, 0);
@@ -204,6 +225,11 @@ static int do_mtd_oobdump(int argc, char *argv[])
     u8 *data;
     char *name;
     unsigned long offset, size;
+
+    if (argc < 3) {
+        mtd_help();
+        return -1;
+    }
 
     name = argv[1];
     offset = strtol(argv[2], NULL, 0);
@@ -243,6 +269,11 @@ static int do_mtd_contread(int argc, char *argv[])
     unsigned long addr, offset, size;
     u32 start_us;
 
+    if (argc < 5) {
+        mtd_help();
+        return -1;
+    }
+
     name = argv[1];
     addr = strtol(argv[2], NULL, 0);
     offset = strtol(argv[3], NULL, 0);
@@ -277,6 +308,11 @@ static int do_mtd_oobread(int argc, char *argv[])
     char *name;
     unsigned long addr, offset;
 
+    if (argc < 4) {
+        mtd_help();
+        return -1;
+    }
+
     name = argv[1];
     addr = strtol(argv[2], NULL, 0);
     offset = strtol(argv[3], NULL, 0);
@@ -305,6 +341,11 @@ static int do_mtd_oobwrite(int argc, char *argv[])
     u8 *data;
     char *name;
     unsigned long addr, offset;
+
+    if (argc < 4) {
+        mtd_help();
+        return -1;
+    }
 
     name = argv[1];
     addr = strtol(argv[2], NULL, 0);

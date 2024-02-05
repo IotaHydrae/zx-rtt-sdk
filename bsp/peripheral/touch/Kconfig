@@ -23,6 +23,14 @@ config ZX_TOUCH_FT5X06
     bool "ft5x06 touch"
     select AIC_I2C_DRV
 
+config ZX_TOUCH_FT7411
+    bool "ft7411 touch"
+    select AIC_I2C_DRV
+
+config ZX_TOUCH_GSL1680
+    bool "gsl1680 touch"
+    select AIC_I2C_DRV
+
 endchoice
 
 if ZX_TOUCH_GT911
@@ -39,6 +47,14 @@ endif
 
 if ZX_TOUCH_FT5X06
 source "bsp/peripheral/touch/ft5x06/Kconfig"
+endif
+
+if ZX_TOUCH_FT7411
+source "bsp/peripheral/touch/ft7411/Kconfig"
+endif
+
+if ZX_TOUCH_GSL1680
+source "bsp/peripheral/touch/gsl1680/Kconfig"
 endif
 
 endmenu

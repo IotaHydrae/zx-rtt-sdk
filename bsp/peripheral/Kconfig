@@ -9,6 +9,7 @@ source "bsp/peripheral/nftl/Kconfig"
 
 menu "Touch Panel Support"
 source "bsp/peripheral/touch/Kconfig"
+source "bsp/peripheral/touch/rtp/Kconfig"
 endmenu
 
 #--------------------------------------------

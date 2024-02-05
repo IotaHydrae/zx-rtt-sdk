@@ -62,6 +62,7 @@ static struct rt_qspi_device *g_qspi;
 static int test_qspi_attach(int argc, char **argv)
 {
     char *bus_name, *dev_name;
+    rt_err_t result = RT_EOK;
 
     if (argc != 3) {
         qspi_usage();
@@ -71,7 +72,11 @@ static int test_qspi_attach(int argc, char **argv)
     dev_name = argv[2];
 
     /* Attach/Create dev to spi bus */
-    aic_qspi_bus_attach_device(bus_name, dev_name, 0, 4, RT_NULL, RT_NULL);
+    result = aic_qspi_bus_attach_device(bus_name, dev_name, 0, 4, RT_NULL, RT_NULL);
+    if (result != RT_EOK) {
+        printf("Failed to attach device in bus_name %s\n", bus_name);
+        return result;
+    }
     return 0;
 }
 

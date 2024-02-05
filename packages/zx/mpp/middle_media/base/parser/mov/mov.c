@@ -1134,7 +1134,6 @@ static int mp4_read_dec_config_descr(struct aic_mov_parser *c, struct mov_stream
 	if (codec_id)
 		st->id = codec_id;
 
-	loge("st->id:0x%x\n",st->id);
 	len = mp4_read_desc(c->stream, &tag);
 	if (tag == MP4DecSpecificDescrTag) {
 		if (len > (1<<30))
@@ -1350,7 +1349,7 @@ int mov_peek_packet(struct aic_mov_parser *c, struct aic_parser_packet *pkt)
 
 	if (st->cur_sample_idx == st->nb_index_entries) {
 		// eos now
-		loge("this stream eos");
+		printf("[%s:%d] this stream eos",__FUNCTION__,__LINE__);
 		pkt->flag = PACKET_EOS;
 	}
 

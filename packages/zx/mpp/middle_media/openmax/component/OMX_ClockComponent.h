@@ -1,7 +1,3 @@
-/*
-*
-*  Desc: OMX_ClockComponent
-*/
 
 #ifndef _OMX_Clock_COMPONENT_H_
 #define _OMX_Clock_COMPONENT_H_

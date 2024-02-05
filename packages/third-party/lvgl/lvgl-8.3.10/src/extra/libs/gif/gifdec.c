@@ -260,6 +260,10 @@ read_application_ext(gd_GIF *gif)
                 gif->loop_count = loop_count + 1;
             }
         }
+
+        if (gif->set_count)
+            gif->loop_count = gif->set_count;
+
         /* Skip block terminator. */
         f_gif_seek(gif, 1, LV_FS_SEEK_CUR);
     } else if (gif->application) {

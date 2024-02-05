@@ -29,12 +29,7 @@
 struct aic_cap_data {
     u8 id;
     u32 freq;
-    u32 duty;
-};
-
-struct aic_cap {
-    struct rt_inputcapture_device rtdev;
-    struct aic_cap_data *data;
+    float duty;
 };
 
 void hal_cap_ch_init(u32 ch);
