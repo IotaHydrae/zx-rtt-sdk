@@ -53,6 +53,9 @@ btn_handle_t zx_button_create(btn_get_level_fun_t get_level, void* hardware_data
 	handle->hardware_data = hardware_data;
 	handle->user_data = user_data;
 	handle->active_level = active_level;
+	rt_kprintf("handle->button_level:%u\n", handle->button_level);
+	rt_kprintf("handle->active_level:%u\n", handle->active_level);
+
 	return (btn_handle_t)handle;
 }
 
@@ -83,6 +86,7 @@ uint8_t zx_button_get_repeat(btn_handle_t btn_handle)
 static void button_handler(uint8_t scan_start, btn_data_t* handle)
 {
 	uint8_t read_gpio_level = handle->get_level(scan_start, handle->state == 0 || handle->state == 2, handle->hardware_data);
+	// rt_kprintf("read_gpio_level:%u\n", read_gpio_level);
 
 	//ticks counter working..
 	if((handle->state) > 0) handle->ticks++;
@@ -139,7 +143,7 @@ static void button_handler(uint8_t scan_start, btn_data_t* handle)
 				if(handle->repeat == 1) {
 					handle->event = (uint8_t)BUTTON_SINGLE_CLICK;
 					BTN_EVENT_CB(BUTTON_SINGLE_CLICK);
-				} else if(handle->repeat == 3) {
+				} else if(handle->repeat == 2) {
 					handle->event = (uint8_t)BUTTON_DOUBLE_CLICK;
 					BTN_EVENT_CB(BUTTON_DOUBLE_CLICK); // repeat hit
 				}

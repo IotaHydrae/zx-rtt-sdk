@@ -7,10 +7,10 @@ uint8_t zx_button_gpio_read(uint8_t scan_start, uint8_t wait_press, void* hardwa
     return rt_pin_read((rt_base_t)hardware_data);
 }
 
-btn_handle_t zx_button_create_gpio(uint8_t gpio_num, uint8_t active_level, void* user_data) {
-    if (active_level == 1) {
+btn_handle_t zx_button_create_gpio(uint8_t gpio_num, uint8_t mode, uint8_t active_level, void* user_data) {
+    if (mode == 1) {
         rt_pin_mode((rt_base_t)gpio_num, PIN_MODE_INPUT_PULLUP);
-    } else if (active_level == 2) {
+    } else if (mode == 2) {
         rt_pin_mode((rt_base_t)gpio_num, PIN_MODE_INPUT_PULLDOWN);
     } else {
         rt_pin_mode((rt_base_t)gpio_num, PIN_MODE_INPUT);

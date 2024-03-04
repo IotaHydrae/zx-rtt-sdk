@@ -42,7 +42,7 @@ void zx_button_start_gpio(void)
 
     long pin = hal_gpio_name2pin(KEY1_GPIO_NAME);
     rt_kprintf("start test\n");
-    btn_handle_t* btn1 = zx_button_create_gpio(pin, 0, "key1");
+    btn_handle_t* btn1 = zx_button_create_gpio(pin, 0, 0, "key1");
     zx_button_register_cb(btn1, BUTTON_PRESS_DOWN,       btn_callback);
     zx_button_register_cb(btn1, BUTTON_PRESS_UP,         btn_callback);
     zx_button_register_cb(btn1, BUTTON_PRESS_REPEAT,     btn_callback);
@@ -53,7 +53,7 @@ void zx_button_start_gpio(void)
     zx_button_start(btn1);
 
     pin = hal_gpio_name2pin(KEY2_GPIO_NAME);
-    btn_handle_t* btn2 = zx_button_create_gpio(pin, 0, "key2");
+    btn_handle_t* btn2 = zx_button_create_gpio(pin, 0, 0, "key2");
     zx_button_register_cb(btn2, BUTTON_PRESS_DOWN,       btn_callback);
     zx_button_register_cb(btn2, BUTTON_PRESS_UP,         btn_callback);
     zx_button_register_cb(btn2, BUTTON_PRESS_REPEAT,     btn_callback);
@@ -64,7 +64,7 @@ void zx_button_start_gpio(void)
     zx_button_start(btn2);
 
     pin = hal_gpio_name2pin(KEY3_GPIO_NAME);
-    btn_handle_t* btn3 = zx_button_create_gpio(pin, 0, "key3");
+    btn_handle_t* btn3 = zx_button_create_gpio(pin, 0, 0, "key3");
     zx_button_register_cb(btn3, BUTTON_PRESS_DOWN,       btn_callback);
     zx_button_register_cb(btn3, BUTTON_PRESS_UP,         btn_callback);
     zx_button_register_cb(btn3, BUTTON_PRESS_REPEAT,     btn_callback);
@@ -75,7 +75,7 @@ void zx_button_start_gpio(void)
     zx_button_start(btn3);
 
     pin = hal_gpio_name2pin(KEY4_GPIO_NAME);
-    btn_handle_t* btn4 = zx_button_create_gpio(pin, 0, "key4");
+    btn_handle_t* btn4 = zx_button_create_gpio(pin, 0, 0, "key4");
     zx_button_register_cb(btn4, BUTTON_PRESS_DOWN,       btn_callback);
     zx_button_register_cb(btn4, BUTTON_PRESS_UP,         btn_callback);
     zx_button_register_cb(btn4, BUTTON_PRESS_REPEAT,     btn_callback);

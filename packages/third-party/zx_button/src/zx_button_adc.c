@@ -31,11 +31,13 @@ uint16_t get_volt_mv(int channel) {
     return rt_adc_read(gpai_dev, channel);
 }
 
+
 uint8_t zx_button_adc_read(uint8_t scan_start, uint8_t wait_press, void* hardware_data) {
     if (scan_start) {
         for (uint8_t i = 0; i < MAX_ADC_CHANNEL; i++) {
             if (g_btn.channel[i].is_init) {
                 g_btn.channel[i].volt_mv = get_volt_mv(i);
+                // rt_kprintf("volt_mv[%d]:%u \n", i, g_btn.channel[i].volt_mv);
             }
         }
     }
@@ -44,7 +46,7 @@ uint8_t zx_button_adc_read(uint8_t scan_start, uint8_t wait_press, void* hardwar
 }
 
 
-btn_handle_t zx_button_create_adc(int adc_channel, uint16_t middle_volt_mv, uint16_t diff_volt_mv, void* user_data) {
+btn_handle_t zx_button_create_adc(int adc_channel, uint16_t middle_volt_mv, uint16_t diff_volt_mv,  uint8_t active_level, void* user_data) {
     if (!gpai_dev) {
         gpai_dev = (struct rt_adc_device *)rt_device_find(AIC_GPAI_NAME);
         if (!gpai_dev) {
@@ -58,11 +60,16 @@ btn_handle_t zx_button_create_adc(int adc_channel, uint16_t middle_volt_mv, uint
 
         chan = hal_gpai_ch_is_valid(adc_channel);
         if (!chan)
+        {
+            rt_kprintf("Ch%d is unavailable!\n", chan);
             return NULL;
+        }
 
         rt_adc_enable(gpai_dev, adc_channel);
-
+        rt_thread_delay(2);
         g_btn.channel[adc_channel].is_init = 1;
+    }else{
+        return NULL;
     }
 
     btn_hw_info_t* hw_info = (btn_hw_info_t *)malloc(sizeof(btn_hw_info_t));
@@ -73,6 +80,6 @@ btn_handle_t zx_button_create_adc(int adc_channel, uint16_t middle_volt_mv, uint
     } else {
         hw_info->min_volt_mv = middle_volt_mv - diff_volt_mv;
     }
-
-    return zx_button_create(zx_button_adc_read, (void *)hw_info, 0, user_data);
+    
+    return zx_button_create(zx_button_adc_read, (void *)hw_info, active_level, user_data);
 }

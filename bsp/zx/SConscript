@@ -251,6 +251,9 @@ if GetDepend('AIC_PANEL_DBI_ILI9488'):
 if GetDepend('AIC_PANEL_DBI_ILI9341'):
     src += Glob('drv/display/panel/panel_dbi_ili9341.c')
 
+if GetDepend('AIC_PANEL_DBI_ST7789V'):
+    src += Glob('drv/display/panel/panel_dbi_st7789v.c')
+
 if GetDepend('AIC_PANEL_DBI_ST77903'):
     src += Glob('drv/display/panel/panel_dbi_st77903.c')
 

@@ -528,17 +528,18 @@ static int ge_run_rotate(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw
         rot.dst_buf.phy_addr[0] = FB_PHY_BUF2;
     }
 
+
     rot.dst_buf.stride[0] = FB_LINE_LENGTH;
     rot.dst_buf.size.width = dest_width;
     rot.dst_buf.size.height = dest_height;
     rot.dst_buf.format = AICFB_FORMAT;
-    rot.dst_buf.crop_en = 0;
+    rot.dst_buf.crop_en = 1;
     rot.dst_buf.crop.x = blend_area->x1;
     rot.dst_buf.crop.y = blend_area->y1;
     rot.dst_buf.crop.width = blend_width;
     rot.dst_buf.crop.height = blend_height;
-    rot.dst_rot_center.x = coords->x1 + draw_dsc->pivot.x;
-    rot.dst_rot_center.y = coords->y1 + draw_dsc->pivot.y;
+    rot.dst_rot_center.x = coords->x1 + draw_dsc->pivot.x - blend_area->x1;
+    rot.dst_rot_center.y = coords->y1 + draw_dsc->pivot.y - blend_area->y1;
 
     /* angle */
     rot.angle_sin = SIN((double)draw_dsc->angle / 10) * 4096;
@@ -851,7 +852,7 @@ LV_ATTRIBUTE_FAST_MEM void lv_draw_aic_img_decoded(struct _lv_draw_ctx_t * draw_
 
             if (!draw_dsc->antialias || !is_fix_angle(draw_dsc->angle)) {
                 ge_run_rotate(draw_ctx, draw_dsc, &frame, &blend_area, coords);
-            } else if (draw_dsc->angle == 0) {
+            } else if (is_fix_angle(draw_dsc->angle)) {
                 ge_run_blit(draw_ctx, draw_dsc, &frame, &blend_area, coords);
             } else {
                 LV_LOG_ERROR("unsupported angle:%d zoom:%d\n", draw_dsc->angle, draw_dsc->zoom);
