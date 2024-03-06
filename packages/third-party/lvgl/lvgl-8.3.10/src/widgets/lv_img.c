@@ -154,7 +154,7 @@ void lv_img_set_src(lv_obj_t * obj, const void * src)
 
     lv_obj_refresh_self_size(obj);
 
-#ifndef LPKG_MPP
+#if 1
     /*Provide enough room for the rotated corners*/
     if(img->angle || img->zoom != LV_IMG_ZOOM_NONE) lv_obj_refresh_ext_draw_size(obj);
 #endif
@@ -203,7 +203,7 @@ void lv_img_set_angle(lv_obj_t * obj, int16_t angle)
 
     img->angle = angle;
 
-#ifndef LPKG_MPP
+#if 1
     /* Disable invalidations because lv_obj_refresh_ext_draw_size would invalidate
      * the whole ext draw area */
     lv_disp_t * disp = lv_obj_get_disp(obj);
@@ -239,7 +239,7 @@ void lv_img_set_pivot(lv_obj_t * obj, lv_coord_t x, lv_coord_t y)
     img->pivot.x = x;
     img->pivot.y = y;
 
-#ifndef LPKG_MPP
+#if 1
     /* Disable invalidations because lv_obj_refresh_ext_draw_size would invalidate
      * the whole ext draw area */
     lv_disp_t * disp = lv_obj_get_disp(obj);

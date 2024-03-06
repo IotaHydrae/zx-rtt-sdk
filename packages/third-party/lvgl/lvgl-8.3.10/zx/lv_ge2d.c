@@ -230,6 +230,35 @@ static void transform_upscaled(const lv_draw_img_dsc_t *draw_dsc, int32_t xin,
     }
 }
 
+static void lv_img_buf_get_transformed_area(lv_area_t * res, lv_coord_t x, lv_coord_t y,
+                                            lv_coord_t w, lv_coord_t h,
+                                            int16_t angle, uint16_t zoom,
+                                            const lv_point_t * pivot)
+{
+    if(angle == 0 && zoom == LV_IMG_ZOOM_NONE) {
+        res->x1 = 0;
+        res->y1 = 0;
+        res->x2 = w - 1;
+        res->y2 = h - 1;
+        return;
+    }
+
+    lv_point_t p[4] = {
+        {x, y},
+        {w, y},
+        {x, h},
+        {w, h},
+    };
+    lv_point_transform(&p[0], angle, zoom, pivot);
+    lv_point_transform(&p[1], angle, zoom, pivot);
+    lv_point_transform(&p[2], angle, zoom, pivot);
+    lv_point_transform(&p[3], angle, zoom, pivot);
+    res->x1 = LV_MIN4(p[0].x, p[1].x, p[2].x, p[3].x);
+    res->x2 = LV_MAX4(p[0].x, p[1].x, p[2].x, p[3].x);
+    res->y1 = LV_MIN4(p[0].y, p[1].y, p[2].y, p[3].y);
+    res->y2 = LV_MAX4(p[0].y, p[1].y, p[2].y, p[3].y);
+}
+
 static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_dsc,
                     struct mpp_frame *frame, const lv_area_t *clip_area, const lv_area_t *coords)
 {
@@ -270,8 +299,6 @@ static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_d
         lv_coord_t src_w = lv_area_get_width(coords);
         lv_coord_t src_h = lv_area_get_height(coords);
 
-        blend_w = lv_area_get_width(clip_area);
-        blend_h = lv_area_get_height(clip_area);
         lv_area_copy(&trans_area, clip_area);
         lv_area_move(&trans_area, -coords->x1, -coords->y1);
 
@@ -290,10 +317,17 @@ static int ge_run_blit(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw_d
         src_crop_y = y1_int;
         src_crop_w = x2_int - x1_int + 1;
         src_crop_h = y2_int - y1_int + 1;
-        dst_crop_x = clip_area->x1 - draw_ctx->buf_area->x1;
-        dst_crop_y = clip_area->y1 - draw_ctx->buf_area->y1;
-        dst_crop_w = blend_w;
-        dst_crop_h = blend_h;
+
+        lv_area_t out_area;
+        lv_img_buf_get_transformed_area(&out_area, src_crop_x, src_crop_y,
+                                        src_crop_w, src_crop_h, draw_dsc->angle,
+                                        draw_dsc->zoom, &draw_dsc->pivot);
+
+        lv_area_move(&out_area, coords->x1, coords->y1);
+        dst_crop_x = out_area.x1;
+        dst_crop_y = out_area.y1;
+        dst_crop_w = lv_area_get_width(&out_area);
+        dst_crop_h = lv_area_get_height(&out_area);
 
         if (src_crop_w <= 4 || src_crop_h <= 4 ||
             dst_crop_w <= 4 || dst_crop_h <= 4) {
@@ -551,6 +585,10 @@ static int ge_run_rotate(lv_draw_ctx_t * draw_ctx, const lv_draw_img_dsc_t *draw
     rot.ctrl.src_alpha_mode = 2;
     rot.ctrl.src_global_alpha = draw_dsc->opa;
 
+    if (rot.dst_buf.crop.width < 4 || rot.dst_buf.crop.height < 4)  {
+        goto failed;
+    }
+
     aicos_dcache_clean_invalid_range((ulong *)dest_buf, (ulong)ALIGN_UP(g_info.smem_len, CACHE_LINE_SIZE));
     ret = mpp_ge_rotate(g_ge, &rot);
     if (ret < 0) {
@@ -665,7 +703,7 @@ static int ge_run_fill(lv_draw_ctx_t * draw_ctx, unsigned int color, unsigned ch
 }
 
 bool is_fix_angle(int angle) {
-    if (angle == 0 || angle == 900 || angle == 1800 || angle == 2700)
+    if (angle == 0)
         return true;
     else
         return false;
