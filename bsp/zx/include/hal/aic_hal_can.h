@@ -1,3 +1,8 @@
+/*
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ */
 #ifndef _AIC_HAL_CAN_H_
 #define _AIC_HAL_CAN_H_
 
@@ -136,7 +141,6 @@ struct can_bittiming_const {
 };
 
 typedef enum {
-    CAN_NORMAL_MODE,
     CAN_RESET_MODE      = BIT(0),
     CAN_LISTEN_MODE     = BIT(1),
     CAN_SELFTEST_MODE   = BIT(2),
@@ -248,6 +252,7 @@ static inline void hal_can_disable_interrupt(can_handle *phandle)
 #define CAN_IOCTL_SET_FILTER        2
 #define CAN_IOCTL_SET_BAUDRATE      4
 #define CAN_IOCTL_GET_BAUDRATE      8
+#define CAN_IOCTL_RELEASE_MODE      0x10
 
 #define CAN_EVENT_RX_IND         0x01    /* Rx indication */
 #define CAN_EVENT_TX_DONE        0x02    /* Tx complete   */

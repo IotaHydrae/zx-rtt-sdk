@@ -98,6 +98,7 @@ if sys.platform != "win32":
 else:
     env['LINKCOM'] = "${TEMPFILE('$LINK -o $TARGET $LINKFLAGS $__RPATH $SOURCES $_LIBDIRFLAGS -Wl,--start-group $_LIBFLAGS -Wl,--end-group','$LINKCOMSTR')}"
 env['ASCOM'] = env['ASPPCOM']
+env['CCFLAGS'] = '-fdiagnostics-color ' + env['CCFLAGS']
 
 # signature database
 env.SConsignFile(PRJ_OUT_DIR + ".sconsign.dblite")

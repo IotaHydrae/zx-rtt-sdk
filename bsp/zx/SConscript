@@ -454,4 +454,7 @@ LOCAL_CCFLAGS = ''
 
 group = DefineGroup('aic_osal', src, depend=[''], CPPPATH=CPPPATH, LOCAL_CCFLAGS=LOCAL_CCFLAGS)
 
+if GetDepend("KERNEL_FREERTOS"):
+    group = group + SConscript(os.path.join("drv_freertos", 'SConscript'))
+
 Return('group')

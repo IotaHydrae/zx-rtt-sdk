@@ -52,6 +52,16 @@ menu "Uart0 Parameter"
        default 1     if AIC_DEV_UART0_MODE_RS485
        default 2     if AIC_DEV_UART0_MODE_RS485_COMPACT_IO
 
+    config AIC_UART0_PA_RS485_CTL_NAME
+        string "uart0 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART0_MODE_RS485
+
+    config AIC_DEV_UART0_MODE_DMA
+        bool "Enable uart0 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
+
     if DRIVER_BARE_DRV_EN
         choice
             prompt "Uart0 Rx mode"
@@ -129,6 +139,16 @@ menu "Uart1 Parameter"
        default 0     if AIC_DEV_UART1_MODE_RS232
        default 1     if AIC_DEV_UART1_MODE_RS485
        default 2     if AIC_DEV_UART1_MODE_RS485_COMPACT_IO
+
+    config AIC_UART1_PA_RS485_CTL_NAME
+        string "uart1 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART1_MODE_RS485
+
+    config AIC_DEV_UART1_MODE_DMA
+        bool "Enable uart1 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
 
     if DRIVER_BARE_DRV_EN
         choice
@@ -208,6 +228,16 @@ menu "Uart2 Parameter"
        default 1     if AIC_DEV_UART2_MODE_RS485
        default 2     if AIC_DEV_UART2_MODE_RS485_COMPACT_IO
 
+    config AIC_UART2_PA_RS485_CTL_NAME
+        string "uart2 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART2_MODE_RS485
+
+    config AIC_DEV_UART2_MODE_DMA
+        bool "Enable uart2 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
+
     if DRIVER_BARE_DRV_EN
         choice
             prompt "Uart2 Rx mode"
@@ -285,6 +315,16 @@ menu "Uart3 Parameter"
        default 0     if AIC_DEV_UART3_MODE_RS232
        default 1     if AIC_DEV_UART3_MODE_RS485
        default 2     if AIC_DEV_UART3_MODE_RS485_COMPACT_IO
+
+    config AIC_UART3_PA_RS485_CTL_NAME
+        string "uart3 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART3_MODE_RS485
+
+    config AIC_DEV_UART3_MODE_DMA
+        bool "Enable uart3 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
 
     if DRIVER_BARE_DRV_EN
         choice
@@ -364,6 +404,16 @@ menu "Uart4 Parameter"
        default 1     if AIC_DEV_UART4_MODE_RS485
        default 2     if AIC_DEV_UART4_MODE_RS485_COMPACT_IO
 
+    config AIC_UART4_PA_RS485_CTL_NAME
+        string "uart4 rts pin"
+        default "PC.6"
+        depends on AIC_DEV_UART4_MODE_RS485
+
+    config AIC_DEV_UART4_MODE_DMA
+        bool "Enable uart4 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
+
     if DRIVER_BARE_DRV_EN
         choice
             prompt "Uart4 Rx mode"
@@ -441,6 +491,16 @@ menu "Uart5 Parameter"
        default 0     if AIC_DEV_UART5_MODE_RS232
        default 1     if AIC_DEV_UART5_MODE_RS485
        default 2     if AIC_DEV_UART5_MODE_RS485_COMPACT_IO
+
+    config AIC_UART5_PA_RS485_CTL_NAME
+        string "uart5 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART5_MODE_RS485
+
+    config AIC_DEV_UART5_MODE_DMA
+        bool "Enable uart5 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
 
     if DRIVER_BARE_DRV_EN
         choice
@@ -520,6 +580,16 @@ menu "Uart6 Parameter"
        default 1     if AIC_DEV_UART6_MODE_RS485
        default 2     if AIC_DEV_UART6_MODE_RS485_COMPACT_IO
 
+    config AIC_UART6_PA_RS485_CTL_NAME
+        string "uart6 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART6_MODE_RS485
+
+    config AIC_DEV_UART6_MODE_DMA
+        bool "Enable uart6 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
+
     if DRIVER_BARE_DRV_EN
         choice
             prompt "Uart6 Rx mode"
@@ -598,6 +668,16 @@ menu "Uart7 Parameter"
        default 0     if AIC_DEV_UART7_MODE_RS232
        default 1     if AIC_DEV_UART7_MODE_RS485
        default 2     if AIC_DEV_UART7_MODE_RS485_COMPACT_IO
+
+    config AIC_UART7_PA_RS485_CTL_NAME
+        string "uart7 rts pin"
+        default "PA.3"
+        depends on AIC_DEV_UART7_MODE_RS485
+
+    config AIC_DEV_UART7_MODE_DMA
+        bool "Enable uart7 dma mode"
+        default n
+        select RT_SERIAL_USING_DMA
 
     if DRIVER_BARE_DRV_EN
         choice

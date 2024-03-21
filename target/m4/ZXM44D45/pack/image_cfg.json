@@ -5,7 +5,12 @@
             "spl": { "size": "1m" },
             "os":  { "size": "4m" },
             "rodata":  { "size": "8m" },
-            "data":  { "size": "35m" },
+            "data": {
+                "size": "30m",
+                "nftl": { // Volume in NFTL device
+                    "data": { "size": "-" },
+                },
+            },
         },
     },
     "image": {

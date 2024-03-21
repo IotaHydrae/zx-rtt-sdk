@@ -46,9 +46,28 @@ void zx_touch_inputevent_cb(rt_int16_t x, rt_int16_t y, rt_uint8_t state)
 }
 #endif
 
+#ifdef KERNEL_FREERTOS
+static void __input_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data) {
+    uint8_t press = 0;
+    uint16_t x, y;
+    touch_freertos_read(&press, &x, &y);
+    if (press) {
+        data->point.x = x;
+        data->point.y = y;
+        data->state = LV_INDEV_STATE_PR;
+    } else {
+        data->state = LV_INDEV_STATE_REL;
+    }
+}
+#endif
+
 void zx_port_indev_init(void)
 {
-#ifndef ZX_TOUCH_NONE
+#ifdef TOUCH_PANEL_DRIVER
+    touch_freertos_init();
+#endif
+ 
+#if !defined(ZX_TOUCH_NONE) || defined(TOUCH_PANEL_DRIVER)
     static lv_indev_drv_t indev_drv;
 
     /* Basic initialization */

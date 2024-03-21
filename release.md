@@ -1,3 +1,8 @@
+# V1.2.0 #
+- 支持串口DMA
+- 修复挂载多个FATFS失败的问题
+- freertos支持I2C、PWM、GPAI和GPIO驱动和examples
+
 # V1.1.0 #
 ## 新增 ##
 - 支持4.45 MIPI GV503 LCD

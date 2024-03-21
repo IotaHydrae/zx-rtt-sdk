@@ -136,10 +136,16 @@ int main(void)
 #if defined(AICUPG_UDISK_ENABLE)
         id = usbh_get_connect_id();
         boot_time_trace("UDISK checked");
-        if (id < 0)
+        if (id < 0) {
             pr_err("Not find udisk.\n");
-        else
-            bd = BD_UDISK;
+        } else {
+            if (id == 0)
+                ret = console_run_cmd("aicupg fat udisk 0");
+            else if (id == 1)
+                ret = console_run_cmd("aicupg fat udisk 1");
+            if (!ret)
+                console_loop();
+        }
 
 #endif
         /*

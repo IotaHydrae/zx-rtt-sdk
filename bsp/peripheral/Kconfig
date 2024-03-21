@@ -8,8 +8,13 @@ source "bsp/peripheral/nftl/Kconfig"
 #--------------------------------------------
 
 menu "Touch Panel Support"
+if KERNEL_RTTHREAD
 source "bsp/peripheral/touch/Kconfig"
 source "bsp/peripheral/touch/rtp/Kconfig"
+endif
+if KERNEL_FREERTOS
+source "bsp/peripheral/touch_freertos/Kconfig"
+endif
 endmenu
 
 #--------------------------------------------

@@ -315,6 +315,8 @@ config AIC_USING_GPAI7
     default n
     select AIC_GPAI_DRV
 
+source "bsp/zx/drv/gpai/Kconfig.dev"
+
 #================================================
 # MutiMedia Class
 #================================================

@@ -22,21 +22,27 @@
 #include <mmc.h>
 #include <hal_syscfg.h>
 #include <upg_uart.h>
+#include <hal_rtc.h>
+#include <wdt.h>
 
-#define AICUPG_HELP                                \
-    "ZX upgrading command:\n"               \
-    "aicupg [devtype] [interface]\n"               \
-    "  - devtype: should be usb, uart, mmc, fat\n" \
-    "  - interface: specify the controller id\n"   \
-    "e.g.\n"                                       \
-    "  aicupg usb 0\n"                             \
-    "  aicupg mmc 1\n"                             \
-    "when devtype is fat: \n"                      \
-    "aicupg [devtype] [blkdev] [interface]\n"      \
-    "- blkdev: should be udisk,mmc \n"             \
-    "e.g.: \n"                                     \
-    "  aicupg fat udisk 0\n"                       \
-    "  aicupg fat mmc 1\n"
+#define AICUPG_HELP                                                      \
+    "ZX upgrading command:\n"                                     \
+    "aicupg [devtype] [interface]\n"                                     \
+    "  - devtype: should be usb, uart, mmc, fat, brom\n"                 \
+    "  - interface: specify the controller id\n"                         \
+    "e.g.\n"                                                             \
+    "  aicupg usb 0\n"                                                   \
+    "  aicupg mmc 1\n"                                                   \
+    "when devtype is fat: \n"                                            \
+    "aicupg [devtype] [blkdev] [interface]\n"                            \
+    "- blkdev: should be udisk,mmc \n"                                   \
+    "e.g.: \n"                                                           \
+    "  aicupg fat udisk 0\n"                                             \
+    "  aicupg fat mmc 1\n"                                               \
+    "when devtype is brom, device will reset to Boot ROM upgrade mode\n" \
+    "  aicupg brom\n"                                                    \
+    "  aicupg\n"
+
 static void aicupg_help(void)
 {
     puts(AICUPG_HELP);
@@ -225,12 +231,30 @@ err:
     return ret;
 }
 
+static void do_brom_upg(void)
+{
+    aic_set_reboot_reason(REBOOT_REASON_UPGRADE);
+
+#ifdef AIC_WDT_DRV
+    wdt_init();
+    printf("Going to reboot ...\n");
+    wdt_expire_now();
+    while(1)
+        continue;
+#endif
+}
+
 static int do_aicupg(int argc, char *argv[])
 {
     char *devtype = NULL;
     int intf, ret = 0;
 
     aic_get_reboot_reason();
+
+    if ((argc == 1) || ((argc == 2) && (!strcmp(argv[1], "brom")))) {
+        do_brom_upg();
+        return 0;
+    }
 
     if ((argc < 3) || (argc > AICUPG_ARGS_MAX))
         goto help;

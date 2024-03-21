@@ -1,8 +1,8 @@
 /*
- *
+  *
  * SPDX-License-Identifier: Apache-2.0
  *
- */
+  */
 #include <stdint.h>
 #include <sys_freq.h>
 #include <rtconfig.h>
@@ -37,14 +37,21 @@ static rt_size_t aic_i2c_master_xfer(struct rt_i2c_bus_device *bus,
     struct rt_i2c_msg *msg = NULL;
     int ret_msg_len = 0;
     int32_t bytes_cnt = 0;
+    int8_t is_last_message = 0;
 
     for (uint32_t index = 0; index < num; index++) {
         msg = &msgs[index];
 
+        if (index == num -1)
+            is_last_message = 1;
+        else
+            is_last_message = 0;
+        // why is_last_message == 0 will case touch read error
+        is_last_message = 1;
         if ((msg->flags & RT_I2C_RD)) {
-            bytes_cnt = aic_i2c_master_receive_msg(i2c_bus->reg_base, (struct aic_i2c_msg*)msg);
+            bytes_cnt = aic_i2c_master_receive_msg(i2c_bus->reg_base, (struct aic_i2c_msg*)msg, is_last_message);
         } else {
-            bytes_cnt = aic_i2c_master_send_msg(i2c_bus->reg_base, (struct aic_i2c_msg*)msg);
+            bytes_cnt = aic_i2c_master_send_msg(i2c_bus->reg_base, (struct aic_i2c_msg*)msg, is_last_message);
         }
 
         if (bytes_cnt == msg->len) {
