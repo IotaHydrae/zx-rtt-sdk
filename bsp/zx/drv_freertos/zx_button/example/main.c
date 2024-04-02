@@ -15,11 +15,11 @@ void btn_callback(btn_handle_t handle, void* user_data) {
 
 void app_main(void)
 {   
-    zx_button_config_t config = zx_BUTTON_DEFAULT_CONFIG;
+    zx_button_config_t config = ZX_BUTTON_DEFAULT_CONFIG;
     zx_button_init(&config);
     
-    // USE button GPIO0  
-    btn_handle_t* btn0 = zx_button_create_gpio(0, 0, NULL);
+    // USE button PA0  
+    btn_handle_t* btn0 = zx_button_create_gpio(PA0, 0, NULL);
     // btn_handle_t* btn0 = zx_button_create_adc(ADC1_CHANNEL_1, 1630, 200, NULL);
 
     zx_button_register_cb(btn0, BUTTON_PRESS_DOWN,       btn_callback);

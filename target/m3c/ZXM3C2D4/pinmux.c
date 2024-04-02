@@ -24,8 +24,8 @@ struct aic_pinmux aic_pinmux_config[] = {
 #endif
 #ifdef AIC_USING_UART1
     /* uart1 */
-    {5, PIN_PULL_DIS, 3, "PA.2"},
-    {5, PIN_PULL_DIS, 3, "PA.3"},
+    {5, PIN_PULL_DIS, 3, "PB.6"},
+    {5, PIN_PULL_DIS, 3, "PB.7"},
 #endif
 #ifdef AIC_USING_CAN0
     /* can0 */
@@ -41,12 +41,13 @@ struct aic_pinmux aic_pinmux_config[] = {
 #ifdef AIC_USING_I2C0
     {4, PIN_PULL_DIS, 3, "PA.8"},  // SCK
     {4, PIN_PULL_DIS, 3, "PA.9"},  // SDA
-    {1, PIN_PULL_DIS, 3, "PA.10"}, // RST
-    {1, PIN_PULL_DIS, 3, "PA.11"}, // INT
 #endif
 #ifdef AIC_USING_I2C1
     {4, PIN_PULL_DIS, 3, "PC.4"},  // SCK
     {4, PIN_PULL_DIS, 3, "PC.5"},  // SDA
+#endif
+#ifdef AIC_USING_GPAI4
+    {2, PIN_PULL_DIS, 3, "PA.4"},
 #endif
 #ifdef AIC_USING_QSPI0
     /* qspi0 */
@@ -281,8 +282,8 @@ struct aic_pinmux aic_pinmux_config[] = {
     {3, PIN_PULL_DIS, 3, "PE.13"},
 #endif
 #ifdef AIC_USING_PWM1
-    //{3, PIN_PULL_DIS, 3, "PC.6"},
-    {3, PIN_PULL_DIS, 3, "PC.7"},
+    {3, PIN_PULL_DIS, 3, "PC.6"},
+    // {3, PIN_PULL_DIS, 3, "PC.7"},
 #endif
 #ifdef AIC_USING_AUDIO
 #ifdef AIC_AUDIO_PLAYBACK

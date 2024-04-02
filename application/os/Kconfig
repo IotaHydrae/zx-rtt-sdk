@@ -127,5 +127,6 @@ source "application/os/custdemo/Kconfig"
 source "application/os/widgets/Kconfig"
 source "application/os/jpegplayer/Kconfig"
 source "application/os/meter_demo/Kconfig"
+source "application/os/base_demo/Kconfig"
 
 endmenu

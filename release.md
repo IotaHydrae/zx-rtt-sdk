@@ -1,3 +1,8 @@
+# V1.2.1 #
+- 增加base_demo，播放视频
+- 增加freertos文档
+- 增加ZXM3A7D0
+
 # V1.2.0 #
 - 支持串口DMA
 - 修复挂载多个FATFS失败的问题

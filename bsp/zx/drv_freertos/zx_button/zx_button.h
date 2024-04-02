@@ -34,7 +34,7 @@ typedef struct {
 	} update_task;
 } zx_button_config_t;
 
-#define zx_BUTTON_DEFAULT_CONFIG {\
+#define ZX_BUTTON_DEFAULT_CONFIG {\
     .ticks_interval_ms = 10,\
     .debounce_ticks = 2,\
     .short_ticks = 200 / 10,\
