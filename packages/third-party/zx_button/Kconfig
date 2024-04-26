@@ -13,20 +13,6 @@ if LPKG_USING_ZX_BUTTON
                 int "set adc channel"
                 range 0 7
                 default 7
-            config ADC_BTN_NAME
-                string "set adc btn name"
-                default "key1"
-            config ADC_BTN_MIDDLE_VOLT
-                int "set middle volt(mv)"
-                default 4096
-            config ADC_BTN_DIFF_VOLT
-                int "set diff volt(mv)"
-                default 1000
-                
-            config ADC_BTN_ACTIVE_LEVEL
-                int "set active level(The level at which the key is pressed)"
-                range 0 1
-                default 1
         endif
 
     menuconfig PKG_USING_ZX_GPIO_BUTTON

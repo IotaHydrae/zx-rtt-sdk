@@ -52,10 +52,10 @@
 #define LV_USE_SJPG 0
 
 /*GIF decoder library*/
-#define LV_USE_GIF 1
+#define LV_USE_GIF 0
 
 /*QR code library*/
-#define LV_USE_QRCODE 1
+#define LV_USE_QRCODE 0
 
 #ifdef ZX_LVGL_BENCHMARK_DEMO
 #define LV_FONT_MONTSERRAT_12       1

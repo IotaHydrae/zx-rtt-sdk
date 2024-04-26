@@ -17,6 +17,9 @@ if GetDepend(['LPKG_USING_HTTP_OTA']):
 if GetDepend(['LPKG_USING_YMODEM_OTA']):
     src += Glob('src/ymodem_ota.c')
 
+if GetDepend(['LPKG_USING_UART_OTA']):
+    src += Glob('src/uart_ota.c')
+    
 group = DefineGroup('ota_downloader', src, depend = ['LPKG_USING_OTA_DOWNLOADER'], CPPPATH = CPPPATH)
 
 Return('group')

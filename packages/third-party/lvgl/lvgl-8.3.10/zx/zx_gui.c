@@ -29,7 +29,7 @@ static ALIGN(8) rt_uint8_t __zx_gui_thread_stack[1024 * 256];    // 256K for fre
 static ALIGN(8) rt_uint8_t __zx_gui_thread_stack[1024 * 16];    // 16K
 #endif
 
-#define ZX_GUI_MQ_SIZE    64
+#define ZX_GUI_MQ_SIZE    256
 
 #define ZX_GUI_MQ_NUM     16
 
@@ -311,14 +311,12 @@ rt_err_t zx_gui_send_event(rt_uint32_t event, bool toui)
 {
     if (toui) {
         if (__zx_gui_recv_event != RT_NULL) {
-            rt_kprintf("[zx_gui_send_event]:__LINE__:%d\n", __LINE__);
             return rt_event_send(__zx_gui_recv_event, event);
         } else {
             return RT_ERROR;
         }
     } else {
         if (__zx_gui_send_event != RT_NULL) {
-            rt_kprintf("[zx_gui_send_event]:__LINE__:%d\n", __LINE__);
             return rt_event_send(__zx_gui_send_event, event);
         } else {
             return RT_ERROR;

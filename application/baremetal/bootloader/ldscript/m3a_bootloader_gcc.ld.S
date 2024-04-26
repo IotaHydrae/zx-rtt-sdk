@@ -48,7 +48,7 @@ MEMORY
 {
     /* The last 256KB for bootloader */
     SRAM_SW     : ORIGIN = 0x30040000, LENGTH = 0x8000
-    PSRAM_BOOT_SW : ORIGIN = 0x40300100, LENGTH = 0x100000
+    PSRAM_BOOT_SW : ORIGIN = 0x40400100, LENGTH = 0x100000
 }
 
 PROVIDE (__sram_start             = 0x30040000);
@@ -56,7 +56,7 @@ PROVIDE (__sram_end               = 0x30040000 + AIC_SRAM_SIZE);
 
 PROVIDE (__min_heap_size           = 0x200);
 PROVIDE (__heap_start              = __psram_sw_heap_start);
-PROVIDE (__heap_end                = 0x40400000);
+PROVIDE (__heap_end                = 0x40600000);
 
 REGION_ALIAS("REGION_TEXT"          , PSRAM_BOOT_SW);
 REGION_ALIAS("REGION_RODATA"        , PSRAM_BOOT_SW);

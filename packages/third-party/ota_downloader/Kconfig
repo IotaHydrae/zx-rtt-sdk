@@ -28,6 +28,10 @@ if LPKG_USING_OTA_DOWNLOADER
     config LPKG_USING_YMODEM_OTA
         bool "Enable Ymodem OTA"
         select RT_USING_RYM
+        default n
+
+    config LPKG_USING_UART_OTA
+        bool "Enable Uart OTA"
         default y
 
     choice

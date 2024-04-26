@@ -279,11 +279,11 @@ struct aic_pinmux aic_pinmux_config[] = {
 #endif
 
 #ifdef AIC_USING_PWM0
-    {3, PIN_PULL_DIS, 3, "PE.13"},
+    {3, PIN_PULL_DIS, 3, "PC.4"},
 #endif
 #ifdef AIC_USING_PWM1
     {3, PIN_PULL_DIS, 3, "PC.6"},
-    // {3, PIN_PULL_DIS, 3, "PC.7"},
+    {3, PIN_PULL_DIS, 3, "PC.7"},
 #endif
 #ifdef AIC_USING_AUDIO
 #ifdef AIC_AUDIO_PLAYBACK
@@ -293,6 +293,26 @@ struct aic_pinmux aic_pinmux_config[] = {
 #endif
 
     {1, PIN_PULL_DIS, 3, "PD.6"},  // LCD_RESET
+
+    //按键
+    {1, PIN_PULL_DIS, 3, "PD.0"},  // K1
+    {1, PIN_PULL_DIS, 3, "PD.1"},  // K2
+    {1, PIN_PULL_DIS, 3, "PD.2"},  // K3
+    {1, PIN_PULL_DIS, 3, "PD.3"},  // K4
+
+    //PWM0
+    {3, PIN_PULL_DIS, 3, "PC.4"},
+
+    //PWM1
+    {3, PIN_PULL_DIS, 3, "PC.6"},
+    {3, PIN_PULL_DIS, 3, "PC.7"},
+
+    //灯光
+    {1, PIN_PULL_DIS, 3, "PC.0"},  // R_ON,红灯ON/OFF 输出脚
+    {1, PIN_PULL_DIS, 3, "PC.1"},  // IRA_ON,红外灯1050ON/OFF 输出脚
+    {1, PIN_PULL_DIS, 3, "PC.2"},  // IR_ON,红外灯-830ON/OFF 输出脚
+    {1, PIN_PULL_DIS, 3, "PC.3"},  // Y-ON,黄灯输出
+
 };
 
 void aic_board_pinmux_init(void)
@@ -321,5 +341,52 @@ void aic_board_pinmux_init(void)
     aic_mdelay(20);
     hal_gpio_clr_output(g,p);
     aic_mdelay(120);
+    hal_gpio_set_output(g,p);
+
+    //按键
+    pin = hal_gpio_name2pin("PD.0");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_input(g, p);
+
+    pin = hal_gpio_name2pin("PD.1");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_input(g, p);
+
+    pin = hal_gpio_name2pin("PD.2");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_input(g, p);
+    
+    pin = hal_gpio_name2pin("PD.3");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_input(g, p);
+
+
+    //灯光
+    pin = hal_gpio_name2pin("PC.0");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_set_output(g,p);
+
+    pin = hal_gpio_name2pin("PC.1");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_set_output(g,p);
+
+    pin = hal_gpio_name2pin("PC.2");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_set_output(g,p);
+    
+    pin = hal_gpio_name2pin("PC.3");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
     hal_gpio_set_output(g,p);
 }

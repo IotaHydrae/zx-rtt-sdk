@@ -109,6 +109,7 @@ int main(void)
     enum boot_device bd;
     int ctrlc = -1;
     s32 id = -1;
+    s32 __attribute__((unused)) ret = -1;
 
     boot_time_trace("Enter main");
 

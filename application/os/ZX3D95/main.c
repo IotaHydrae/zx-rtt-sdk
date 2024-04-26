@@ -2,15 +2,18 @@
 #include "zx_gui.h"
 #include "zx_ui_entry.h"
 
+
 static void __zx_gui_event_cb(rt_uint32_t event)
 {
+    
 }
 
 static void __zx_gui_mq_cb(const void *buffer, rt_size_t size)
 {
+
 }
 
-extern void zx_button_adc_start(void);
+
 
 int zx_gui_app_init(void)
 {

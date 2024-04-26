@@ -4,8 +4,8 @@
         "partitions": {
             "spl":        { "size": "256k" },
             "os":         { "size": "2m" },
-            "rodata":     { "size": "512k" },
-            "data":       { "size": "512k" }
+            "rodata":     { "size": "1m" },
+            // "data":       { "size": "512k" }
         },
     },
     "image": {

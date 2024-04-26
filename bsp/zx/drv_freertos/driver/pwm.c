@@ -110,12 +110,13 @@ static int pwm_set_duty_ns(pwm_channel_t channel, pwm_signal_num_t sig, uint32_t
     if (sig >= PWN_SIG_MAX) {
         return -1 ;
     }
-    if (duty_ns > g_pwm_time_ns->period_ns) {
-        duty_ns = g_pwm_time_ns->period_ns;
+
+    if (duty_ns > g_pwm_time_ns[channel].period_ns) {
+        duty_ns = g_pwm_time_ns[channel].period_ns;
     }
     int ret = pwm_hal_signal_set_duty_ns(channel, sig, duty_ns);
     if (ret == 0) {
-        g_pwm_time_ns->sig_duty_ns[sig] = duty_ns;
+        g_pwm_time_ns[channel].sig_duty_ns[sig] = duty_ns;
     }
     return ret;
 }
@@ -124,8 +125,8 @@ static int pwm_set_period_ns(pwm_channel_t channel, uint32_t period_ns) {
     if (channel >= PWM_CH_MAX) {
         return -1;
     }
-    uint32_t duty_a_ns = g_pwm_config->signal[0].duty * period_ns / 100;
-    uint32_t duty_b_ns = g_pwm_config->signal[1].duty * period_ns / 100;
+    uint32_t duty_a_ns = g_pwm_config[channel].signal[0].duty * period_ns / 100;
+    uint32_t duty_b_ns = g_pwm_config[channel].signal[1].duty * period_ns / 100;
     int ret = pwm_hal_set_period_ns(channel, period_ns);
     if (ret == 0) {
         pwm_hal_signal_set_duty_ns(channel, PWN_SIG_A, duty_a_ns);

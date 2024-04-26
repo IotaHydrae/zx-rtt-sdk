@@ -13,16 +13,15 @@
 #ifdef LPKG_USING_ZX_BUTTON
 #include "zx_button.h"
 
-#define KEY1_GPIO_NAME    "PD.15"
-#define KEY2_GPIO_NAME    "PD.16"
-#define KEY3_GPIO_NAME    "PD.17"
-#define KEY4_GPIO_NAME    "PD.18"
+#define KEY1_GPIO_NAME    "PD.0"
+#define KEY2_GPIO_NAME    "PD.1"
+#define KEY3_GPIO_NAME    "PD.2"
+#define KEY4_GPIO_NAME    "PD.3"
 
 const char* press_event[] = {"PRESS_DOWN", "PRESS_UP", "PRESS_REPEAT", "SINGLE_CLICK", "DOUBLE_CLICK", "LONG_PRESS_START", "LONG_PRESS_HOLD", "BUTTON_EVENT_MAX", "NONE_PRESS"};
 void btn_callback(btn_handle_t handle, void* user_data) {
     rt_kprintf("BTN %s: %s\r\n", (char *)user_data, press_event[zx_button_get_event(handle)]);
     zx_gui_send_event(zx_button_get_event(handle), true);
-    rt_kprintf("[btn_callback]:__LINE__:%d\n", __LINE__);
 }
 
 void zx_button_start_gpio(void)

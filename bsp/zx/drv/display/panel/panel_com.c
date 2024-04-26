@@ -188,7 +188,7 @@ int panel_default_unprepare(void)
 int panel_default_enable(struct aic_panel *panel)
 {
     panel_di_enable(panel, 0);
-    panel_de_timing_enable(panel, 0);
+    panel_de_timing_enable(panel, 60);
     panel_backlight_enable(panel, 0);
     return 0;
 }

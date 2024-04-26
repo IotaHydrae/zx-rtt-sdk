@@ -68,9 +68,10 @@ btn_handle_t zx_button_create_adc(int adc_channel, uint16_t middle_volt_mv, uint
         rt_adc_enable(gpai_dev, adc_channel);
         rt_thread_delay(2);
         g_btn.channel[adc_channel].is_init = 1;
-    }else{
-        return NULL;
     }
+    // else{
+    //     return NULL;
+    // }
 
     btn_hw_info_t* hw_info = (btn_hw_info_t *)malloc(sizeof(btn_hw_info_t));
     hw_info->channel = adc_channel;

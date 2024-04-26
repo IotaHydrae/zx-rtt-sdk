@@ -6,7 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2021-01-13     RiceChen     the first version
- * 2023-04-30     Geo          modified for ZX
+ * 2023-04-30     Geo          modified for zx
  */
 
 #include <rtthread.h>
@@ -113,9 +113,9 @@ static rt_err_t gt911_get_info(struct rt_i2c_client *dev,
 
     info->range_x = (out_info[2] << 8) | out_info[1];
     info->range_y = (out_info[4] << 8) | out_info[3];
-    // info->point_num = out_info[5] & 0x0f;
+    info->point_num = out_info[5] & 0x0f;
     // FIXME: temporarily set to 1, only 1 point data return
-    info->point_num = 1;
+    // info->point_num = 1;
 
     return RT_EOK;
 }

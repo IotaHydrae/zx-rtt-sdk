@@ -62,9 +62,9 @@ btn_handle_t zx_button_create_gpio(uint8_t gpio_num, uint8_t mode, uint8_t activ
 /**
  * 创建adc按键
  * adc_channel:adc 通道
- * middle_volt_mv: 参考电压(按键松开时的电压值)
+ * middle_volt_mv: 参考电压(按键按下时的电压值)
  * diff_volt_mv: 电压浮动范围
- * active_level: 按键按下时的电平状态 (adc参考 zx_button_adc_read 函数的返回值)
+ * active_level: 按键按下时的zx_button_adc_read的返回值 (adc参考 zx_button_adc_read 函数的返回值)
  * user_data
  */
 btn_handle_t zx_button_create_adc(int adc_channel, uint16_t middle_volt_mv, uint16_t diff_volt_mv,  uint8_t active_level, void* user_data);

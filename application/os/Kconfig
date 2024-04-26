@@ -119,6 +119,9 @@ if AIC_USING_FS_IMAGE_TYPE_FATFS_FOR_0 || AIC_USING_FS_IMAGE_TYPE_FATFS_FOR_1
         int "size of cluster in fatfs image"
         default 8
 endif
+config GENERATE_BURNER_IMAGE
+    bool "Generate burner format image"
+    default n
 
 source "application/os/benchmark/Kconfig"
 source "application/os/freetype/Kconfig"
@@ -128,5 +131,7 @@ source "application/os/widgets/Kconfig"
 source "application/os/jpegplayer/Kconfig"
 source "application/os/meter_demo/Kconfig"
 source "application/os/base_demo/Kconfig"
+source "application/os/wft_longxin/Kconfig"
+source "application/os/m3a7d0_demo/Kconfig"
 
 endmenu

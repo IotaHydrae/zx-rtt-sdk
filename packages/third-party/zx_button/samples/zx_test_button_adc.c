@@ -44,7 +44,11 @@ void zx_button_start_adc(void)
     }
 
     rt_kprintf("start test\n");
-    btn_handle_t* btn1 = zx_button_create_adc(ADC_BTN_CHANNEL, ADC_BTN_MIDDLE_VOLT, ADC_BTN_DIFF_VOLT, ADC_BTN_ACTIVE_LEVEL, ADC_BTN_NAME);
+    //1829   1760
+    //1433  1397
+    //819   766
+    //409   399
+    btn_handle_t* btn1 = zx_button_create_adc(ADC_BTN_CHANNEL, 1829, 200, 0, "key1");
     if(btn1 == NULL)
     {
         rt_kprintf("The channel or button has been initialized\n");
@@ -58,6 +62,53 @@ void zx_button_start_adc(void)
     zx_button_register_cb(btn1, BUTTON_LONG_PRESS_START, btn_callback);
     zx_button_register_cb(btn1, BUTTON_LONG_PRESS_HOLD,  btn_callback);
     zx_button_start(btn1);
+
+    btn_handle_t* btn2 = zx_button_create_adc(ADC_BTN_CHANNEL, 1433, 100, 0, "KEY2");
+    if(btn2 == NULL)
+    {
+        rt_kprintf("The channel or button has been initialized\n");
+        return;
+    }
+    zx_button_register_cb(btn2, BUTTON_PRESS_DOWN,       btn_callback);
+    zx_button_register_cb(btn2, BUTTON_PRESS_UP,         btn_callback);
+    zx_button_register_cb(btn2, BUTTON_PRESS_REPEAT,     btn_callback);
+    zx_button_register_cb(btn2, BUTTON_SINGLE_CLICK,     btn_callback);
+    zx_button_register_cb(btn2, BUTTON_DOUBLE_CLICK,     btn_callback);
+    zx_button_register_cb(btn2, BUTTON_LONG_PRESS_START, btn_callback);
+    zx_button_register_cb(btn2, BUTTON_LONG_PRESS_HOLD,  btn_callback);
+    zx_button_start(btn2);
+
+
+    btn_handle_t* btn3 = zx_button_create_adc(ADC_BTN_CHANNEL, 819, 100, 0, "KEY3");
+    if(btn3 == NULL)
+    {
+        rt_kprintf("The channel or button has been initialized\n");
+        return;
+    }
+    zx_button_register_cb(btn3, BUTTON_PRESS_DOWN,       btn_callback);
+    zx_button_register_cb(btn3, BUTTON_PRESS_UP,         btn_callback);
+    zx_button_register_cb(btn3, BUTTON_PRESS_REPEAT,     btn_callback);
+    zx_button_register_cb(btn3, BUTTON_SINGLE_CLICK,     btn_callback);
+    zx_button_register_cb(btn3, BUTTON_DOUBLE_CLICK,     btn_callback);
+    zx_button_register_cb(btn3, BUTTON_LONG_PRESS_START, btn_callback);
+    zx_button_register_cb(btn3, BUTTON_LONG_PRESS_HOLD,  btn_callback);
+    zx_button_start(btn3);
+
+
+    btn_handle_t* btn4 = zx_button_create_adc(ADC_BTN_CHANNEL, 409, 100, 0, "KEY4");
+    if(btn4 == NULL)
+    {
+        rt_kprintf("The channel or button has been initialized\n");
+        return;
+    }
+    zx_button_register_cb(btn4, BUTTON_PRESS_DOWN,       btn_callback);
+    zx_button_register_cb(btn4, BUTTON_PRESS_UP,         btn_callback);
+    zx_button_register_cb(btn4, BUTTON_PRESS_REPEAT,     btn_callback);
+    zx_button_register_cb(btn4, BUTTON_SINGLE_CLICK,     btn_callback);
+    zx_button_register_cb(btn4, BUTTON_DOUBLE_CLICK,     btn_callback);
+    zx_button_register_cb(btn4, BUTTON_LONG_PRESS_START, btn_callback);
+    zx_button_register_cb(btn4, BUTTON_LONG_PRESS_HOLD,  btn_callback);
+    zx_button_start(btn4);
 }
 
     #endif
