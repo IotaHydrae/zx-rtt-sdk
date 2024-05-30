@@ -214,24 +214,30 @@ int aic_set_burst(struct dma_slave_config *sconfig,
 struct aic_dma_task *aic_dma_task_alloc(void)
 {
     struct aic_dma_task *task;
+    unsigned long state;
 
     /* Remove the QH structure from the freelist */
 
+    aicos_local_irq_save(&state);
     task = aich_dma.freetask;
     if (task) {
         aich_dma.freetask = task->v_next;
         memset(task, 0, sizeof(struct aic_dma_task));
     }
+    aicos_local_irq_restore(state);
 
     return task;
 }
 
 static void aic_dma_task_free(struct aic_dma_task *task)
 {
+    unsigned long state;
     CHECK_PARAM_RET(task != NULL);
 
+    aicos_local_irq_save(&state);
     task->v_next = aich_dma.freetask;
     aich_dma.freetask = task;
+    aicos_local_irq_restore(state);
 }
 
 void *aic_dma_task_add(struct aic_dma_task *prev,
@@ -239,6 +245,9 @@ void *aic_dma_task_add(struct aic_dma_task *prev,
                                  struct aic_dma_chan *chan)
 {
     CHECK_PARAM((chan != NULL || prev != NULL) && next != NULL, NULL);
+
+    unsigned long state;
+    aicos_local_irq_save(&state);
 
     if (!prev)
     {
@@ -252,6 +261,8 @@ void *aic_dma_task_add(struct aic_dma_task *prev,
 
     next->p_next = DMA_LINK_END_FLAG;
     next->v_next = NULL;
+
+    aicos_local_irq_restore(state);
 
     return next;
 }
@@ -297,6 +308,7 @@ int hal_dma_chan_stop(struct aic_dma_chan *chan)
     u32 irq_reg, irq_offset;
 
     CHECK_PARAM(chan != NULL, -EINVAL);
+
     irq_reg = chan->ch_nr / DMA_IRQ_CHAN_NR;
     irq_offset = chan->ch_nr % DMA_IRQ_CHAN_NR;
 
@@ -396,7 +408,9 @@ struct aic_dma_chan *hal_request_dma_chan(void)
 {
     int i = 0;
     struct aic_dma_chan *chan;
+    unsigned long state;
 
+    aicos_local_irq_save(&state);
     for (i = 0; i < AIC_DMA_CH_NUM; i++)
     {
         chan = &aich_dma.dma_chan[i];
@@ -409,10 +423,11 @@ struct aic_dma_chan *hal_request_dma_chan(void)
             chan->callback = NULL;
             chan->callback_param = NULL;
             chan->desc = NULL;
+            aicos_local_irq_restore(state);
             return chan;
         }
     }
-
+    aicos_local_irq_restore(state);
     return NULL;
 }
 
