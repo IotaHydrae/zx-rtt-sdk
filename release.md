@@ -6,6 +6,7 @@
 - SPI NAND：优化内存拷贝流程；减少数据传输中的delay；
 - SPI：优化DMA传输
 - UART：修正485模式的数据传输错误
+- M3C/M3A: 支持HRTIMER
 
 # V1.2.1 #
 - 增加base_demo，播放视频
