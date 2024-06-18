@@ -10,6 +10,7 @@
 extern "C" {
 #endif
 
+#include <aic_core.h>
 #include <csi_core.h>
 #include <aic_drv_irq.h>
 //#include <aic_tlsf.h>
@@ -50,7 +51,6 @@ typedef enum irqreturn irqreturn_t;
 typedef irqreturn_t (*irq_handler_t)(int, void *);
 typedef irqreturn_t (*pin_irq_handler_t)(void *);
 
-
 static inline int aicos_request_irq(unsigned int irq, irq_handler_t handler, unsigned int flags,
                                  const char *name, void *data)
 {
@@ -77,6 +77,54 @@ static inline int aicos_in_irq(void)
     return g_aicos_irq_nested_cnt;
 }
 #endif
+
+static inline void aicos_irq_set_prio(unsigned int irq, unsigned int priority)
+{
+    if (irq >= MAX_IRQn)
+        return;
+
+#if __riscv_xlen == 64
+    csi_plic_set_prio(PLIC_BASE, irq, priority);
+#elif __riscv_xlen == 32
+    csi_vic_set_prio(irq, priority);
+#else
+#endif
+}
+
+static inline unsigned int aicos_irq_get_prio(unsigned int irq)
+{
+    if (irq >= MAX_IRQn)
+        return -1;
+
+#if __riscv_xlen == 64
+    return csi_plic_get_prio(PLIC_BASE, irq);
+#elif __riscv_xlen == 32
+    return csi_vic_get_prio(irq);
+#else
+    return 0;
+#endif
+}
+
+static inline void aicos_irq_set_threshold(unsigned int threshold)
+{
+#if __riscv_xlen == 64
+    csi_plic_set_threshold(PLIC_BASE, threshold);
+#elif __riscv_xlen == 32
+    csi_vic_set_threshold(threshold);
+#else
+#endif
+}
+
+static inline unsigned int aicos_irq_get_threshold(void)
+{
+#if __riscv_xlen == 64
+    return csi_plic_get_threshold(PLIC_BASE);
+#elif __riscv_xlen == 32
+    return csi_vic_get_threshold();
+#else
+    return 0;
+#endif
+}
 
 //--------------------------------------------------------------------+
 // Cache API
@@ -135,6 +183,20 @@ static inline void aicos_dcache_clean_range(void *addr, u32 size)
 static inline void aicos_dcache_clean_invalid_range(void *addr, u32 size)
 {
     csi_dcache_clean_invalid_range((phy_addr_t)(ptr_t)addr, size);
+}
+
+//--------------------------------------------------------------------+
+// DMA API
+//--------------------------------------------------------------------+
+
+extern unsigned char g_dma_w_sync_buffer[CACHE_LINE_SIZE];
+
+static inline void aicos_dma_sync(void)
+{
+#ifdef AIC_CHIP_M4
+    asm volatile("sw t0, (%0)" : : "r"(g_dma_w_sync_buffer));
+    csi_dcache_clean_range((phy_addr_t)(ptr_t)g_dma_w_sync_buffer, CACHE_LINE_SIZE);
+#endif
 }
 
 //--------------------------------------------------------------------+

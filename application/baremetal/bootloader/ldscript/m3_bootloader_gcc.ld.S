@@ -77,7 +77,7 @@ PROVIDE (__heap_start              = 0x40000000);
 PROVIDE (__heap_end                = 0x40000000 + 0x800000);
 #else
 PROVIDE (__heap_start              = 0x300E0000);
-PROVIDE (__heap_end                = 0x30100000);
+PROVIDE (__heap_end                = 0x300FF000);
 #endif
 REGION_ALIAS("REGION_TEXT"          , SRAM_SW);
 REGION_ALIAS("REGION_RODATA"        , SRAM_SW);

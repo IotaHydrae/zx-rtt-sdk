@@ -16,6 +16,7 @@
 #include <rtthread.h>
 #include <drivers/pm.h>
 #include <stdlib.h>
+#include <aic_io.h>
 
 #ifdef RT_USING_PM
 
@@ -308,6 +309,7 @@ static rt_bool_t _pm_device_check_idle(void)
             return RT_FALSE;
         }
     }
+
 
     return RT_TRUE;
 }

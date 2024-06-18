@@ -112,6 +112,7 @@ static s32 aes_ecb_crypto(u8 *key, u8 keylen, u8 dir, u8 *in, u8 *out, u32 len)
             pr_err("AES run error.\n");
             return RT_ERROR;
         }
+        aicos_dma_sync();
         aicos_dcache_invalid_range((void *)(unsigned long)pout, dolen);
         len -= dolen;
     } while (len);
@@ -171,6 +172,7 @@ static s32 aes_cbc_crypto(u8 *key, u8 keylen, u8 dir, u8 *iv, u8 *in, u8 *out,
             pr_err("AES run error.\n");
             return RT_ERROR;
         }
+        aicos_dma_sync();
         writel(0xA0, 0x19030FFCUL);
         aicos_dcache_invalid_range((void *)(unsigned long)pout, dolen);
         writel(0xA1, 0x19030FFCUL);
@@ -346,6 +348,7 @@ rt_err_t drv_sha_update(aic_sha_context_t *context, const void *input,
         input += dolen;
     } while (size > 0);
 
+    aicos_dma_sync();
     aicos_dcache_invalid_range((void *)(unsigned long)out, SHA_MAX_OUTPUT_LEN);
     memcpy(context->total, &total_len, 8);
 

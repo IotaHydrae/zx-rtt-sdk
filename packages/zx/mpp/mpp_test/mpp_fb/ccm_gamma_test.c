@@ -1,5 +1,4 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  *
  */
@@ -47,6 +46,35 @@ static void usage(char *app)
 #define FLAGS_CCM   (0x1 << 1)
 #define FLAGS_GAMMA (0x1 << 2)
 
+static void gamma_lut_parse(unsigned int channel, unsigned int num,
+                            struct aicfb_gamma_config *gamma)
+{
+    int len, i, index;
+    char str[3] = {0};
+    unsigned int val[4] = {0};
+    unsigned int gamma_lut;
+
+    len = strlen(optarg);
+    if (len != 16 * 2) {
+        pr_err("Invaild gamma table, table len %d\n", len);
+        return;
+    }
+
+    for (i = 0; i < 16; i++) {
+        strncpy(str, optarg + (i * 2), 2);
+
+        index = i % 4;
+        val[index] = strtoll(str, NULL, 16);
+
+        if (index == 3) {
+             /* Convert into gamma lut format */
+            gamma_lut = (val[0] << 0)  | (val[1] << 8) |
+                        (val[2] << 16) | (val[3] << 24);
+            gamma->gamma_lut[channel][num * 4 + i / 4] = gamma_lut;
+        }
+    }
+}
+
 static int ccm_gamma_test(int argc, char **argv)
 {
     struct mpp_fb *fb = NULL;
@@ -54,7 +82,6 @@ static int ccm_gamma_test(int argc, char **argv)
     struct aicfb_ccm_config ccm;
     struct aicfb_gamma_config gamma;
     unsigned int flags = FLAGS_NONE;
-    int value;
 
     const char sopts[] = "m:c:n:r:g:b:u";
     const struct option lopts[] = {
@@ -91,10 +118,10 @@ static int ccm_gamma_test(int argc, char **argv)
                 ccm.enable = 0;
                 gamma.enable = 0;
                 break;
-            case 1:
+            case 2:
                 ccm.enable = 0;
                 break;
-            case 2:
+            case 1:
                 gamma.enable = 0;
                 break;
             default:
@@ -130,59 +157,17 @@ static int ccm_gamma_test(int argc, char **argv)
         }
         case 'r':
         {
-            int len, i;
-            char str[3] = {0};
-
-            len = strlen(optarg);
-            if (len != 16 * 2) {
-                pr_err("Invaild gamma table, table len %d\n", len);
-                break;
-            }
-
-            for (i = 0; i < 16; i++) {
-                strncpy(str, optarg + (i * 2), 2);
-
-                value = strtoll(str, NULL, 16);
-                gamma.gamma_lut[GAMMA_RED][num * 16 + i] = value;
-            }
+            gamma_lut_parse(GAMMA_RED, num, &gamma);
             break;
         }
         case 'g':
         {
-            int len, i;
-            char str[3] = {0};
-
-            len = strlen(optarg);
-            if (len != 16 * 2) {
-                pr_err("Invaild gamma table, table len %d\n", len);
-                break;
-            }
-
-            for (i = 0; i < 16; i++) {
-                strncpy(str, optarg + (i * 2), 2);
-
-                value = strtoll(str, NULL, 16);
-                gamma.gamma_lut[GAMMA_BLUE][num * 16 + i] = value;
-            }
+            gamma_lut_parse(GAMMA_GREEN, num, &gamma);
             break;
         }
         case 'b':
         {
-            int len, i;
-            char str[3] = {0};
-
-            len = strlen(optarg);
-            if (len != 16 * 2) {
-                pr_err("Invaild gamma table, table len %d\n", len);
-                break;
-            }
-
-            for (i = 0; i < 16; i++) {
-                strncpy(str, optarg + (i * 2), 2);
-
-                value = strtoll(str, NULL, 16);
-                gamma.gamma_lut[GAMMA_GREEN][num * 16 + i] = value;
-            }
+            gamma_lut_parse(GAMMA_BLUE, num, &gamma);
 
             if (num == 3)
                 flags |= FLAGS_GAMMA;
@@ -199,12 +184,12 @@ static int ccm_gamma_test(int argc, char **argv)
     if (flags & FLAGS_GAMMA)
         gamma.enable = 1;
 
-    mpp_fb_ioctl(fb, AICFB_SET_GAMMA_CONFIG, &gamma);
+    mpp_fb_ioctl(fb, AICFB_UPDATE_GAMMA_CONFIG, &gamma);
 
     if (flags & FLAGS_CCM)
         ccm.enable = 1;
 
-    mpp_fb_ioctl(fb, AICFB_SET_CCM_CONFIG, &ccm);
+    mpp_fb_ioctl(fb, AICFB_UPDATE_CCM_CONFIG, &ccm);
 
     mpp_fb_close(fb);
     return 0;

@@ -13,7 +13,7 @@
 #include <uart.h>
 #include <upg_uart.h>
 #include <trans_rw_data.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include <crc16.h>
 
 #ifndef AICUPG_UART_DEBUG

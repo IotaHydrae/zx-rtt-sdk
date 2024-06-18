@@ -20,6 +20,7 @@
 struct aic_psadc_dev {
     struct rt_adc_device *dev;
     struct aic_psadc_ch *chan;
+    struct aic_psadc_queue *queue;
 };
 
 static u32 g_psadc_pclk_rate = 0;
@@ -159,40 +160,69 @@ struct aic_psadc_ch aic_psadc_chs[] = {
 #endif
 };
 
-static rt_err_t drv_psadc_enabled(struct rt_adc_device *dev, rt_uint32_t ch,
-                                  rt_bool_t enabled)
-{
-    struct aic_psadc_ch *chan = hal_psadc_ch_is_valid(ch);
+struct aic_psadc_queue aic_psadc_queues[] = {
+    {
+        .id = 0,
+        .type = AIC_PSADC_QC,
+    },
+};
 
-    if (!chan)
-        return -RT_EINVAL;
+static rt_err_t drv_psadc_enabled(struct rt_adc_device *dev,
+                                  rt_uint32_t queue_type, rt_bool_t enabled)
+{
+
+    struct aic_psadc_queue *queue = &aic_psadc_queues[queue_type];
+
     if (enabled) {
-        hal_psadc_ch_init(chan, g_psadc_pclk_rate);
-        if (chan->mode == AIC_PSADC_MODE_SINGLE)
-            chan->complete = aicos_sem_create(0);
+        int cnt = 0;
+        for (int i = 0; i < AIC_PSADC_CH_NUM; i++) {
+            struct aic_psadc_ch *chan = hal_psadc_ch_is_valid(i);
+            if (!chan)
+                continue;
+            if (chan->available && cnt < AIC_PSADC_QUEUE_LENGTH) {
+                hal_psadc_set_queue_node(AIC_PSADC_Q1, chan->id, cnt);
+                cnt++;
+                continue;
+            }
+            if (chan->available && cnt >= AIC_PSADC_QUEUE_LENGTH) {
+                hal_psadc_set_queue_node(AIC_PSADC_Q2, chan->id,
+                                         cnt - AIC_PSADC_QUEUE_LENGTH);
+                cnt++;
+                continue;
+            }
+        }
+        queue->nodes_num = cnt;
+        queue->complete = aicos_sem_create(0);
+        hal_psadc_ch_init();
     } else {
         hal_psadc_qc_irq_enable(0);
-        if (chan->mode == AIC_PSADC_MODE_SINGLE) {
-            aicos_sem_delete(chan->complete);
-            chan->complete = NULL;
-        }
+        aicos_sem_delete(queue->complete);
+        queue->complete = NULL;
     }
 
     return RT_EOK;
 }
 
-static rt_err_t drv_psadc_convert(struct rt_adc_device *dev, rt_uint32_t ch,
-                                  rt_uint32_t *value)
+static rt_err_t drv_psadc_get_adc_values_poll(struct rt_adc_device *dev,
+                                              void *values)
 {
-    struct aic_psadc_ch *chan = hal_psadc_ch_is_valid(ch);
-
-    if (!chan)
-        return -RT_EINVAL;
-
-    return hal_psadc_read(chan, (u32 *)value, AIC_PSADC_TIMEOUT);
+    return hal_psadc_read_poll(values, AIC_PSADC_POLL_READ_TIMEOUT);
 }
 
-static rt_uint8_t drv_gpai_resolution(struct rt_adc_device *dev)
+static rt_err_t drv_psadc_get_adc_values(struct rt_adc_device *dev,
+                                         void *values)
+{
+    return hal_psadc_read(values, AIC_PSADC_TIMEOUT);
+}
+
+static rt_uint32_t drv_psadc_get_chan_count(struct rt_adc_device *dev)
+{
+    struct aic_psadc_queue *queue = &aic_psadc_queues[AIC_PSADC_QC];
+
+    return queue->nodes_num;
+}
+
+static rt_uint8_t drv_psadc_resolution(struct rt_adc_device *dev)
 {
     return 12;
 }
@@ -200,8 +230,10 @@ static rt_uint8_t drv_gpai_resolution(struct rt_adc_device *dev)
 static const struct rt_adc_ops aic_adc_ops =
 {
     .enabled = drv_psadc_enabled,
-    .convert = drv_psadc_convert,
-    .get_resolution = drv_gpai_resolution,
+    .get_resolution = drv_psadc_resolution,
+    .get_adc_values_poll = drv_psadc_get_adc_values_poll,
+    .get_adc_values = drv_psadc_get_adc_values,
+    .get_chan_count = drv_psadc_get_chan_count,
 };
 
 static int drv_psadc_init(void)
@@ -231,11 +263,13 @@ static int drv_psadc_init(void)
 
     hal_psadc_single_queue_mode(1);
 
+#ifdef AIC_PSADC_OBTAIN_DATA_BY_CPU
     ret = aicos_request_irq(PSADC_IRQn, hal_psadc_isr, 0, NULL, NULL);
       if (ret < 0) {
         LOG_E("PSADC irq enable failed!");
         return -RT_ERROR;
     }
+#endif
 
     hal_psadc_enable(1);
     hal_psadc_set_ch_num(ARRAY_SIZE(aic_psadc_chs));

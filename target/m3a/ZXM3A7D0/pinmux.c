@@ -22,6 +22,11 @@ struct aic_pinmux aic_pinmux_config[] = {
     {5, PIN_PULL_DIS, 3, "PA.0"},
     {5, PIN_PULL_UP, 3, "PA.1"},
 #endif
+#ifdef AIC_USING_UART1
+    /* uart1 */
+    {5, PIN_PULL_DIS, 3, "PB.6"},
+    {5, PIN_PULL_DIS, 3, "PB.7"},
+#endif
 #ifdef AIC_USING_UART2
     /* uart2 */
     {5, PIN_PULL_DIS, 3, "PA.4"},
@@ -100,6 +105,7 @@ struct aic_pinmux aic_pinmux_config[] = {
     {3, PIN_PULL_DIS, 3, "PC.7"},
 #endif
     {1, PIN_PULL_DIS, 3, "PC.7"},   //backlight
+    {1, PIN_PULL_DIS, 3, "PB.9"},   //espCx_en
 };
 
 void aic_board_pinmux_init(void)
@@ -127,4 +133,11 @@ void aic_board_pinmux_init(void)
     hal_gpio_direction_output(g, p);
     hal_gpio_set_output(g, p);
     aic_mdelay(120);
+  
+    pin = hal_gpio_name2pin("PB.9");
+
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_set_output(g, p);
 }

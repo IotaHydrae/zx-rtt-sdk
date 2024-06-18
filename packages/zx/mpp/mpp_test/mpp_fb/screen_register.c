@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, ArtInChip Technology Co., Ltd
+ * Copyright (c) 2023, ZX Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  *

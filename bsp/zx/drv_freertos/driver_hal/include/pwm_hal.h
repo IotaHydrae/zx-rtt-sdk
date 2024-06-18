@@ -7,14 +7,14 @@
 
 // ToDo: not true hal driver
 
-#ifndef _ARTINCHIP_PWM_HAL_H_
-#define _ARTINCHIP_PWM_HAL_H_
+#ifndef _ZX_PWM_HAL_H_
+#define _ZX_PWM_HAL_H_
 
 #include "aic_common.h"
 
 #define AIC_PWM_NAME        "aic-pwm"
 
-#ifdef CONFIG_FPGA_BOARD_ARTINCHIP
+#ifdef CONFIG_FPGA_BOARD_ZX
 #define PWM_CLK_RATE        24000000 /* 24 MHz */
 #else
 #define PWM_CLK_RATE        48000000 /* 48 MHz */
@@ -122,4 +122,4 @@ int pwm_hal_signal_set_default_level(uint32_t ch, uint32_t signal, uint32_t leve
  */
 int pwm_hal_set_period_ns(uint32_t ch, uint32_t ns);
 
-#endif // end of _ARTINCHIP_PWM_HAL_H_
+#endif // end of _ZX_PWM_HAL_H_

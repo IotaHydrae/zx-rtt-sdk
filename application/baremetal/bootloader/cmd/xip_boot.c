@@ -11,7 +11,7 @@
 #include <console.h>
 #include <aic_common.h>
 #include <aic_errno.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include <mtd.h>
 #include <hal_qspi.h>
 #include <image.h>
@@ -103,6 +103,7 @@ static int do_xip_boot(int argc, char *argv[])
     info.bl_len = 1;
     info.priv = (void *)((unsigned long)mtd->start + FLASH_XIP_BASE);
 
+    entry_point = 0;
     ret = spl_load_simple_fit(&info, &entry_point);
     if (ret < 0)
         goto out;

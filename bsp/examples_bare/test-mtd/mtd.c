@@ -13,7 +13,7 @@
 #include <aic_core.h>
 #include <aic_time.h>
 #include <aic_errno.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include <mtd.h>
 #include <rtconfig.h>
 

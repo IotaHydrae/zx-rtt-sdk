@@ -27,6 +27,7 @@ static const u8 st77903_commands[] = {
     0xe6,  14,  0x58,   0xf5,   0x66,   0x33,   0x22,   0x25,   0x10,   0x77,
                 0x77,   0x77,   0x77,   0x77,   0x77,   0x77,
     0xec,  6,   0x00,   0x55,   0x00,   0x00,   0x00,   0x08,
+    // 0x36,  1,   0x58,   // 180翻转
     0x36,  1,   0x0c,
     0x3a,  1,   0x05,   // 0x5: RGB565, 0x6:RGB666, 0x7: RGB888
     0xb2,  1,   0x09,
@@ -62,7 +63,7 @@ static struct aic_panel_funcs st77903_funcs = {
 };
 
 static struct display_timing st77903_timing = {
-    .pixelclock   = 13000000,   // 13 * 4(16/4) 52M QSPI CLK
+    .pixelclock   = 12000000,   // 13 * 4(16/4) 52M QSPI CLK
 
     .hactive      = 360,
     .hback_porch  = 10,

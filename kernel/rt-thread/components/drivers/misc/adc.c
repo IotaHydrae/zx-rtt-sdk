@@ -63,24 +63,48 @@ static rt_err_t _adc_control(rt_device_t dev, int cmd, void *args)
             result = RT_EOK;
         }
     }
+#ifdef AIC_PSADC_DRV
+    else if (cmd == RT_ADC_CMD_GET_VALUES_POLL && adc->ops->get_adc_values_poll)
+    {
+        return adc->ops->get_adc_values_poll(adc, args);
+    }
+    else if (cmd == RT_ADC_CMD_GET_VALUES && adc->ops->get_adc_values)
+    {
+        return adc->ops->get_adc_values(adc, args);
+    }
+    else if (cmd == RT_ADC_CMD_GET_CHAN_COUNT && adc->ops->get_chan_count)
+    {
+        return adc->ops->get_chan_count(adc);
+    }
+#endif
 #ifdef AIC_GPAI_DRV
     else if (cmd == RT_ADC_CMD_CONFIG_DMA && adc->ops->config_dma)
     {
         return adc->ops->config_dma(adc, args);
-
     }
     else if (cmd == RT_ADC_CMD_GET_DMA_DATA && adc->ops->get_dma_data)
     {
         return adc->ops->get_dma_data(adc, (rt_uint32_t)(long)args);
-
+    }
+    else if (cmd == RT_ADC_CMD_GET_MODE && adc->ops->get_mode)
+    {
+        return adc->ops->get_mode(adc, args);
+    }
+    else if (cmd == RT_ADC_CMD_OBTAIN_DATA_MODE && adc->ops->get_obtaining_data_mode)
+    {
+        return adc->ops->get_obtaining_data_mode(adc, (rt_uint32_t)(long)args);
     }
     else if (cmd == RT_ADC_CMD_IRQ_COUNT && adc->ops->get_irq_count)
     {
         return adc->ops->get_irq_count(adc, (rt_uint32_t)(long)args);
     }
-    else if (cmd == RT_ADC_CMD_OBTAIN_DATA_MODE && adc->ops->get_obtaining_data_mode)
+    else if (cmd == RT_ADC_CMD_IRQ_CALLBACK && adc->ops->irq_callback)
     {
-        return adc->ops->get_obtaining_data_mode(adc, (rt_uint32_t)(long)args);
+        return adc->ops->irq_callback(adc, args);
+    }
+    else if (cmd == RT_ADC_CMD_GET_CH_INFO && adc->ops->get_ch_info)
+    {
+        return adc->ops->get_ch_info(adc, args);
     }
 #endif
     else if (cmd == RT_ADC_CMD_GET_VREF && adc->ops->get_vref && args)
@@ -146,7 +170,7 @@ rt_uint32_t rt_adc_read(rt_adc_device_t dev, rt_uint32_t channel)
     return value;
 }
 
-#ifdef AIC_GPAI_DRV
+#if defined(AIC_GPAI_DRV) || defined(AIC_PSADC_DRV)
 rt_err_t rt_adc_control(rt_adc_device_t dev, int cmd, void *args)
 {
     RT_ASSERT(dev);

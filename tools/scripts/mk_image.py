@@ -14,14 +14,36 @@ from Cryptodome.Signature import PKCS1_v1_5
 
 DATA_ALIGNED_SIZE = 2048
 META_ALIGNED_SIZE = 512
-BURNER = False # Whether or not to generate the image used by the burner
+
+# Whether or not to generate the image used by the burner
+BURNER = False
 VERBOSE = False
+
+COLOR_BEGIN = "\033["
+COLOR_RED = COLOR_BEGIN + "41;37m"
+COLOR_YELLOW = COLOR_BEGIN + "43;30m"
+COLOR_WHITE = COLOR_BEGIN + "47;30m"
+COLOR_END = "\033[0m"
+
+
+def pr_err(string):
+    print(COLOR_RED + '*** ' + string + COLOR_END)
+
+
+def pr_info(string):
+    print(COLOR_WHITE + '>>> ' + string + COLOR_END)
+
+
+def pr_warn(string):
+    print(COLOR_YELLOW + '!!! ' + string + COLOR_END)
+
 
 def parse_image_cfg(cfgfile):
     """ Load image configuration file
     Args:
         cfgfile: Configuration file name
     """
+
     with open(cfgfile, "r") as f:
         lines = f.readlines()
         jsonstr = ""
@@ -39,6 +61,7 @@ def parse_image_cfg(cfgfile):
         cfg = json.loads(jsonstr, object_pairs_hook=OrderedDict)
     return cfg
 
+
 def get_file_path(path, alternate_dir):
     if os.path.exists(alternate_dir + path):
         return alternate_dir + path
@@ -46,17 +69,19 @@ def get_file_path(path, alternate_dir):
         return path
     return None
 
+
 def aic_boot_get_resource_file_size(cfg, keydir, datadir):
     """ Get size of all resource files
     """
+
     files = {}
     filepath = ""
     if "resource" in cfg:
         if "private" in cfg["resource"]:
             filepath = get_file_path(cfg["resource"]["private"], keydir)
-            if filepath == None:
+            if filepath is None:
                 filepath = get_file_path(cfg["resource"]["private"], datadir)
-            if filepath == None:
+            if filepath is None:
                 print("Error, {} is not found.".format(cfg["resource"]["private"]))
                 sys.exit(1)
             statinfo = os.stat(filepath)
@@ -65,9 +90,9 @@ def aic_boot_get_resource_file_size(cfg, keydir, datadir):
 
         if "pubkey" in cfg["resource"]:
             filepath = get_file_path(cfg["resource"]["pubkey"], keydir)
-            if filepath == None:
+            if filepath is None:
                 filepath = get_file_path(cfg["resource"]["pubkey"], datadir)
-            if filepath == None:
+            if filepath is None:
                 print("Error, {} is not found.".format(cfg["resource"]["pubkey"]))
                 sys.exit(1)
             statinfo = os.stat(filepath)
@@ -75,7 +100,7 @@ def aic_boot_get_resource_file_size(cfg, keydir, datadir):
             files["round(resource/pubkey)"] = round_up(statinfo.st_size, 32)
         if "pbp" in cfg["resource"]:
             filepath = get_file_path(cfg["resource"]["pbp"], datadir)
-            if filepath == None:
+            if filepath is None:
                 print("Error, {} is not found.".format(cfg["resource"]["pbp"]))
                 sys.exit(1)
             statinfo = os.stat(filepath)
@@ -84,9 +109,9 @@ def aic_boot_get_resource_file_size(cfg, keydir, datadir):
     if "encryption" in cfg:
         if "iv" in cfg["encryption"]:
             filepath = get_file_path(cfg["encryption"]["iv"], keydir)
-            if filepath == None:
+            if filepath is None:
                 filepath = get_file_path(cfg["encryption"]["iv"], datadir)
-            if filepath == None:
+            if filepath is None:
                 print("Error, {} is not found.".format(cfg["encryption"]["iv"]))
                 sys.exit(1)
             statinfo = os.stat(filepath)
@@ -107,9 +132,11 @@ def aic_boot_get_resource_file_size(cfg, keydir, datadir):
                 sys.exit(1)
     return files
 
+
 def aic_boot_calc_image_length(filesizes, sign):
     """ Calculate the boot image's total length
     """
+
     total_siz = filesizes["resource_start"]
     if "resource/pubkey" in filesizes:
         total_siz = total_siz + filesizes["round(resource/pubkey)"]
@@ -128,9 +155,11 @@ def aic_boot_calc_image_length(filesizes, sign):
         total_siz = total_siz + 16
     return total_siz
 
+
 def aic_boot_calc_image_length_for_ext(filesizes, sign):
     """ Calculate the boot image's total length
     """
+
     total_siz = filesizes["resource_start"]
     if "resource/pubkey" in filesizes:
         total_siz = total_siz + filesizes["round(resource/pubkey)"]
@@ -145,6 +174,7 @@ def aic_boot_calc_image_length_for_ext(filesizes, sign):
         total_siz = total_siz + 16
     return total_siz
 
+
 def check_loader_run_in_dram(cfg):
     if "loader" not in cfg:
         return False
@@ -152,6 +182,7 @@ def check_loader_run_in_dram(cfg):
         if cfg["loader"]["run in dram"].upper() == "FALSE":
             return False
     return True
+
 
 def aic_boot_get_loader_bytes(cfg, filesizes):
     """ Read the loader's binaray data, and perform encryption if it is needed.
@@ -189,7 +220,7 @@ def aic_boot_get_loader_bytes(cfg, filesizes):
         # Only encrypt loader content, if loader not exist, don't do it
         try:
             fpath = get_file_path(cfg["encryption"]["key"], cfg["keydir"])
-            if fpath == None:
+            if fpath is None:
                 fpath = get_file_path(cfg["encryption"]["key"], cfg["datadir"])
             with open(fpath, "rb") as f:
                 keydata = f.read(16)
@@ -198,7 +229,7 @@ def aic_boot_get_loader_bytes(cfg, filesizes):
             sys.exit(1)
         try:
             fpath = get_file_path(cfg["encryption"]["iv"], cfg["keydir"])
-            if fpath == None:
+            if fpath is None:
                 fpath = get_file_path(cfg["encryption"]["iv"], cfg["datadir"])
             with open(fpath, "rb") as f:
                 ivdata = f.read(16)
@@ -210,6 +241,7 @@ def aic_boot_get_loader_bytes(cfg, filesizes):
         return enc_bytes
     else:
         return rawbytes
+
 
 def aic_boot_get_loader_for_ext(cfg, filesizes):
     """ Read the loader's binaray data, and perform encryption if it is needed.
@@ -239,6 +271,7 @@ def aic_boot_get_loader_for_ext(cfg, filesizes):
 
     return rawbytes
 
+
 def aic_boot_get_resource_bytes(cfg, filesizes):
     """ Pack all resource data into boot image's resource section
     """
@@ -267,7 +300,7 @@ def aic_boot_get_resource_bytes(cfg, filesizes):
         pubkey_size = filesizes["round(resource/pubkey)"]
         try:
             fpath = get_file_path(cfg["resource"]["pubkey"], cfg["keydir"])
-            if fpath == None:
+            if fpath is None:
                 fpath = get_file_path(cfg["resource"]["pubkey"], cfg["datadir"])
             with open(fpath, "rb") as f:
                 pkdata = f.read(pubkey_size)
@@ -280,7 +313,7 @@ def aic_boot_get_resource_bytes(cfg, filesizes):
         iv_size = filesizes["round(encryption/iv)"]
         try:
             fpath = get_file_path(cfg["encryption"]["iv"], cfg["keydir"])
-            if fpath == None:
+            if fpath is None:
                 fpath = get_file_path(cfg["encryption"]["iv"], cfg["datadir"])
             with open(fpath, "rb") as f:
                 ivdata = f.read(iv_size)
@@ -294,9 +327,11 @@ def aic_boot_get_resource_bytes(cfg, filesizes):
             resbytes = resbytes + bytearray(res_size - len(resbytes))
     return resbytes
 
+
 def aic_boot_get_resource_for_ext(cfg, filesizes):
     """ Pack all resource data into boot image's resource section
     """
+
     resbytes = bytearray(0)
     if "resource/private" in filesizes:
         priv_size = filesizes["round(resource/private)"]
@@ -312,7 +347,7 @@ def aic_boot_get_resource_for_ext(cfg, filesizes):
         pubkey_size = filesizes["round(resource/pubkey)"]
         try:
             fpath = get_file_path(cfg["resource"]["pubkey"], cfg["keydir"])
-            if fpath == None:
+            if fpath is None:
                 fpath = get_file_path(cfg["resource"]["pubkey"], cfg["datadir"])
             with open(fpath, "rb") as f:
                 pkdata = f.read(pubkey_size)
@@ -327,6 +362,7 @@ def aic_boot_get_resource_for_ext(cfg, filesizes):
             resbytes = resbytes + bytearray(res_size - len(resbytes))
     return resbytes
 
+
 def aic_boot_checksum(bootimg):
     length = len(bootimg)
     offset = 0
@@ -337,6 +373,7 @@ def aic_boot_checksum(bootimg):
         offset = offset + 4
     return (~total) & 0xFFFFFFFF
 
+
 def aic_calc_checksum(start, size):
     offset = 0
     total = 0
@@ -346,8 +383,10 @@ def aic_calc_checksum(start, size):
         offset = offset + 4
     return (~total) & 0xFFFFFFFF
 
+
 def aic_boot_add_header(h, n):
     return h + n.to_bytes(4, byteorder='little', signed=False)
+
 
 def aic_boot_gen_header_bytes(cfg, filesizes):
     """ Generate header bytes
@@ -447,6 +486,7 @@ def aic_boot_gen_header_bytes(cfg, filesizes):
     header_bytes = header_bytes + bytearray(256 - len(header_bytes))
     return header_bytes
 
+
 def aic_boot_gen_header_for_ext(cfg, filesizes):
     """ Generate header bytes
     """
@@ -535,6 +575,7 @@ def aic_boot_gen_header_for_ext(cfg, filesizes):
     header_bytes = header_bytes + bytearray(256 - len(header_bytes))
     return header_bytes
 
+
 def aic_boot_gen_signature_bytes(cfg, bootimg):
     """ Generate RSASSA-PKCS1-v1.5 Signature with SHA-256
     """
@@ -543,7 +584,7 @@ def aic_boot_gen_signature_bytes(cfg, bootimg):
         sys.exit(1)
     try:
         fpath = get_file_path(cfg["signature"]["privkey"], cfg["keydir"])
-        if fpath == None:
+        if fpath is None:
             fpath = get_file_path(cfg["signature"]["privkey"], cfg["datadir"])
         with open(fpath, 'rb') as frsa:
             rsakey = RSA.importKey(frsa.read())
@@ -551,7 +592,7 @@ def aic_boot_gen_signature_bytes(cfg, bootimg):
         print("Failed to open file: " + cfg["signature"]["privkey"])
         sys.exit(1)
     # Check if it is private key
-    if rsakey.has_private() == False:
+    if rsakey.has_private() is False:
         print("Should to use RSA private key to sign")
         sys.exit(1)
     keysize = max(1, math.ceil(rsakey.n.bit_length() / 8))
@@ -566,6 +607,7 @@ def aic_boot_gen_signature_bytes(cfg, bootimg):
     sign_bytes = signer.sign(sha256)
     return sign_bytes
 
+
 def aic_boot_gen_img_md5_bytes(cfg, bootimg):
     """ Calculate MD5 of image to make brom verify image faster
     """
@@ -574,6 +616,7 @@ def aic_boot_gen_img_md5_bytes(cfg, bootimg):
     md5.update(bootimg)
     md5_bytes = md5.digest()
     return md5_bytes
+
 
 def aic_boot_check_params(cfg):
     if "encryption" in cfg and cfg["encryption"]["algo"] != "aes-128-cbc":
@@ -590,10 +633,11 @@ def aic_boot_check_params(cfg):
     #     return False
     return True
 
+
 def aic_boot_create_image(cfg, keydir, datadir):
     """ Create AIC format Boot Image for Boot ROM
     """
-    if aic_boot_check_params(cfg) == False:
+    if aic_boot_check_params(cfg) is False:
         sys.exit(1)
     filesizes = aic_boot_get_resource_file_size(cfg, keydir, datadir)
 
@@ -626,6 +670,7 @@ def aic_boot_create_image(cfg, keydir, datadir):
         print("Checksum is error: {}".format(cs))
         sys.exit(1)
     return bootimg
+
 
 def aic_boot_create_ext_image(cfg, keydir, datadir):
     """ Create AIC format Boot Image for Boot ROM
@@ -662,9 +707,10 @@ def aic_boot_create_ext_image(cfg, keydir, datadir):
         sys.exit(1)
     return bootimg
 
+
 def itb_create_image(itsname, itbname, keydir, dtbname, script_dir):
     mkcmd = os.path.join(script_dir, "mkimage")
-    if os.path.exists(mkcmd) == False:
+    if os.path.exists(mkcmd) is False:
         mkcmd = "mkimage"
     if sys.platform == "win32":
         mkcmd += ".exe"
@@ -678,6 +724,42 @@ def itb_create_image(itsname, itbname, keydir, dtbname, script_dir):
     ret = subprocess.run(cmd, stdout=subprocess.PIPE)
     if ret.returncode != 0:
         sys.exit(1)
+
+
+def spienc_create_image(imgcfg, script_dir):
+
+    keypath = get_file_path(imgcfg["key"], imgcfg["keydir"])
+    if keypath is None:
+        keypath = get_file_path(imgcfg["key"], imgcfg["datadir"])
+
+    mkcmd = os.path.join(script_dir, "spienc")
+    if os.path.exists(mkcmd) is False:
+        mkcmd = "spienc"
+    if sys.platform == "win32":
+        mkcmd += ".exe"
+    cmd = [mkcmd]
+    cmd.append("--key")
+    cmd.append("{}".format(keypath))
+    if "nonce" in imgcfg:
+        noncepath = get_file_path(imgcfg["nonce"], imgcfg["keydir"])
+        if noncepath is None:
+            noncepath = get_file_path(imgcfg["nonce"], imgcfg["datadir"])
+        cmd.append("--nonce")
+        cmd.append("{}".format(noncepath))
+    if "tweak" in imgcfg:
+        cmd.append("--tweak")
+        cmd.append("{}".format(imgcfg["tweak"]))
+    cmd.append("--addr")
+    cmd.append("{}".format(imgcfg["address"]))
+    cmd.append("--input")
+    cmd.append("{}".format(imgcfg["input"]))
+    cmd.append("--output")
+    cmd.append("{}".format(imgcfg["output"]))
+    ret = subprocess.run(cmd, stdout=subprocess.PIPE)
+    if ret.returncode != 0:
+        print(ret.stdout.decode("utf-8"))
+        sys.exit(1)
+
 
 def img_gen_fw_file_name(cfg):
     # Image file name format:
@@ -693,6 +775,7 @@ def img_gen_fw_file_name(cfg):
     img_file_name += ".img"
     return img_file_name.replace(" ", "_")
 
+
 def calc_crc32(fname, size):
     """Calculate crc32 for a file
     Args:
@@ -703,7 +786,7 @@ def calc_crc32(fname, size):
     if size > 0:
         step = size
 
-    if os.path.exists(fname) == False:
+    if os.path.exists(fname) is False:
         return 0
 
     with open(fname, 'rb') as fp:
@@ -716,6 +799,7 @@ def calc_crc32(fname, size):
                 # only need to calc first 'size' byte
                 break
     return hash & 0xffffffff
+
 
 def size_str_to_int(size_str):
     if "k" in size_str or "K" in size_str:
@@ -731,6 +815,7 @@ def size_str_to_int(size_str):
         return int(size_str, 16)
     return 0
 
+
 def str_to_nbytes(s, n):
     """ String to n bytes
     """
@@ -740,30 +825,42 @@ def str_to_nbytes(s, n):
         ba.extend([0] * nzero)
     return bytes(ba)
 
+
 def str_from_nbytes(s):
     """ String from n bytes
     """
     return str(s, encoding='utf-8')
+
 
 def int_to_uint32_bytes(n):
     """ Int value to uint32 bytes
     """
     return n.to_bytes(4, byteorder='little', signed=False)
 
+
 def int_to_uint8_bytes(n):
     """ Int value to uint8 bytes
     """
     return n.to_bytes(1, byteorder='little', signed=False)
+
+
+def int_to_uint16_bytes(n):
+    """ Int value to uint8 bytes
+    """
+    return n.to_bytes(2, byteorder='little', signed=False)
+
 
 def int_from_uint32_bytes(s):
     """ Int value from uint32 bytes
     """
     return int.from_bytes(s, byteorder='little', signed=False)
 
+
 def gen_bytes(n, length):
     """ gen len uint8 bytes
     """
     return bytearray([n] * length)
+
 
 """
 struct zx_fw_hdr{
@@ -836,6 +933,7 @@ def img_write_fw_header(imgfile, cfg, meta_area_size, file_area_size):
         print("\tImage header is generated.")
     return 0
 
+
 """
 struct zx_fwc_meta {
     char magic[8];
@@ -866,11 +964,34 @@ def img_gen_fwc_meta(name, part, offset, size, crc, ram, attr, filename):
     buff = buff + str_to_nbytes(filename, 64)
 
     if VERBOSE:
-        print("\t\tMeta for {:<25} offset {:<10} size {} ({})".format(name,
-            hex(offset), hex(size), size))
+        print("\t\tMeta for {:<25} offset {:<10} size {} ({})".format(
+              name, hex(offset), hex(size), size))
     return buff
 
+
 PAGE_TABLE_MAX_ENTRY = 101
+
+"""
+struct nand_page_table_head {
+    char magic[4]; /* AICP: AIC Page table */
+    u32 entry_cnt;
+    u16 page_size;
+    u8 pad[10];   /* Padding it to fit size 20 bytes */
+};
+
+struct nand_page_table_entry {
+    u32 pageaddr1;
+    u32 pageaddr2;
+    u32 checksum2;
+    u32 reserved;
+    u32 checksum1;
+};
+
+struct nand_page_table {
+    struct nand_page_table_head head;
+    struct nand_page_table_entry entry[PAGE_TABLE_MAX_ENTRY];
+};
+"""
 def img_gen_page_table(binfile, cfg, datadir):
     """ Generate page table data
     Args:
@@ -887,30 +1008,28 @@ def img_gen_page_table(binfile, cfg, datadir):
             block_size = int(re.sub(r"[^0-9]", "", item["block"]))
 
     spl_file = cfg["image"]["target"]["spl"]["file"]
-    filesize = round_up(cfg["image"]["target"]["spl"]["filesize"], DATA_ALIGNED_SIZE);
+    filesize = round_up(cfg["image"]["target"]["spl"]["filesize"], DATA_ALIGNED_SIZE)
     page_per_blk = block_size // page_size
     page_cnt = filesize // (page_size * 1024)
+    if (page_cnt + 1 > (2 * PAGE_TABLE_MAX_ENTRY)):
+        print("SPL too large, more than 400K.")
+        sys.exit(1)
+
     path = get_file_path(spl_file, datadir)
-    if path == None:
+    if path is None:
         sys.exit(1)
 
     step = page_size * 1024
 
     entry_page = page_cnt + 1
     buff = str_to_nbytes("AICP", 4)
-    buff = buff + int_to_uint32_bytes(entry_page) # The first SPL hold start 65 page
-    buff = buff + int_to_uint8_bytes(page_size)
-    buff = buff + gen_bytes(0xFF, 11)
+    buff = buff + int_to_uint32_bytes(entry_page)
+    buff = buff + int_to_uint16_bytes(page_size * 1024)
+    buff = buff + gen_bytes(0xFF, 10)
 
     with open(path, "rb") as fwcfile:
         pageaddr1 = 0
         pageaddr2 = PAGE_TABLE_MAX_ENTRY
-
-        offset2 = (pageaddr2) * (page_size * 1024)
-
-        fwcfile.seek(offset2, 0)
-        bindata = fwcfile.read(step)
-        checksum2 = aic_calc_checksum(bindata, page_size * 1024)
 
         if (pageaddr1 < PAGE_TABLE_MAX_ENTRY):
             buff = buff + int_to_uint32_bytes(pageaddr1)
@@ -918,6 +1037,11 @@ def img_gen_page_table(binfile, cfg, datadir):
             buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
 
         if (pageaddr2 < (2 * PAGE_TABLE_MAX_ENTRY) and pageaddr2 <= (page_cnt + 1)):
+            offset2 = (pageaddr2 - 1) * (page_size * 1024)
+            fwcfile.seek(offset2, 0)
+            bindata = fwcfile.read(step)
+            checksum2 = aic_calc_checksum(bindata, page_size * 1024)
+
             buff = buff + int_to_uint32_bytes(pageaddr2)
             buff = buff + int_to_uint32_bytes(checksum2)
             buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
@@ -931,31 +1055,21 @@ def img_gen_page_table(binfile, cfg, datadir):
         else:
             buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
 
-        for i in range(1, page_cnt + 1):
+        for i in range(1, PAGE_TABLE_MAX_ENTRY):
             pageaddr1 = i
             pageaddr2 = PAGE_TABLE_MAX_ENTRY + i
 
-            offset1 = (pageaddr1 - 1) * (page_size * 1024)
-            offset2 = (pageaddr2 - 1) * (page_size * 1024)
-
-            fwcfile.seek(offset1, 0)
-            bindata = fwcfile.read(step)
-            checksum1 = aic_calc_checksum(bindata, page_size * 1024)
-
-            fwcfile.seek(offset2, 0)
-            bindata = fwcfile.read(step)
-            checksum2 = aic_calc_checksum(bindata, page_size * 1024)
-
-            if (page_cnt + 1 > PAGE_TABLE_MAX_ENTRY):
-                print("SPL too large")
-                sys.exit(1)
-
-            if (pageaddr1 < PAGE_TABLE_MAX_ENTRY):
+            if (pageaddr1 < PAGE_TABLE_MAX_ENTRY and pageaddr1 <= (page_cnt + 1)):
                 buff = buff + int_to_uint32_bytes(pageaddr1)
             else:
                 buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
 
             if (pageaddr2 < (2 * PAGE_TABLE_MAX_ENTRY) and pageaddr2 <= (page_cnt + 1)):
+                offset2 = (pageaddr2 - 1) * (page_size * 1024)
+                fwcfile.seek(offset2, 0)
+                bindata = fwcfile.read(step)
+                checksum2 = aic_calc_checksum(bindata, page_size * 1024)
+
                 buff = buff + int_to_uint32_bytes(pageaddr2)
                 buff = buff + int_to_uint32_bytes(checksum2)
                 buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
@@ -965,9 +1079,15 @@ def img_gen_page_table(binfile, cfg, datadir):
                 buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
 
             if (pageaddr1 < PAGE_TABLE_MAX_ENTRY):
+                offset1 = (pageaddr1 - 1) * (page_size * 1024)
+                fwcfile.seek(offset1, 0)
+                bindata = fwcfile.read(step)
+                checksum1 = aic_calc_checksum(bindata, page_size * 1024)
+
                 buff = buff + int_to_uint32_bytes(checksum1)
             else:
                 buff = buff + int_to_uint32_bytes(0xFFFFFFFF)
+
     buff = buff + gen_bytes(0xFF, page_size * 1024 - len(buff))
     checksum = aic_calc_checksum(buff, page_size * 1024)
     buff = buff[0:36] + int_to_uint32_bytes(checksum) + buff[40:]
@@ -980,6 +1100,7 @@ def img_gen_page_table(binfile, cfg, datadir):
         print("\tPage table is generated.")
 
     return 0
+
 
 def check_partition_exist(table, partval):
     if isinstance(partval, list):
@@ -1013,6 +1134,7 @@ def check_partition_exist(table, partval):
             return False
     return True
 
+
 def img_write_fwc_meta_section(imgfile, cfg, sect, meta_off, file_off, datadir):
     fwcset = cfg["image"][sect]
     media_type = cfg["image"]["info"]["media"]["type"]
@@ -1023,6 +1145,12 @@ def img_write_fwc_meta_section(imgfile, cfg, sect, meta_off, file_off, datadir):
     partitions = cfg[media_type]["partitions"]
     for fwc in fwcset:
         file_size = fwcset[fwc]["filesize"]
+        if sect == "target":
+            part_size = fwcset[fwc]["part_size"]
+            if file_size > part_size:
+                print("{} file_size: {} is over much than part_size: {}"
+                        .format(fwcset[fwc]["file"], hex(file_size), hex(part_size)))
+                return (-1, -1)
         if file_size <= 0:
             continue
         imgfile.seek(meta_off, 0)
@@ -1042,7 +1170,7 @@ def img_write_fwc_meta_section(imgfile, cfg, sect, meta_off, file_off, datadir):
 
         if "part" in fwcset[fwc]:
             partval = fwcset[fwc]["part"]
-            if check_partition_exist(partitions, partval) == False:
+            if check_partition_exist(partitions, partval) is False:
                 print("Partition {} not exist".format(partval))
                 return (-1, -1)
             if isinstance(partval, list):
@@ -1061,6 +1189,7 @@ def img_write_fwc_meta_section(imgfile, cfg, sect, meta_off, file_off, datadir):
         file_size = round_up(file_size, DATA_ALIGNED_SIZE)
         file_off += file_size
     return (meta_off, file_off)
+
 
 def img_write_fwc_meta_to_imgfile(imgfile, cfg, meta_start, file_start, datadir):
     """ Generate and write FW component's meta data
@@ -1105,6 +1234,7 @@ def img_write_fwc_meta_to_imgfile(imgfile, cfg, meta_start, file_start, datadir)
     imgfile.flush()
     return 0
 
+
 def img_write_fwc_file_to_imgfile(imgfile, cfg, file_start, datadir):
     """ Write FW component's file data
     Args:
@@ -1120,7 +1250,7 @@ def img_write_fwc_file_to_imgfile(imgfile, cfg, file_start, datadir):
         fwcset = cfg["image"][section]
         for fwc in fwcset:
             path = get_file_path(fwcset[fwc]["file"], datadir)
-            if path == None:
+            if path is None:
                 continue
             if VERBOSE:
                 print("\t\t" + os.path.split(path)[1])
@@ -1140,7 +1270,10 @@ def img_write_fwc_file_to_imgfile(imgfile, cfg, file_start, datadir):
     imgfile.flush()
     return 0
 
+
 BIN_FILE_MAX_SIZE = 300 * 1024 * 1024
+
+
 def img_write_fwc_file_to_binfile(binfile, cfg, datadir):
     """ Write FW component's file data
     Args:
@@ -1185,11 +1318,11 @@ def img_write_fwc_file_to_binfile(binfile, cfg, datadir):
         fwcset = cfg["image"][section]
         for fwc in fwcset:
             path = get_file_path(fwcset[fwc]["file"], datadir)
-            if path == None:
+            if path is None:
                 continue
             if path.find(".ubifs") != -1:
                 path = path.replace(".ubifs", ".ubi")
-                if os.path.exists(path) == False:
+                if os.path.exists(path) is False:
                     print("File {} is not exist".format(path))
                     continue
             if VERBOSE:
@@ -1267,6 +1400,7 @@ def img_write_fwc_file_to_binfile(binfile, cfg, datadir):
 
     return 0
 
+
 def img_get_fwc_file_size(cfg, datadir):
     """ Scan directory and get Firmware component's file size, update to cfg
     Args:
@@ -1277,7 +1411,7 @@ def img_get_fwc_file_size(cfg, datadir):
         fwcset = cfg["image"][section]
         for fwc in fwcset:
             path = get_file_path(fwcset[fwc]["file"], datadir)
-            if path == None:
+            if path is None:
                 attr = fwcset[fwc]["attr"]
                 if "required" in attr:
                     print("Error, file {} is not exist".format(fwcset[fwc]["file"]))
@@ -1289,6 +1423,7 @@ def img_get_fwc_file_size(cfg, datadir):
             statinfo = os.stat(path)
             fwcset[fwc]["filesize"] = statinfo.st_size
     return 0
+
 
 def img_get_part_size(cfg, datadir):
     part_name = ""
@@ -1370,8 +1505,10 @@ def img_get_part_size(cfg, datadir):
 
     return 0
 
+
 def round_up(x, y):
     return int((x + y - 1) / y) * y
+
 
 def aic_create_parts_for_env(cfg):
     mtd = ""
@@ -1439,6 +1576,7 @@ def aic_create_parts_for_env(cfg):
 
     return part_str
 
+
 def uboot_env_create_image(srcfile, outfile, size, part_str, redund, script_dir):
     tmpfile = srcfile + ".part.tmp"
     fs = open(srcfile, "r+")
@@ -1450,7 +1588,7 @@ def uboot_env_create_image(srcfile, outfile, size, part_str, redund, script_dir)
     fp.close()
 
     mkenvcmd = os.path.join(script_dir, "mkenvimage")
-    if os.path.exists(mkenvcmd) == False:
+    if os.path.exists(mkenvcmd) is False:
         mkenvcmd = "mkenvimage"
     if sys.platform == "win32":
         mkenvcmd += ".exe"
@@ -1461,6 +1599,7 @@ def uboot_env_create_image(srcfile, outfile, size, part_str, redund, script_dir)
     ret = subprocess.run(cmd, subprocess.PIPE)
     if ret.returncode != 0:
         sys.exit(1)
+
 
 def firmware_component_preproc(cfg, datadir, keydir, bindir):
     """ Perform firmware component pre-process
@@ -1483,19 +1622,19 @@ def firmware_component_preproc(cfg, datadir, keydir, bindir):
             if VERBOSE:
                 print("\tCreating {} ...".format(outfile))
             srcfile = get_file_path(itsname, datadir)
-            if srcfile == None:
+            if srcfile is None:
                 print("File {} is not exist".format(itsname))
                 sys.exit(1)
             if "dtb" in preproc_cfg["itb"][itbname].keys():
                 dtbname = preproc_cfg["itb"][itbname]["dtb"]
                 dtbfile = get_file_path(dtbname, datadir)
-                if dtbfile == None:
+                if dtbfile is None:
                     print("File {} is not exist".format(dtbname))
                     sys.exit(1)
             if "keydir" in preproc_cfg["itb"][itbname].keys():
                 keydir = preproc_cfg["itb"][itbname]["keydir"]
                 keypath = get_file_path(keydir, datadir)
-                if keypath == None:
+                if keypath is None:
                     print("File {} is not exist".format(keydir))
 
             itb_create_image(srcfile, outfile, keypath, dtbfile, bindir)
@@ -1505,11 +1644,11 @@ def firmware_component_preproc(cfg, datadir, keydir, bindir):
                 srcbin = preproc_cfg["itb"][itbname]["bin"]["src"]
                 dstbin = preproc_cfg["itb"][itbname]["bin"]["dst"]
                 srcfile = get_file_path(srcbin, datadir)
-                if srcfile == None:
+                if srcfile is None:
                     print("File {} is not exist".format(srcbin))
                     sys.exit(1)
                 dstfile = get_file_path(dstbin, datadir)
-                if dstfile == None:
+                if dstfile is None:
                     print("File {} is not exist".format(dstbin))
                     sys.exit(1)
                 cmd = ["cat {} {} > {}".format(srcfile, dtbfile, dstfile)]
@@ -1530,7 +1669,7 @@ def firmware_component_preproc(cfg, datadir, keydir, bindir):
             if VERBOSE:
                 print("\tCreating {} ...".format(outfile))
             srcfile = get_file_path(envfile, datadir)
-            if srcfile == None:
+            if srcfile is None:
                 print("File {} is not exist".format(envfile))
                 sys.exit(1)
             uboot_env_create_image(srcfile, outfile, envsize, part_str,
@@ -1560,9 +1699,23 @@ def firmware_component_preproc(cfg, datadir, keydir, bindir):
 
             with open(outname, "wb") as f:
                 f.write(imgbytes)
+    if "spienc" in preproc_cfg:
+        # Need to generate aicboot image
+        imgnames = preproc_cfg["spienc"].keys()
+        for name in imgnames:
+            imgcfg = preproc_cfg["spienc"][name]
+            imgcfg["keydir"] = keydir
+            imgcfg["datadir"] = datadir
+            outname = datadir + name
+            imgcfg["input"] = datadir + imgcfg["file"]
+            imgcfg["output"] = outname
+            if VERBOSE:
+                print("\tCreating {} ...".format(outname))
+            spienc_create_image(imgcfg, bindir)
 
 
 def generate_bootcfg(bcfgfile, cfg):
+
     comments = ["# Boot configuration file\n",
                 "# Used in SD Card FAT32 boot and USB Disk upgrade.\n",
                 "# Format:\n",
@@ -1578,6 +1731,22 @@ def generate_bootcfg(bcfgfile, cfg):
                 "#   boot1 image is file example.bin, boot0 read it.\n"
                 "# image=example.img\n",
                 "#   Packed image file is example.img, boot1 use it.\n",
+                "# \n",
+                "# For Direct Mode.\n",
+                "# boot0=bootloader.aic\n",
+                "# writetype=spi-nor\n",
+                "#           Value can be: spi-nor spi-nand mmc\n",
+                "# writeintf=0\n",
+                "#           Default is 0 if this key is not provided\n",
+                "# writeboot=bootloader.aic\n",
+                "#           It is required for spi-nand to update bootloader.\n",
+                "# write0=data0.bin,0x1000\n",
+                "#           writeX=file,offset,attribute\n",
+                "#           writeX=file,offset\n",
+                "#           writeX=file\n",
+                "#           X can be 0 ~ 31\n",
+                "#           if offset is absent, default value is 0\n",
+                "#           e.g.: write3=data.fatfs,0x100000,nftl\n",
                 "\n\n",
                 ]
     bytes_comments = [comment.encode() for comment in comments]
@@ -1614,7 +1783,9 @@ def generate_bootcfg(bcfgfile, cfg):
     bcfgfile.write(linestr.encode())
     bcfgfile.flush()
 
+
 def get_spinand_image_list(cfg, datadir):
+
     imglist = []
     orglist = cfg["image"]["info"]["media"]["array_organization"]
     for item in orglist:
@@ -1632,7 +1803,7 @@ def get_spinand_image_list(cfg, datadir):
                 continue
             filepath = filepath.replace("*", paramstr)
             filepath = get_file_path(filepath, datadir)
-            if filepath == None and "optional" not in cfg["image"]["target"][fwcname]["attr"]:
+            if filepath is None and "optional" not in cfg["image"]["target"][fwcname]["attr"]:
                 # FWC file not exist
                 status_ok = False
                 print("{} is not found".format(cfg["image"]["target"][fwcname]["file"]))
@@ -1650,6 +1821,7 @@ def get_spinand_image_list(cfg, datadir):
     backup = cfg["image"]["part_table"]
     cfg["image"]["part_table.backup"] = backup
     return imglist, orglist
+
 
 def fixup_spinand_ubi_fwc_name(cfg, paramstr, orgitem):
     for fwcname in cfg["image"]["target"]:
@@ -1670,6 +1842,143 @@ def fixup_spinand_ubi_fwc_name(cfg, paramstr, orgitem):
     backup = cfg["image"]["part_table.backup"]
     cfg["image"]["part_table"] = "{}({})".format(backup, paramstr[1:])
     cfg["image"]["info"]["media"]["array_organization"] = [orgitem]
+
+
+def build_pinmux_check():
+    # FPGA-type boards may not have an aicboot key, in which case the pinmux
+    # conflict checking exited directly.
+    if cfg["temporary"].get("aicboot", 1) == 1:
+        return 0
+
+    cwd = os.getcwd()
+
+    image_path = cfg["temporary"]["aicboot"]["bootloader.aic"]["keydir"]
+    target_path = image_path.replace('images', 'target')
+    precess_path = os.path.join(cwd, 'output', image_path, '.pinmux.i')
+    if not os.path.exists(precess_path):
+        return 0
+
+    if (cfg["image"]["info"].get("product.backup")):
+        prduct = cfg["image"]["info"]["product.backup"].replace("_", "-")
+        rel_pinmux_path = os.path.join('target',
+                                       cfg["image"]["info"]["platform"],
+                                       prduct, 'pinmux.c')
+    else:
+        prduct = cfg["image"]["info"]["product"].replace("_", "-")
+        rel_pinmux_path = os.path.join('target',
+                                       cfg["image"]["info"]["platform"],
+                                       prduct, 'pinmux.c')
+    pinmux_path = os.path.join(cwd, rel_pinmux_path)
+    root_path = target_path.replace(os.path.join(cwd, 'output'), '')
+    defconfig_name = root_path.replace('target', '').replace(os.path.sep, '') + '_defconfig'
+    defconfig_path = os.path.join(cwd, 'target', 'configs', defconfig_name)
+
+    list_preproc_pins = []
+    list_conflict_pins = []
+    dict_pinmux = {}
+
+    # Get all configured pins and multiplexed functions in the pre-processed file pinmux.i
+    with open(precess_path, 'r') as file:
+        pin_pattern = r'\{(\d+),\s*([^,]+),\s*(\d+),\s*("[^"]+"|[^,]+)\}'
+        for f in file:
+            match = re.search(pin_pattern, f)
+            if match:
+                list_preproc_pins.append([match.groups()[0], match.groups()[3]])
+    file.close()
+
+    # Get the dictionary key as pin_name and the value as an array containing
+    # all the currently multiplexed functions.
+    # Tips: When the length of the value in the dictionary is greater than 1,
+    # it indicates that the pin is multiplexed with multiple functions.
+    for row in list_preproc_pins:
+        if row[1] not in dict_pinmux:
+            dict_pinmux[row[1]] = [row[0]]
+        else:
+            dict_pinmux[row[1]].append(row[0])
+    for pin_name, pin_func in dict_pinmux.items():
+        if len(pin_func) > 1:
+            list_conflict_pins.append(pin_name)
+
+    if not list_conflict_pins:
+        return 0
+
+    # Print macro definitions based on pins of conflict
+    pr_warn("Current pinmux conflicts! The conflicting pin:")
+    lines_num = 0
+    max_pin_name = max(len(s) for s in list_conflict_pins)
+    pin_name_total_len = max_pin_name + 2
+    enabled_macro = {}
+
+    with open(defconfig_path, 'r') as file:
+        matched_num = 0
+        for f in file:
+            for i in range(len(list_conflict_pins)):
+                match = re.search(list_conflict_pins[i], f)
+                if not match:
+                    continue
+                matched_num += 1
+                if matched_num == 1:
+                    print("\n{:<{}}".format('PIN', pin_name_total_len), end='')
+                    print('MACROS (' + defconfig_name + ')')
+                print("{:<{}}".format(list_conflict_pins[i].replace("\"",
+                      "") + ': ', pin_name_total_len), end='')
+                print(f.split('=')[0])
+                key_pin_name = f.split('=')[1].split('\n')[0]
+                val_macro = f.split('=')[0].replace('CONFIG_', '')
+                if key_pin_name in enabled_macro:
+                    enabled_macro[key_pin_name].append(val_macro)
+                else:
+                    enabled_macro[key_pin_name] = [val_macro]
+    file.close()
+    print("\n{:<{}}".format('PIN', pin_name_total_len), end='')
+    print('LINES (' + rel_pinmux_path + ')')
+
+    # Print the line number of conflicting pins in pinmux.c file
+    with open(pinmux_path, 'r') as file:
+        lines = file.readlines()
+        total_lines = len(str(len(lines))) + 2
+        file.seek(0)
+        for i in range(len(list_conflict_pins)):
+            print("{:<{}}".format(list_conflict_pins[i].replace("\"",
+                  "") + ': ', pin_name_total_len), end='')
+            pin_func = dict_pinmux.get(list_conflict_pins[i])
+            matched_num = 0
+
+            for f in file:
+                lines_num += 1
+                match = re.search(list_conflict_pins[i], f)
+                if not match:
+                    continue
+
+                fun = f.split('{')[1].split(',')[0]
+                if fun in pin_func:
+                    matched_num += 1
+                    if matched_num > 1:
+                        print(' ' * pin_name_total_len, end='')
+                    line_str = str(lines_num) + ': '
+                    print("{:<{}}".format(line_str, total_lines), end='')
+                    print(f.replace(' ', ''), end='')
+            file.seek(0)
+            lines_num = 0
+
+            # Search backwards from the macro to the line where the pin
+            # function configuration is
+            if list_conflict_pins[i] in enabled_macro:
+                for pin_name_index in enabled_macro[list_conflict_pins[i]]:
+                    lines_num_macro = 0
+                    for f in file:
+                        lines_num_macro += 1
+                        match = re.search(pin_name_index + '}', f)
+                        line_str = str(lines_num_macro) + ': '
+                        if not match:
+                            continue
+                        print(' ' * pin_name_total_len, end='')
+                        print("{:<{}}".format(line_str, total_lines), end='')
+                        print(f.replace(' ', ''), end='')
+                    file.seek(0)
+                    lines_num_macro = 0
+    file.close()
+
 
 def build_firmware_image(cfg, datadir, outdir):
     """ Build firmware image
@@ -1700,10 +2009,10 @@ def build_firmware_image(cfg, datadir, outdir):
     # Step3: Calculate the size of FWC File Data Area
     file_area_size = 0
     for s in ["updater", "target"]:
-        if s in cfg["image"] == False:
+        if s in cfg["image"] is False:
             return -1
         for fwc in cfg["image"][s]:
-            if "filesize" in cfg["image"][s][fwc] == False:
+            if "filesize" in cfg["image"][s][fwc] is False:
                 return -1
             filesize = cfg["image"][s][fwc]["filesize"]
             if filesize > 0:
@@ -1769,7 +2078,9 @@ def build_firmware_image(cfg, datadir, outdir):
             generate_bootcfg(bcfgfile, cfg)
             bcfgfile.flush()
 
+    build_pinmux_check()
     return 0
+
 
 if __name__ == "__main__":
     default_bin_root = os.path.dirname(sys.argv[0])
@@ -1796,23 +2107,23 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action='store_true',
                         help="show detail information")
     args = parser.parse_args()
-    if args.config == None:
+    if args.config is None:
         print('Error, option --config is required.')
         sys.exit(1)
     # If user not specified data directory, use current directory as default
-    if args.datadir == None:
+    if args.datadir is None:
         args.datadir = './'
-    if args.outdir == None:
+    if args.outdir is None:
         args.outdir = args.datadir
-    if args.datadir.endswith('/') == False and args.datadir.endswith('\\') == False:
+    if args.datadir.endswith('/') is False and args.datadir.endswith('\\') is False:
         args.datadir = args.datadir + '/'
-    if args.outdir.endswith('/') == False and args.outdir.endswith('\\') == False:
+    if args.outdir.endswith('/') is False and args.outdir.endswith('\\') is False:
         args.outdir = args.outdir + '/'
-    if args.config == None:
+    if args.config is None:
         args.config = args.datadir + "image_cfg.json"
-    if args.keydir == None:
+    if args.keydir is None:
         args.keydir = args.datadir
-    if args.keydir.endswith('/') == False and args.keydir.endswith('\\') == False:
+    if args.keydir.endswith('/') is False and args.keydir.endswith('\\') is False:
         args.keydir = args.keydir + '/'
     if args.burner:
         BURNER = True

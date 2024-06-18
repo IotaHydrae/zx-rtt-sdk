@@ -1,9 +1,5 @@
 /*
- * Copyright (c) 2023, Artinchip Technology Co., Ltd
- *
  * SPDX-License-Identifier: Apache-2.0
- *
- * Xiong Hao <hao.xiong@artinchip.com>
  */
 
 #include <stdio.h>

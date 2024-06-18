@@ -1,0 +1,6 @@
+menuconfig ZX2D4_DEMO
+    tristate "ZX ZX2D4 demo"
+    select LPKG_USING_LVGL
+    default n
+
+

@@ -31,6 +31,10 @@ config ZX_TOUCH_GSL1680
     bool "gsl1680 touch"
     select AIC_I2C_DRV
 
+config ZX_TOUCH_GSL2036
+    bool "gsl2036 touch"
+    select AIC_I2C_DRV
+
 endchoice
 
 if ZX_TOUCH_GT911
@@ -55,6 +59,10 @@ endif
 
 if ZX_TOUCH_GSL1680
 source "bsp/peripheral/touch/gsl1680/Kconfig"
+endif
+
+if ZX_TOUCH_GSL2036
+source "bsp/peripheral/touch/gsl2036/Kconfig"
 endif
 
 endmenu

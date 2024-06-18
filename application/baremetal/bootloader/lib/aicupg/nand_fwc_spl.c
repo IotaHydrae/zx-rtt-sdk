@@ -1,8 +1,4 @@
-/*
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- */
+
 #include <stdlib.h>
 #include <string.h>
 #include <aicupg.h>
@@ -131,15 +127,13 @@ static s32 mark_image_block_as_reserved(struct mtd_dev *mtd, u32 blkidx)
 /*
  * Mark SPL reserve blocks, so that UBI and other partition  won't use it
  */
-s32 nand_fwc_spl_reserve_blocks(struct fwc_info *fwc)
+s32 nand_fwc_spl_reserve_blocks(struct aicupg_nand_priv *priv)
 {
     u32 spl_blocks[SPL_NAND_IMAGE_BACKUP_NUM];
     u32 block_mark[SPL_NAND_IMAGE_BACKUP_NUM];
-    struct aicupg_nand_priv *priv;
     struct mtd_dev *mtd;
     s32 ret, i;
 
-    priv = (struct aicupg_nand_priv *)fwc->priv;
     if (!priv) {
         pr_err("priv is NULL\n");
         return -EINVAL;
@@ -256,9 +250,7 @@ static s32 spl_build_page_table(struct aicupg_nand_spl *spl,
 
     pr_debug("%s, going to generate page table.\n", __func__);
     slice_size = spl->mtd->writesize;
-    pt->head.page_size = PAGE_SIZE_2KB;
-    if (spl->mtd->writesize == 4096)
-        pt->head.page_size = PAGE_SIZE_4KB;
+    pt->head.page_size = spl->mtd->writesize;
 
     page_per_blk = spl->mtd->erasesize / spl->mtd->writesize;
     page_data = malloc(PAGE_MAX_SIZE);
@@ -349,8 +341,7 @@ out:
 /*
  * Write SPL image to flash blocks
  */
-static s32 nand_fwc_spl_program(struct fwc_info *fwc,
-                                struct aicupg_nand_spl *spl)
+static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
 {
     u8 *page_data = NULL, *p, *end;
     struct nand_page_table *pt = NULL;
@@ -456,7 +447,7 @@ out:
 static s32 verify_page_table(struct aicupg_nand_spl *spl, u32 blkidx,
                              struct nand_page_table *pt, u32 len)
 {
-    u8 page_data[PAGE_TABLE_USE_SIZE] = { 0 };
+    u8 page_data[PAGE_MAX_SIZE] = { 0 };
     ulong offset;
     u32 sumval;
     s32 ret;
@@ -563,14 +554,12 @@ out:
     return ret;
 }
 
-s32 nand_fwc_spl_prepare(struct fwc_info *fwc)
+s32 nand_fwc_spl_prepare(struct aicupg_nand_priv *priv, u32 datasiz, u32 blksiz)
 {
-    struct aicupg_nand_priv *priv;
     struct aicupg_nand_spl *spl;
     struct mtd_dev *mtd;
     s32 ret = 0;
 
-    priv = (struct aicupg_nand_priv *)fwc->priv;
     if (!priv) {
         pr_err("priv is NULL\n");
         return -EINVAL;
@@ -588,7 +577,8 @@ s32 nand_fwc_spl_prepare(struct fwc_info *fwc)
 
     memset(spl, 0, sizeof(struct aicupg_nand_spl));
     spl->mtd = mtd;
-    spl->buf_size = ROUNDUP(fwc->meta.size, fwc->block_size);
+    // spl->buf_size = ROUNDUP(fwc->meta.size, fwc->block_size);
+    spl->buf_size = ROUNDUP(datasiz, blksiz);
 
     spl->image_buf = malloc(spl->buf_size);
     if (!spl->image_buf) {
@@ -616,7 +606,7 @@ s32 nand_fwc_spl_prepare(struct fwc_info *fwc)
  * Only write to RAM buffer, and begin to program NAND blocks when rx is
  * finished.
  */
-s32 nand_fwc_spl_write(struct fwc_info *fwc, u8 *buf, s32 len)
+s32 nand_fwc_spl_write(u32 totalsiz, u8 *buf, s32 len)
 {
     struct aicupg_nand_spl *spl = &g_nand_spl;
     s32 ret;
@@ -629,9 +619,9 @@ s32 nand_fwc_spl_write(struct fwc_info *fwc, u8 *buf, s32 len)
     memcpy(dst, buf, len);
     spl->rx_size += len;
 
-    if (spl->rx_size >= fwc->meta.size) {
+    if (spl->rx_size >= totalsiz) {
         /* SPL image rx is finished, start to program */
-        ret = nand_fwc_spl_program(fwc, spl);
+        ret = nand_fwc_spl_program(spl);
         if (ret)
             return 0;
         ret = nand_fwc_spl_image_verify(spl);
@@ -640,4 +630,16 @@ s32 nand_fwc_spl_write(struct fwc_info *fwc, u8 *buf, s32 len)
     }
 
     return len;
+}
+
+int nand_spl_get_candidate_blocks(u32 *blks, u32 size)
+{
+    if (!blks || size < SPL_CANDIDATE_BLOCK_NUM) {
+        pr_err("Invalid parameter.\n");
+        return -1;
+    }
+
+    memcpy(blks, spl_candidate_block_table,
+           sizeof(u32) * SPL_CANDIDATE_BLOCK_NUM);
+    return 0;
 }

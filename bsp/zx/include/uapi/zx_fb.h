@@ -1,7 +1,4 @@
 /*
- * Definitions for the ZX frambuffer driver
- *
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -28,6 +25,13 @@ extern "C" {
 
 #define AICFB_ACTIVATE_ROTATE_PANDISP    (1 << 3)
 
+enum display_flags {
+	DISPLAY_FLAGS_HSYNC_LOW		= (1 << 0),
+	DISPLAY_FLAGS_HSYNC_HIGH	= (1 << 1),
+	DISPLAY_FLAGS_VSYNC_LOW		= (1 << 2),
+	DISPLAY_FLAGS_VSYNC_HIGH	= (1 << 3),
+};
+
 struct display_timing {
     unsigned int pixelclock;
 
@@ -41,6 +45,19 @@ struct display_timing {
     unsigned int vsync_len;      /* ver. sync len */
 
     unsigned int flags;
+};
+
+/**
+ * struct aicfb_pq_config - aipq tools config
+ * @timing: display timing
+ * @connector_type: type of display interface
+ * @data: display interface data
+ *
+ */
+struct aicfb_pq_config {
+    struct display_timing *timing;
+    unsigned int connector_type;
+    void *data;
 };
 
 /**
@@ -130,6 +147,10 @@ struct aicfb_config_lists {
     struct aicfb_layer_data layers[];
 };
 
+#define AICFB_PIXEL_ALPHA_MODE      0
+#define AICFB_GLOBAL_ALPHA_MODE     1
+#define AICFB_MIXDER_ALPHA_MODE     2
+
 /**
  * struct aicfb_alpha_config - aicfb layer alpha blending config
  *
@@ -206,7 +227,7 @@ enum gamma_lut {
 
 struct aicfb_gamma_config {
     unsigned int enable;
-    unsigned int gamma_lut[3][64];
+    unsigned int gamma_lut[3][16];
 };
 
 /*
@@ -278,20 +299,23 @@ struct aicfb_screeninfo {
 /** get display property */
 #define AICFB_GET_DISP_PROP _IOR(IOC_TYPE_FB, 0x61, struct aicfb_disp_prop)
 
-/** set ccm config */
-#define AICFB_SET_CCM_CONFIG _IOR(IOC_TYPE_FB, 0x65, struct aicfb_ccm_config)
+/** update ccm config */
+#define AICFB_UPDATE_CCM_CONFIG _IOR(IOC_TYPE_FB, 0x65, struct aicfb_ccm_config)
 
 /** get ccm config */
 #define AICFB_GET_CCM_CONFIG _IOR(IOC_TYPE_FB, 0x66, struct aicfb_ccm_config)
 
-/** set gamma config */
-#define AICFB_SET_GAMMA_CONFIG _IOR(IOC_TYPE_FB, 0x67, struct aicfb_gamma_config)
+/** update gamma config */
+#define AICFB_UPDATE_GAMMA_CONFIG _IOR(IOC_TYPE_FB, 0x67, struct aicfb_gamma_config)
 
 /** get gamma config */
 #define AICFB_GET_GAMMA_CONFIG _IOR(IOC_TYPE_FB, 0x68, struct aicfb_gamma_config)
 
 /* get screen register value */
 #define AICFB_GET_SCREENREG   _IOR(IOC_TYPE_FB, 0x69, unsigned int)
+
+#define AICFB_PQ_GET_CONFIG _IOR(IOC_TYPE_FB, 0x70, unsigned int)
+#define AICFB_PQ_SET_CONFIG _IOR(IOC_TYPE_FB, 0x71, unsigned int)
 
 /* get screen info */
 #define AICFB_GET_SCREENINFO _IOR(IOC_TYPE_FB, 0x62, struct aicfb_screeninfo)

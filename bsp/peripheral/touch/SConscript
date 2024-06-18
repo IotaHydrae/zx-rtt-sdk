@@ -26,9 +26,13 @@ if GetDepend('ZX_TOUCH_PANEL_FT7411'):
     CPPPATH.append(cwd + '/ft7411/inc')
     src += Glob('ft7411/src/*.c')
 
-if GetDepend('ZX_TOUCH_PANEL_GSL1680'):
+if GetDepend('ZX_TOUCH_GSL1680'):
     CPPPATH.append(cwd + '/gsl1680/inc')
     src += Glob('gsl1680/src/*.c')
+
+if GetDepend('ZX_TOUCH_GSL2036'):
+    CPPPATH.append(cwd + '/gsl2036/inc')
+    src += Glob('gsl2036/src/*.c')
 
 group = DefineGroup('touch', src, depend = [''], CPPPATH = CPPPATH)
 

@@ -26,6 +26,7 @@
 #include <rtthread.h>
 #include <rthw.h>
 #include <aic_core.h>
+#include <ctype.h>
 
 #ifdef RT_USING_MODULE
 #include <dlmodule.h>
@@ -641,8 +642,12 @@ RTM_EXPORT(rt_strdup);
  */
 void rt_show_version(void)
 {
-    rt_kprintf("Welcome to ZX-RTT %d.%d [Built on %s %s]\n",
-               LL_VERSION, LL_SUBVERSION, __DATE__, __TIME__);
+    char ver[] = PRJ_CHIP;
+
+    ver[0] = toupper(ver[0]);
+    rt_kprintf("Welcome to ZX-RTT %d.%d.%d [%s Inside]\n",
+               LL_VERSION, LL_SUBVERSION, LL_REVISION, ver);
+    rt_kprintf("Built on %s %s\n", __DATE__, __TIME__);
 }
 RTM_EXPORT(rt_show_version);
 
@@ -1252,7 +1257,11 @@ rt_device_t rt_console_set_device(const char *name)
         }
 
         /* set new console device */
+    #ifdef FINSH_POLL_MODE
+        rt_device_open(new_device, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_STREAM);
+    #else
         rt_device_open(new_device, RT_DEVICE_FLAG_INT_RX | RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_STREAM);
+    #endif
         _console_device = new_device;
     }
 

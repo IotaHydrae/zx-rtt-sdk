@@ -1,8 +1,3 @@
-/*
- * Copyright (C) 2022-2023 ArtinChip Technology Co., Ltd.
- * Authors:  Ning Fang <ning.fang@artinchip.com>
- */
-
 #ifndef METER_UI_H
 #define METER_UI_H
 

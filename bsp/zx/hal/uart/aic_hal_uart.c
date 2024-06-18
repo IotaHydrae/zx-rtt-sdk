@@ -1,5 +1,4 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <rtconfig.h>
@@ -290,61 +289,60 @@ int32_t hal_usart_config_databits(usart_handle_t handle, usart_data_bits_e datab
 
 static void hal_usart_get_dma_flag(void)
 {
-#ifdef AIC_DEV_UART0_MODE_DMA
+    uint8_t i;
+    for (i = 0; i < AIC_UART_MAX_NUM; i++) {
+        dma_flag[i].dma_enable = 0;
+    }
+
+#ifdef AIC_UART0_DMA_ENABLE_FLAG
     dma_flag[0].dma_enable = 1;
-#else
-    dma_flag[0].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART1_MODE_DMA
+#ifdef AIC_UART1_DMA_ENABLE_FLAG
     dma_flag[1].dma_enable = 1;
-#else
-    dma_flag[1].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART2_MODE_DMA
+#ifdef AIC_UART2_DMA_ENABLE_FLAG
     dma_flag[2].dma_enable = 1;
-#else
-    dma_flag[2].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART3_MODE_DMA
+#ifdef AIC_UART3_DMA_ENABLE_FLAG
     dma_flag[3].dma_enable = 1;
-#else
-    dma_flag[3].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART4_MODE_DMA
+#ifdef AIC_UART4_DMA_ENABLE_FLAG
     dma_flag[4].dma_enable = 1;
-#else
-    dma_flag[4].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART5_MODE_DMA
+#ifdef AIC_UART5_DMA_ENABLE_FLAG
     dma_flag[5].dma_enable = 1;
-#else
-    dma_flag[5].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART6_MODE_DMA
+#ifdef AIC_UART6_DMA_ENABLE_FLAG
     dma_flag[6].dma_enable = 1;
-#else
-    dma_flag[6].dma_enable = 0;
 #endif
-#ifdef AIC_DEV_UART7_MODE_DMA
+#ifdef AIC_UART7_DMA_ENABLE_FLAG
     dma_flag[7].dma_enable = 1;
-#else
-    dma_flag[7].dma_enable = 0;
 #endif
 }
 
-int32_t hal_usart_config_fifo(usart_handle_t handle)
+int32_t hal_usart_config_fifo(usart_handle_t handle, usart_func_e func)
 {
     USART_NULL_PARAM_CHK(handle);
     aic_usart_priv_t *usart_priv = handle;
     aic_usart_reg_t *addr = (aic_usart_reg_t *)(usart_priv->base);
 
-    addr->FCR = (FCR_FIFO_EN | FCR_RX_FIFO_RST | FCR_TX_FIFO_RST);
+    if (func == USART_MODE_RS232_AUTO_FLOW_CTRL ||
+        func == USART_MODE_RS232_UNAUTO_FLOW_CTRL ||
+        func == USART_MODE_RS232_SW_FLOW_CTRL ||
+        func == USART_MODE_RS232_SW_HW_FLOW_CTRL)
+    {
+        addr->FCR = (FCR_FIFO_EN | FCR_RX_FIFO_RST | FCR_TX_FIFO_RST | FRC_RX_FIFO_SET(3));
+    }
+    else
+    {
+        addr->FCR = (FCR_FIFO_EN | FCR_RX_FIFO_RST | FCR_TX_FIFO_RST);
+    }
 
     hal_usart_get_dma_flag();
     /* if use dma reconfigure the fcr reg */
     if (dma_flag[usart_priv->idx].dma_enable == 1) {
         addr->FCR = (FCR_TX_FIFO_RST | FCR_RX_FIFO_RST);
-        addr->FCR = (AIC_UART_DMA_MODO(1) | FRC_TX_FIFO_SET(3)| FRC_RX_FIFO_SET(2) | FCR_FIFO_EN);
+        addr->FCR = (AIC_UART_DMA_MODE(1) | FRC_TX_FIFO_SET(3)| FRC_RX_FIFO_SET(2) | FCR_FIFO_EN);
     }
     return 0;
 }
@@ -356,19 +354,37 @@ int32_t hal_usart_config_func(usart_handle_t handle, usart_func_e func)
     aic_usart_reg_t *addr = (aic_usart_reg_t *)(usart_priv->base);
     aic_usart_exreg_t *exaddr = (aic_usart_exreg_t *)(usart_priv->base + AIC_UART_EXREG);
 
-    if (func == USART_FUNC_RS485 || func == USART_FUNC_RS485_COMACT_IO)
+    if (func == USART_FUNC_RS485 || func == USART_FUNC_RS485_COMACT_IO ||
+        func == USART_FUNC_RS485_SIMULATION)
     {
         addr->MCR &= AIC_UART_MCR_FUNC_MASK;
-        if(func == USART_FUNC_RS485_COMACT_IO)
-            addr->MCR |= AIC_UART_MCR_RS485S;
-        else
+
+        if (func == USART_FUNC_RS485 || func == USART_FUNC_RS485_SIMULATION)
             addr->MCR |= AIC_UART_MCR_RS485;
+        else
+            addr->MCR |= AIC_UART_MCR_RS485S;
         exaddr->RS485CTL |= AIC_UART_RS485_RXBFA;
         exaddr->RS485CTL |= AIC_UART_RS485_RXAFA;
         exaddr->RS485CTL &= ~AIC_UART_RS485_CTL_MODE;
+
+        if (func == USART_FUNC_RS485_SIMULATION)
+            exaddr->RS485CTL |= AIC_UART_RS485_CTL_MODE;
     }
-    else
+    else if (func == USART_MODE_RS232_AUTO_FLOW_CTRL)
     {
+        addr->MCR |= AIC_UART_MCR_FLOW_CTRL;
+        addr->IER |= IER_RDA_INT_ENABLE;
+        exaddr->RS485CTL &= ~AIC_UART_RS485_RXBFA;
+        exaddr->RS485CTL &= ~AIC_UART_RS485_RXAFA;
+    }
+    else if (func == USART_MODE_RS232_UNAUTO_FLOW_CTRL ||
+             func == USART_MODE_RS232_SW_HW_FLOW_CTRL)
+    {
+        addr->MCR &= AIC_UART_MCR_FUNC_MASK;
+        addr->IER |= IER_RDA_INT_ENABLE;
+        exaddr->RS485CTL &= ~AIC_UART_RS485_RXBFA;
+        exaddr->RS485CTL &= ~AIC_UART_RS485_RXAFA;
+    } else {
         addr->MCR &= AIC_UART_MCR_FUNC_MASK;
         exaddr->RS485CTL &= ~AIC_UART_RS485_RXBFA;
         exaddr->RS485CTL &= ~AIC_UART_RS485_RXAFA;
@@ -471,6 +487,25 @@ int32_t hal_usart_putchar(usart_handle_t handle, uint8_t ch)
 
 }
 
+/**
+  \brief       flow control send message.
+  \param[in]   halt_tx_enable  usart flow control on/off.
+*/
+
+int32_t hal_usart_halt_tx_enable(usart_handle_t handle, uint8_t halt_tx_enable)
+{
+    USART_NULL_PARAM_CHK(handle);
+    aic_usart_priv_t *usart_priv = handle;
+    aic_usart_reg_t *addr = (aic_usart_reg_t *)(usart_priv->base);
+
+    if (halt_tx_enable == HALT_TX_ENABLE) {
+        addr->HALT |= HALT_TX_ENABLE;
+    } else {
+        addr->HALT &= (~HALT_TX_ENABLE);
+    }
+
+    return 0;
+}
 
 /**
   \brief       interrupt service function for transmitter holding register empty.
@@ -843,7 +878,7 @@ int32_t hal_usart_config(usart_handle_t handle,
     }
 
     /* control fifo */
-    ret = hal_usart_config_fifo(handle);
+    ret = hal_usart_config_fifo(handle, func);
 
     if (ret < 0)
     {
@@ -1269,9 +1304,11 @@ inline int32_t hal_usart_rts_ctl_soft_mode_set(usart_handle_t handle)
 {
     USART_NULL_PARAM_CHK(handle);
     aic_usart_priv_t *usart_priv = handle;
+    aic_usart_reg_t *addr = (aic_usart_reg_t *)(usart_priv->base);
 
-    aic_usart_exreg_t *exaddr = (aic_usart_exreg_t *)(usart_priv->base + AIC_UART_EXREG);
-    exaddr->RS485CTL |= AIC_UART_RS485_CTL_MODE;
+    while (addr->USR & USR_UART_BUSY) {};
+    addr->MCR &= ~AIC_UART_MCR_RTS_CTRL;
+
     return 0;
 }
 
@@ -1279,13 +1316,15 @@ inline int32_t hal_usart_rts_ctl_soft_mode_clr(usart_handle_t handle)
 {
     USART_NULL_PARAM_CHK(handle);
     aic_usart_priv_t *usart_priv = handle;
+    aic_usart_reg_t *addr = (aic_usart_reg_t *)(usart_priv->base);
 
-    aic_usart_exreg_t *exaddr = (aic_usart_exreg_t *)(usart_priv->base + AIC_UART_EXREG);
-    exaddr->RS485CTL &= ~AIC_UART_RS485_CTL_MODE;
+    while (addr->USR & USR_UART_BUSY) {};
+    addr->MCR |= AIC_UART_MCR_RTS_CTRL;
+
     return 0;
 }
 
-#if defined (RT_SERIAL_USING_DMA)
+#if defined (AIC_SERIAL_USING_DMA)
 int32_t hal_uart_set_fifo(usart_handle_t handle)
 {
     USART_NULL_PARAM_CHK(handle);
@@ -1293,7 +1332,7 @@ int32_t hal_uart_set_fifo(usart_handle_t handle)
     aic_usart_reg_t *addr = (aic_usart_reg_t *)(usart_priv->base);
 
     addr->FCR = (FCR_TX_FIFO_RST | FCR_RX_FIFO_RST);
-    addr->FCR = (AIC_UART_DMA_MODO(1) | FRC_TX_FIFO_SET(3)| FRC_RX_FIFO_SET(2) | FCR_FIFO_EN);
+    addr->FCR = (AIC_UART_DMA_MODE(1) | FRC_TX_FIFO_SET(3)| FRC_RX_FIFO_SET(2) | FCR_FIFO_EN);
     return 0;
 }
 
@@ -1422,14 +1461,15 @@ int32_t hal_uart_rx_dma_config(usart_handle_t handle, uint8_t *buf, uint32_t siz
 
     usart_priv->dma_rx_info.buf = buf;
     usart_priv->dma_rx_info.buf_size = size;
-    config.direction = DMA_DEV_TO_MEM;
+
     config.slave_id = DMA_ID_UART0 + usart_priv->idx;
+    config.direction = DMA_DEV_TO_MEM;
     config.src_maxburst = 1;
     config.dst_maxburst = 1;
     config.src_addr = (UART0_BASE + usart_priv->idx * AIC_UART_BASE_OFFSET);
     config.dst_addr = (unsigned long)usart_priv->dma_rx_info.buf;
     config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-    config.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+    config.dst_addr_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
 
     info = &usart_priv->dma_rx_info;
     info->dma_chan = hal_request_dma_chan();
@@ -1464,13 +1504,14 @@ int32_t hal_uart_send_by_dma(usart_handle_t handle, uint8_t *buf, uint32_t size)
     hal_usart_set_hsk(usart_priv);
     usart_priv->dma_tx_info.buf = buf;
     usart_priv->dma_tx_info.buf_size = transfer_size;
-    config.direction = DMA_MEM_TO_DEV;
+
     config.slave_id = DMA_ID_UART0 + usart_priv->idx;
+    config.direction = DMA_MEM_TO_DEV;
     config.src_maxburst = 1;
     config.dst_maxburst = 1;
     config.src_addr = (unsigned long)usart_priv->dma_tx_info.buf;
     config.dst_addr = (UART0_BASE + usart_priv->idx * AIC_UART_BASE_OFFSET);
-    config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+    config.src_addr_width = DMA_SLAVE_BUSWIDTH_UNDEFINED;
     config.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
 
     info = &usart_priv->dma_tx_info;

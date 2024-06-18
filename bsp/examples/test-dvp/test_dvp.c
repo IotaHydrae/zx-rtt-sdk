@@ -32,6 +32,8 @@
 #define VID_BUF_PLANE_NUM       2
 #define VID_SCALE_OFFSET        0
 
+static bool g_dvp_running = true;
+
 static const char sopts[] = "f:c:h";
 static const struct option lopts[] = {
     {"format",        required_argument, NULL, 'f'},
@@ -63,7 +65,7 @@ static void usage(char *program)
 {
     printf("Usage: %s [options]: \n", program);
     printf("\t -f, --format\t\tformat of input video, NV16/NV12 etc\n");
-    printf("\t -c, --count\t\tthe number of capture frame \n");
+    printf("\t -c, --count\t\tthe number of capture frame.(0 means infinity) \n");
     printf("\t -u, --usage \n");
     printf("\n");
     printf("Example: %s -f nv16 -c 1\n", program);
@@ -315,23 +317,9 @@ int video_layer_set(struct aic_dvp_data *vdata, int index)
     return 0;
 }
 
-#define NS_PER_SEC      1000000000
-
-static void show_fps(struct timespec *start, struct timespec *end, int cnt)
+void dvp_thread_stop()
 {
-     double diff;
-
-    if (end->tv_nsec < start->tv_nsec) {
-        diff = (double)(NS_PER_SEC + end->tv_nsec - start->tv_nsec)/NS_PER_SEC;
-        diff += end->tv_sec - 1 - start->tv_sec;
-    } else {
-        diff = (double)(end->tv_nsec - start->tv_nsec)/NS_PER_SEC;
-        diff += end->tv_sec - start->tv_sec;
-    }
-
-    printf("\nDVP frame rate: %d.%d, frame %d / %d.%d seconds\n",
-           (u32)(cnt / diff), (u32)(cnt * 10 / diff) % 10, cnt,
-           (u32)diff, (u32)(diff * 10) % 10);
+    g_dvp_running = false;
 }
 
 static void test_dvp_thread(void *arg)
@@ -356,8 +344,15 @@ static void test_dvp_thread(void *arg)
     pr_info("DVP scale is disable\n");
 #endif
 
-    clock_gettime(CLOCK_REALTIME, &begin);
-    for (i = 0; i < g_vdata.frame_cnt; i++) {
+    gettimespec(&begin);
+    g_dvp_running = true;
+    i = 0;
+    while (g_dvp_running) {
+        if (g_vdata.frame_cnt != 0 && i >= g_vdata.frame_cnt) {
+            break;
+        }
+        i++;
+
         if (dvp_dequeue_buf(&index) < 0)
             break;
         // pr_debug("Set the buf %d to video layer\n", index);
@@ -366,22 +361,24 @@ static void test_dvp_thread(void *arg)
         dvp_queue_buf(index);
 
         if (i && (i % 1000 == 0)) {
-            clock_gettime(CLOCK_REALTIME, &now);
-            show_fps(&begin, &now, i);
+            gettimespec(&now);
+            show_fps("DVP", &begin, &now, i);
         }
     }
-    if ((i - 1) % 1000 != 0) {
-        clock_gettime(CLOCK_REALTIME, &now);
-        show_fps(&begin, &now, i);
+    if ((i > 0) && ((i - 1) % 1000 != 0)) {
+        gettimespec(&now);
+        show_fps("DVP", &begin, &now, i);
     }
 
     dvp_stop();
     dvp_release_buf(g_vdata.binfo.num_buffers);
     mpp_vin_deinit();
     if (g_fb) {
-	video_layer_disable();
+        video_layer_disable();
         mpp_fb_close(g_fb);
     }
+
+    pr_info("Total receive %d frames, so exit\n");
 }
 
 static void cmd_test_dvp(int argc, char **argv)

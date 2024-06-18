@@ -479,8 +479,8 @@ rt_err_t rt_hw_mtd_spinand_register(const char *device_name, u32 bus_hz)
     device->config.parent.data_width = 8;
     device->config.parent.max_hz = bus_hz;
     device->config.ddr_mode = 0;
-    device->config.qspi_dl_width = 4;
 
+    spinand->qspi_dl_width = device->config.qspi_dl_width;
     aic_nand = spinand;
 
     result = rt_hw_mtd_spinand_init(spinand);
@@ -495,6 +495,7 @@ static int nread(int argc, char **argv)
     rt_uint8_t *data_ptr = RT_NULL;
     struct rt_mtd_nand_device *device;
     rt_uint32_t partition, page;
+    struct aic_spinand *flash = RT_NULL;
 
     if (argc != 3) {
         pr_err("Usage %s: %s <partition_no> <page>.\n", __func__, __func__);
@@ -508,6 +509,7 @@ static int nread(int argc, char **argv)
         goto exit_nread;
 
     device = &g_mtd_partitions[partition];
+    flash = (struct aic_spinand *)device->priv;
     data_ptr = (rt_uint8_t *)rt_malloc(flash->info->page_size);
     if (data_ptr == RT_NULL) {
         pr_err("data_ptr: no memory\n");
@@ -612,6 +614,7 @@ static int nwrite(int argc, char **argv)
     rt_uint8_t *data_ptr = RT_NULL;
     struct rt_mtd_nand_device *device;
     rt_uint32_t partition, page;
+    struct aic_spinand *flash = RT_NULL;
 
     if (argc != 3) {
         pr_err("Usage %s: %s <partition_no> <page>.\n", __func__, __func__);
@@ -625,7 +628,7 @@ static int nwrite(int argc, char **argv)
         goto exit_nwrite;
 
     device = &g_mtd_partitions[partition];
-
+    flash = (struct aic_spinand *)device->priv;
     data_ptr = (rt_uint8_t *)rt_malloc(flash->info->page_size);
     if (data_ptr == RT_NULL) {
         pr_err("data_ptr: no memory\n");
@@ -832,7 +835,8 @@ MSH_CMD_EXPORT(ncontread, test nand cont read);
 static int rt_hw_spinand_register(void)
 {
 #if defined(AIC_QSPI0_DEVICE_SPINAND)
-    aic_qspi_bus_attach_device("qspi0", "spinand0", 0, 4, RT_NULL, RT_NULL);
+    aic_qspi_bus_attach_device("qspi0", "spinand0", 0, AIC_QSPI0_BUS_WIDTH,
+                               RT_NULL, RT_NULL);
     rt_hw_mtd_spinand_register("spinand0", AIC_QSPI0_DEVICE_SPINAND_FREQ);
 #endif
     return RT_EOK;

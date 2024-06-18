@@ -143,6 +143,7 @@ rt_inline int _can_int_tx(struct rt_can_device *can, const struct rt_can_msg *da
         rt_base_t level;
         rt_uint32_t no;
         rt_uint32_t result;
+        rt_err_t ret = RT_EOK;
         struct rt_can_sndbxinx_list *tx_tosnd = RT_NULL;
 
         rt_sem_take(&(tx_fifo->sem), RT_WAITING_FOREVER);
@@ -165,7 +166,15 @@ rt_inline int _can_int_tx(struct rt_can_device *can, const struct rt_can_msg *da
         }
 
         can->status.sndchange = 1;
-        rt_completion_wait(&(tx_tosnd->completion), RT_WAITING_FOREVER);
+        ret = rt_completion_wait(&(tx_tosnd->completion), 3000);
+        if(ret == -RT_ETIMEOUT)
+        {
+            level = rt_hw_interrupt_disable();
+            rt_list_insert_before(&tx_fifo->freelist, &tx_tosnd->list);
+            rt_hw_interrupt_enable(level);
+            rt_sem_release(&(tx_fifo->sem));
+            return ret;
+        }
 
         level = rt_hw_interrupt_disable();
         result = tx_tosnd->result;

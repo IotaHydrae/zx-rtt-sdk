@@ -1,5 +1,4 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -30,7 +29,8 @@ extern "C" {
 #define FCR_TX_FIFO_RST         0x04
 #define FCR_DMA_MODE            0x08
 #define FRC_TX_FIFO_SET(x)      (x << 4)/* 0 is null, 1 is 2byte, 2 is 1/4 fifo, 3 is 1/2 fifo */
-#define FRC_RX_FIFO_SET(x)      (x << 6)/* 0 is 1byte, 1 is 1/4 fifo, 2 is 1/2 fifo, 3 is full fifo*/
+#define FRC_RX_FIFO_SET(x)      (x << 6)/* 0 is 1byte, 1 is 1/4 fifo, 2 is 1/2 fifo, 3 is full*/
+#define FCR_RX_TRIGGER          0xC0
 
 #define LCR_SET_DLAB            0x80    /* enable r/w DLR to set the baud rate */
 #define LCR_PARITY_ENABLE       0x08    /* parity enabled */
@@ -43,6 +43,8 @@ extern "C" {
 #define LCR_STOP_BIT1           0xfb    /* 1 stop bit */
 #define LCR_STOP_BIT2           0x04    /* 1.5 stop bit */
 
+#define HALT_TX_DISABLE         0x00
+#define HALT_TX_ENABLE          0x01
 #define HALT_CHCFG_AT_BUSY      0x02
 #define HALT_CHANGE_UPDATE      0x04
 
@@ -61,12 +63,14 @@ extern "C" {
 #define AIC_IIR_RECV_LINE       0x06    /* receiver line status */
 #define AIC_IIR_CHAR_TIMEOUT    0x0c    /* character timeout */
 
-/* ArtInChip specific register fields */
+/* ZX specific register fields */
 #define AIC_UART_MCR_SIRE       0x40
 #define AIC_UART_MCR_RS485      0x80
 #define AIC_UART_MCR_RS485S     0xC0
 #define AIC_UART_MCR_UART       0x00
 #define AIC_UART_MCR_FUNC_MASK  0x3F
+#define AIC_UART_MCR_FLOW_CTRL  0x22    /* Auto Flow Control Enable */
+#define AIC_UART_MCR_RTS_CTRL   0x02    /* RTS Control */
 
 #define AIC_UART_EXREG          0xB8    /* RS485 DE Time */
 #define AIC_UART_RS485_CTL_MODE 0x80;
@@ -79,6 +83,11 @@ extern "C" {
 
 #define AIC_UART_485_CTL_SOFT_MODE0 0x80
 #define AIC_UART_485_CTL_SOFT_MODE1 0x81
+#define AIC_UART_232_RESUME_DATA    0x83
+#define AIC_UART_232_SUSPEND_DATA   0x84
+#define AIC_UART_SW_FLOW_CTRL       0x85
+#define AIC_UART_SW_RECEIVE_ON_OFF  0x86
+
 #define AIC_UART_DEV_MODE_RS485     0x1
 
 #define AIC_UART_IER_RDI        0x1     /* Enable receiver data interrupt */
@@ -86,31 +95,35 @@ extern "C" {
 #define AIC_UART_IER_RLSI       0x4     /* Enable receiver line status interrupt */
 #define AIC_UART_IER_MSI        0x8     /* Enable Modem status interrupt */
 
-#define AIC_UART_FCR_REG        0x8
-#define AIC_UART_RX_FIFO_SIZE(n)    (n << 0)
-#define AIC_UART_TX_FIFO_SIZE(n)    (n << 0)
-#define AIC_UART_HALT_REG       0xA4
 #define AIC_UART_TX_DRQ_EN      0x40
 #define AIC_UART_RX_DRQ_EN      0x80
 #define AIC_UART_FIFO_DEPTH     128
-#define AIC_UART_TFL_REG        0x80
-#define AIC_UART_RFL_REG        0x84
 #define AIC_UART_BASE_OFFSET    0x1000
 #define AIC_UART_RX_INT         0
 #define AIC_UART_TX_INT         1
-#define AIC_UART_HSK_REG        0x88
 #define AIC_UART_DMA_HSK_MODE   0xe5
 #define AIC_UART_MAX_NUM        8
-#define AIC_UART_DMA_MODO(n)    (n << 3)
+#define AIC_UART_DMA_MODE(n)    (n << 3)
+#define AIC_UART_TX_FIFO_SIZE      2048
+#define AIC_UART_RX_FIFO_SIZE      2048
+/* DMA_FLAG: RDWR(0x3) | INT_RX(0x100) | DMA_RX(0x200) | DMA_TX(0x800) */
+#define AIC_UART_DMA_FLAG       2819
 /* definition for usart handle. */
 typedef void *usart_handle_t;
 
+#define AIC_UART_XOFF               19
+#define AIC_UART_XON                17
 /*----- USART Function Codes: -------*/
 typedef enum
 {
     USART_FUNC_RS232                    = 0,   ///< RS232
     USART_FUNC_RS485                    = 1,   ///< RS485 normal
     USART_FUNC_RS485_COMACT_IO          = 2,   ///< RS485 compact io
+    USART_MODE_RS232_AUTO_FLOW_CTRL     = 3,   ///< RS232 flow conctrol
+    USART_MODE_RS232_UNAUTO_FLOW_CTRL   = 4,   ///< RS232 hardware unauto flow conctrol
+    USART_MODE_RS232_SW_FLOW_CTRL       = 5,   ///< RS232 software flow conctrol
+    USART_MODE_RS232_SW_HW_FLOW_CTRL    = 6,   ///< RS232 software and hardware flow conctrol
+    USART_FUNC_RS485_SIMULATION         = 7,   ///< RS485 simulation
 } usart_func_e;
 
 /****** USART specific error codes *****/
@@ -600,6 +613,8 @@ int32_t hal_usart_control_break(usart_handle_t handle, uint32_t enable);
 int32_t hal_usart_config_rs485(usart_handle_t handle, bool rs485, bool compactio);
 int32_t hal_usart_rts_ctl_soft_mode_set(usart_handle_t handle);
 int32_t hal_usart_rts_ctl_soft_mode_clr(usart_handle_t handle);
+int32_t hal_usart_halt_tx_enable(usart_handle_t handle, uint8_t halt_tx_enable);
+
 #if defined (RT_SERIAL_USING_DMA)
 int32_t hal_uart_set_fifo(usart_handle_t handle);
 int32_t hal_usart_tx_enable_drq(usart_handle_t handle);

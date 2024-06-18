@@ -10,7 +10,7 @@
 #include <string.h>
 #include <console.h>
 #include <aic_common.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 
 #define MD_HELP                                                 \
     "memory display command:\n"                                 \

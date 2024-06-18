@@ -39,7 +39,7 @@ static s32 fb_video_render_init(struct aic_video_render *render,s32 layer,s32 de
         return -1;
     }
 
-    if (strcmp(PRJ_CHIP,"d12x") == 0) {
+    if (strcmp(PRJ_CHIP,"m3a") == 0 || strcmp(PRJ_CHIP,"m3c") == 0) {
         fb_render->layer.layer_id = AICFB_LAYER_TYPE_UI;
         rt_device_control(fb_render->render_dev,AICFB_GET_LAYER_CONFIG,&fb_render->layer);
     } else {
@@ -57,7 +57,7 @@ static s32 fb_video_render_destroy(struct aic_video_render *render)
 {
     struct aic_fb_video_render *fb_render = (struct aic_fb_video_render*)render;
 
-    if (strcmp(PRJ_CHIP,"d12x") == 0) {
+    if (strcmp(PRJ_CHIP,"m3a") == 0 || strcmp(PRJ_CHIP,"m3c") == 0) {
         mpp_free(fb_render);
         return 0;
     }

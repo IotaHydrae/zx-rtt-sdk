@@ -1,8 +1,5 @@
 /*
- * Copyright (c) 2023-2024, ArtInChip Technology Co., Ltd
- *
  * SPDX-License-Identifier: Apache-2.0
- * Authors:  dwj <weijie.ding@artinchip.com>
  */
 #include <rtthread.h>
 #include <stdio.h>

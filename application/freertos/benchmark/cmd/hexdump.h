@@ -1,6 +1,4 @@
 /*
- * Copyright (c) 2023, Artinchip Technology Co., Ltd
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 

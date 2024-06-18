@@ -1,9 +1,5 @@
 /*
- * Copyright (c) 2024, Artinchip Technology Co., Ltd
- *
  * SPDX-License-Identifier: Apache-2.0
- *
- * Wudehuang <dehuang.wu@artinchip.com>
  */
 
 #ifndef __AIC_BLOCK_DEV_H_

@@ -227,7 +227,7 @@ static int h264_alloc_frame_buffer(struct h264_dec_ctx *s)
 		s->pix_format = MPP_FMT_YUV400;
 	}
 
-	//* 1. create frame manager, alloc frame buffer
+	// 1. create frame manager, alloc frame buffer
 	struct frame_manager_init_cfg cfg;
 	cfg.frame_count = s->frame_info.max_valid_frame_num;
 	cfg.height = s->height;
@@ -238,7 +238,7 @@ static int h264_alloc_frame_buffer(struct h264_dec_ctx *s)
 	cfg.allocator = s->decoder.allocator;
 	s->decoder.fm = fm_create(&cfg);
 
-	//* 2. create physic buffer for co-located buffer
+	// 2. create physic buffer for co-located buffer
 	field_col_buf_size = cur_sps->pic_mb_height * (2 - cur_sps->frame_mbs_only_flag);
 	field_col_buf_size = (field_col_buf_size + 1) / 2;
 	field_col_buf_size = cur_sps->pic_mb_width * field_col_buf_size * 32;
@@ -259,7 +259,7 @@ static int h264_alloc_frame_buffer(struct h264_dec_ctx *s)
 		s->frame_info.picture[i].frame = NULL;
 	}
 
-	//* 3. create physic buffer used by dblk
+	// 3. create physic buffer used by dblk
 	dblk_y_buf_size = (cur_sps->pic_mb_width + 1)*16*4*(2 - cur_sps->frame_mbs_only_flag);
 	dblk_c_buf_size = (cur_sps->pic_mb_width + 1)*16*4*(2 - cur_sps->frame_mbs_only_flag);
 	s->frame_info.dblk_y_buf = ve_buffer_alloc(s->ve_buf_handle, dblk_y_buf_size, 0);
@@ -269,7 +269,7 @@ static int h264_alloc_frame_buffer(struct h264_dec_ctx *s)
 		return -1;
 	}
 
-	//* 4. create physic buffer for intrap
+	// 4. create physic buffer for intrap
 	intrap_buf_size = cur_sps->pic_mb_width * 16 * 2 * (2 - cur_sps->frame_mbs_only_flag);
 	s->frame_info.intrap_buf = ve_buffer_alloc(s->ve_buf_handle, intrap_buf_size, 0);
 	if(s->frame_info.intrap_buf == NULL) {
@@ -277,7 +277,7 @@ static int h264_alloc_frame_buffer(struct h264_dec_ctx *s)
 		return -1;
 	}
 
-	//* 5. create mb info buffer
+	// 5. create mb info buffer
 	mb_info_buf_size = 12*1024;
 	s->frame_info.mb_info_buf = ve_buffer_alloc(s->ve_buf_handle, mb_info_buf_size, 0);
 	if(s->frame_info.mb_info_buf == NULL) {
@@ -285,7 +285,7 @@ static int h264_alloc_frame_buffer(struct h264_dec_ctx *s)
 		return -1;
 	}
 
-	//* 6. create mb co-located info buffer
+	// 6. create mb co-located info buffer
 	mb_col_info_size = 68*1024;
 	s->frame_info.mb_col_info_buf = ve_buffer_alloc(s->ve_buf_handle, mb_col_info_size, 0);
 	if(s->frame_info.mb_col_info_buf == NULL) {
@@ -577,8 +577,14 @@ int h264_decode_pps(struct h264_dec_ctx *s)
 
 	int left_cnt = read_bits_left(&s->gb);
 	int more_bits = 1;
+	int left_cnt_7 = left_cnt & 7;
 	if(left_cnt <= 8 && (show_bits(&s->gb, left_cnt) == (1<<(left_cnt-1))))
 		more_bits = 0;
+	if (left_cnt > 16 && (show_bits(&s->gb, left_cnt_7+16) == (1<<(left_cnt_7+15)) )) {
+		// if pps and slice data in the same packet,
+		// judge the end of PPS with the start code.
+		more_bits = 0;
+	}
 	if(more_bits && more_rbsp_data_in_pps(sps)) {
 		pps->transform_8x8_mode_flag = read_bits(&s->gb, 1);
 		logd("PPS: pic_scaling_matrix_present_flag: %d, left bits: %d", show_bits(&s->gb, 1), read_bits_left(&s->gb));
@@ -600,7 +606,7 @@ int h264_decode_pps(struct h264_dec_ctx *s)
 	return 0;
 }
 
-//* decode poc, see spec 8.2.1 Decoding process for picture order count
+// decode poc, see spec 8.2.1 Decoding process for picture order count
 static int h264_init_poc(struct h264_dec_ctx *s)
 {
 	int i;
@@ -626,7 +632,7 @@ static int h264_init_poc(struct h264_dec_ctx *s)
 		}
 	}
 
-	//* gaps in frame_num
+	// gaps in frame_num
 	while (s->frame_num != s->prev_frame_num && !s->first_field &&
 		s->frame_num != (s->prev_frame_num+1) % max_frame_num) {
 		logw("frame gaps, frame_num: %d, prev_frame_num: %d", s->frame_num, s->prev_frame_num);
@@ -659,7 +665,7 @@ static int h264_init_poc(struct h264_dec_ctx *s)
 			s->prev_poc_lsb = s->prev_poc_msb = 0;
 		}
 
-		//* 1. calc poc_msb
+		// 1. calc poc_msb
 		if (sh->poc_lsb < s->prev_poc_lsb &&
 			s->prev_poc_lsb - sh->poc_lsb >= max_poc_lsb / 2)
 			sh->poc_msb = s->prev_poc_msb + max_poc_lsb;
@@ -669,7 +675,7 @@ static int h264_init_poc(struct h264_dec_ctx *s)
 		else
 			sh->poc_msb = s->prev_poc_msb;
 
-		//* 2. calc top_field/bottom field poc
+		// 2. calc top_field/bottom field poc
 		field_poc[0] = field_poc[1] = sh->poc_msb + sh->poc_lsb;
 		if (s->picture_structure == PICT_FRAME)
 			field_poc[1] += sh->delta_poc_bottom;
@@ -678,7 +684,7 @@ static int h264_init_poc(struct h264_dec_ctx *s)
 		int64_t expected_delta_per_poc_cycle, expectedpoc;
 		int i;
 
-		//* 1. calc abs_frame_num
+		// 1. calc abs_frame_num
 		if(cur_sps->num_ref_frames_in_poc_cycle != 0) {
 			abs_frame_num = s->frame_num_offset + sh->frame_num;
 		}
@@ -686,7 +692,7 @@ static int h264_init_poc(struct h264_dec_ctx *s)
 			abs_frame_num --;
 		}
 
-		//* 2. calc expectedpoc
+		// 2. calc expectedpoc
 		expected_delta_per_poc_cycle = 0;
 		for(i=0; i<cur_sps->num_ref_frames_in_poc_cycle; i++) {
 			expected_delta_per_poc_cycle += cur_sps->offset_for_ref_frame[i];
@@ -704,7 +710,7 @@ static int h264_init_poc(struct h264_dec_ctx *s)
 		if(s->nal_ref_idc == 0)
 			expectedpoc = expectedpoc + cur_sps->offset_for_non_ref_pic;
 
-		//* 3. top field/bottom field poc
+		// 3. top field/bottom field poc
 		field_poc[0] = expectedpoc + sh->delta_poc[0];
 		field_poc[1] = field_poc[0] + cur_sps->offset_for_top_to_bottom_field;
 		if(s->picture_structure == PICT_FRAME)
@@ -884,7 +890,7 @@ int h264_decode_slice_header(struct h264_dec_ctx *s)
 	s->width = width;
 	s->height = height;
 
-	//* 1. alloc frame buffer if it is the first time
+	// 1. alloc frame buffer if it is the first time
 	if(s->frame_info.max_valid_frame_num == 0)
 		h264_alloc_frame_buffer(s);
 
@@ -922,9 +928,9 @@ int h264_decode_slice_header(struct h264_dec_ctx *s)
 		s->mbs_in_pic >>= 1;
 
 	logi("s->picture_structure: %d", s->picture_structure);
-	//* 2. get an empty frame for decode output
+	// 2. get an empty frame for decode output
 	if(s->cur_slice_num == 0) {
-		//* set first_field flag
+		// set first_field flag
 		if(s->picture_structure == PICT_FRAME) {
 			s->first_field = 0;
 		} else if(s->first_field == 1) {
@@ -1003,7 +1009,7 @@ int h264_decode_slice_header(struct h264_dec_ctx *s)
 		}
 	}
 
-	//* 3. calc the poc of current frame
+	// 3. calc the poc of current frame
 	if(!sh->first_mb_in_slice) {
 		h264_init_poc(s);
 	}

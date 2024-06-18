@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include "aic_core.h"
@@ -78,6 +76,8 @@
 
 #define GPAI_CHnCR_SBC_SHIFT            24
 #define GPAI_CHnCR_SBC_MASK             GENMASK(25, 24)
+#define GPAI_CHnCR_ADC_ACQ_SHIFT        8
+#define GPAI_CHnCR_ADC_ACQ_MASK         GENMASK(15, 8)
 #define GPAI_CHnCR_HIGH_ADC_PRIORITY    BIT(4)
 #define GPAI_CHnCR_PERIOD_SAMPLE_EN     BIT(1)
 #define GPAI_CHnCR_SINGLE_SAMPLE_EN     BIT(0)
@@ -119,7 +119,6 @@
 #define GPAI_SRC_RX_MAXBURST            1
 #define GPAI_DST_RX_MAXBURST            16
 
-// TODO: irq_handle() should get 'struct aic_gpai_ch *' from 'void *arg'
 extern struct aic_gpai_ch aic_gpai_chs[];
 static u32 aic_gpai_ch_num = 0; // the number of available channel
 
@@ -133,23 +132,17 @@ static inline u32 gpai_readl(int reg)
     return readl(GPAI_BASE + reg);
 }
 
-// TODO: Add the transform algorithm, offered by SD later
-static s32 gpai_data2vol(u16 data)
-{
-    return data;
-}
-
 static u16 gpai_vol2data(s32 vol)
 {
     return vol;
 }
 
-static u32 gpai_ms2itv(u32 pclk_rate, u32 ms)
+static u32 gpai_ms2itv(u32 pclk_rate, u32 us)
 {
     u32 tmp = 0;
 
-    tmp = pclk_rate / 1000;
-    tmp *= ms;
+    tmp = pclk_rate / 1000000;
+    tmp *= us;
     return tmp;
 }
 
@@ -259,12 +252,18 @@ static void gpai_fifo_flush(u32 ch)
 static void gpai_single_mode(u32 ch)
 {
     u32 val = 0;
+    struct aic_gpai_ch *chan;
+    chan = hal_gpai_ch_is_valid(ch);
 
     val = gpai_readl(GPAI_CHnCR(ch));
-    val |= GPAI_CHnCR_SBC_8_POINTS << GPAI_CHnCR_SBC_SHIFT
-        | GPAI_CHnCR_SINGLE_SAMPLE_EN;
+    val |= GPAI_CHnCR_SBC_8_POINTS << GPAI_CHnCR_SBC_SHIFT;
+    val &= ~GPAI_CHnCR_ADC_ACQ_MASK;
+    val |= chan->adc_acq << GPAI_CHnCR_ADC_ACQ_SHIFT;
     gpai_writel(val, GPAI_CHnCR(ch));
 
+    val = gpai_readl(GPAI_CHnCR(ch));
+    val |= GPAI_CHnCR_PERIOD_SAMPLE_EN;
+    gpai_writel(val, GPAI_CHnCR(ch));
     gpai_int_enable(ch, 1,
             GPAI_CHnINT_DAT_RDY_IE | GPAI_CHnINT_FIFO_ERR_IE);
 }
@@ -302,8 +301,13 @@ static void gpai_period_mode(struct aic_gpai_ch *chan, u32 pclk)
     gpai_writel(val, GPAI_CHnPSI(ch));
 
     val = gpai_readl(GPAI_CHnCR(ch));
-    val |= GPAI_CHnCR_SBC_8_POINTS << GPAI_CHnCR_SBC_SHIFT
-        | GPAI_CHnCR_PERIOD_SAMPLE_EN;
+    val |= GPAI_CHnCR_SBC_8_POINTS << GPAI_CHnCR_SBC_SHIFT;
+    val &= ~GPAI_CHnCR_ADC_ACQ_MASK;
+    val |= chan->adc_acq << GPAI_CHnCR_ADC_ACQ_SHIFT;
+    gpai_writel(val, GPAI_CHnCR(ch));
+
+    val = gpai_readl(GPAI_CHnCR(ch));
+    val |= GPAI_CHnCR_PERIOD_SAMPLE_EN;
     gpai_writel(val, GPAI_CHnCR(ch));
 }
 
@@ -318,7 +322,7 @@ int aich_gpai_ch_init(struct aic_gpai_ch *chan, u32 pclk)
     return 0;
 }
 
-int aich_gpai_read(struct aic_gpai_ch *chan, u32 *val, u32 timeout)
+int aich_gpai_read(struct aic_gpai_ch *chan, u16 *val, u32 timeout)
 {
     int ret = 0;
     u32 ch = chan->id;
@@ -328,26 +332,25 @@ int aich_gpai_read(struct aic_gpai_ch *chan, u32 *val, u32 timeout)
         return -ENODATA;
     }
 
-#ifndef CONFIG_ZX_ADCIM_DM
     if (chan->mode == AIC_GPAI_MODE_PERIOD) {
-        *val = gpai_data2vol(chan->latest_data);
+        for (int i = 0; i < chan->fifo_valid_cnt; i++) {
+            val[i] = chan->fifo_data[i];
+            pr_debug("[%d]ADC val :%d\n", i, chan->fifo_data[i]);
+        }
         return 0;
     }
-#endif
 
-    aich_gpai_ch_enable(ch, 1);
     gpai_single_mode(ch);
-
     ret = aicos_sem_take(chan->complete, timeout);
     if (ret < 0) {
         hal_log_err("Ch%d read timeout!\n", ch);
         aich_gpai_ch_enable(ch, 0);
         return -ETIMEDOUT;
     }
-    // aich_gpai_ch_enable(ch, 0);
 
     if (val)
-        *val = gpai_data2vol(chan->latest_data);
+        for (int i = 0; i < chan->fifo_valid_cnt; i++)
+            val[i] = chan->fifo_data[i];
 
     return 0;
 }
@@ -392,13 +395,13 @@ static int aic_gpai_read_ch(struct aic_gpai_ch *chan)
         return -1;
     }
 
-    /* Just record the last data as to now */
-    for (i = 0; i < cnt; i++) {
-        chan->latest_data = gpai_readl(GPAI_CHnDATA(ch));
-        // pr_debug("ch%d data%d %d\n", ch, i, chan->latest_data);
-    }
-    pr_debug("There are %d data ready in ch%d, last %d\n", cnt,
-        ch, chan->latest_data);
+    for (i = 0; i < cnt; i++)
+        chan->fifo_data[i] = gpai_readl(GPAI_CHnDATA(ch));
+
+    chan->fifo_valid_cnt = cnt;
+    chan->latest_data = chan->fifo_data[cnt];
+    pr_debug("There are %d data ready in ch%d, last %d\n", cnt, ch,
+             chan->latest_data);
 
     return 0;
 }
@@ -459,6 +462,8 @@ irqreturn_t aich_gpai_isr(int irq, void *arg)
             chan->irq_count++;
             if (chan->mode == AIC_GPAI_MODE_SINGLE)
                 aicos_sem_give(chan->complete);
+            if (chan->irq_info.callback)
+                chan->irq_info.callback(chan->irq_info.callback_param);
         }
 
         if (ch_int & GPAI_CHnINT_LLA_VALID_FLAG)
@@ -519,9 +524,9 @@ static void hal_dma_transfer_callback(void *arg)
     dma_callback dma_cb = NULL;
     chan = (struct aic_gpai_ch *)arg;
 
-    val = gpai_readl(GPAI_CHnCR(0));
+    val = gpai_readl(GPAI_CHnCR(chan->id));
     val &= ~GPAI_CHnCR_PERIOD_SAMPLE_EN;
-    gpai_writel(val, GPAI_CHnCR(0));
+    gpai_writel(val, GPAI_CHnCR(chan->id));
     aich_gpai_enable(0);
 
     dma_cb = chan->dma_rx_info.callback;
@@ -529,6 +534,7 @@ static void hal_dma_transfer_callback(void *arg)
     if (dma_cb)
         dma_cb(dma_cb_data);
 
+    hal_dma_chan_stop(chan->dma_rx_info.dma_chan);
     hal_release_dma_chan(chan->dma_rx_info.dma_chan);
 }
 

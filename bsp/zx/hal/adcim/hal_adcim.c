@@ -1,7 +1,5 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
- *
  */
 
 #include "aic_core.h"
@@ -35,12 +33,16 @@
 #define ADCIM_CAL_ADC_STANDARD_VAL      0x800
 #define AIC_ADC_MAX_VAL                 0xFFF
 #define AIC_VOLTAGE_ACCURACY            10000
+#define ADCIM_CALCSR_NUM                6
 
-#ifdef AIC_ADCIM_DRV_V11
-#define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x32
-#endif
-#ifdef AIC_ADCIM_DRV_V10
+#ifdef AIC_CHIP_M3C || AIC_CHIP_M3A
+#define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x8
+#elif defined(AIC_CHIP_M3)
 #define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x28
+#elif defined(AIC_CHIP_M4)
+#define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x32
+#else
+#define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x0
 #endif
 
 #ifdef AIC_ADCIM_DM_DRV
@@ -114,11 +116,49 @@ int hal_adcim_calibration_set(unsigned int val)
     return 0;
 }
 
-int hal_adcim_auto_calibration(int adc_val, float def_voltage, int scale)
+/*
+ * The calibration value is taken six times and the average value is obtained
+ * after removing the maximum and minimum values, in order to ensure the
+ * stability of calibration
+ */
+u32 hal_adcim_auto_calibration(void)
 {
     u32 flag = 1;
     u32 data = 0;
-    int new_voltage = 0;
+    int max = 0;
+    int min = 0;
+    u32 cal_array[ADCIM_CALCSR_NUM];
+
+    for (int i = 0; i < ADCIM_CALCSR_NUM; i++) {
+        adcim_writel(0x08002f03, ADCIM_CALCSR);//auto cal
+        do {
+            flag = adcim_readl(ADCIM_CALCSR) & 0x00000001;
+        } while (flag);
+
+        cal_array[i] = (adcim_readl(ADCIM_CALCSR) >> 16) & 0xfff;
+
+        if (cal_array[i] > max)
+            max = cal_array[i];
+
+        if (i == 0) {
+            min = cal_array[0];
+        } else if (cal_array[i] < min) {
+            min = cal_array[i];
+        }
+
+        data += cal_array[i];
+        pr_debug("[%d]cal_data %d\n", i, cal_array[i]);
+    }
+
+    data = (data - min - max) / (ADCIM_CALCSR_NUM - 2);
+
+    pr_debug("max %d min %d, latest_data %d\n", max, min, data);
+    return data;
+}
+
+int hal_adcim_adc2voltage(int val, u32 cal_data, int scale, float def_voltage)
+{
+    int new_voltage;
     int st_voltage = 0;
 
 #ifdef AIC_SYSCFG_DRV
@@ -129,16 +169,7 @@ int hal_adcim_auto_calibration(int adc_val, float def_voltage, int scale)
         st_voltage = (int)(def_voltage * AIC_VOLTAGE_ACCURACY);
     }
 
-    adcim_writel(0x083F2f03, ADCIM_CALCSR);//auto cal
-    do {
-        flag = adcim_readl(ADCIM_CALCSR) & 0x00000001;
-    } while (flag);
-
-    data = (adcim_readl(ADCIM_CALCSR) >> 16) & 0xfff;
-    if (adc_val) {
-        new_voltage = (adc_val + ADCIM_CAL_ADC_STANDARD_VAL - data + ADCIM_CAL_ADC_OFFSET_MISMATCH) * st_voltage / AIC_ADC_MAX_VAL;
-    }
-
+    new_voltage = (val + ADCIM_CAL_ADC_STANDARD_VAL - cal_data + ADCIM_CAL_ADC_OFFSET_MISMATCH) * st_voltage / AIC_ADC_MAX_VAL;
     return new_voltage;
 }
 
@@ -301,6 +332,15 @@ ssize_t hal_adcdm_sram_write(int *buf, u32 offset, size_t count)
 
 #endif
 
+void hal_adcim_set_dcalmask(void)
+{
+    int val;
+
+    val = adcim_readl(ADCIM_CALCSR);
+    val |= ADCIM_CALCSR_DCAL_MASK;
+    adcim_writel(val, ADCIM_CALCSR);
+}
+
 s32 hal_adcim_probe(void)
 {
     s32 ret = 0;
@@ -330,6 +370,8 @@ s32 hal_adcim_probe(void)
         hal_log_err("ADCIM reset deassert failed!\n");
         return -1;
     }
+
+    hal_adcim_set_dcalmask();
 
     inited = 1;
     return 0;

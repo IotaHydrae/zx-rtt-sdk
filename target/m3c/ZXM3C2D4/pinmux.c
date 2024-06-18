@@ -313,6 +313,10 @@ struct aic_pinmux aic_pinmux_config[] = {
     {1, PIN_PULL_DIS, 3, "PC.2"},  // IR_ON,红外灯-830ON/OFF 输出脚
     {1, PIN_PULL_DIS, 3, "PC.3"},  // Y-ON,黄灯输出
 
+
+    {1, PIN_PULL_DIS, 3, "PE.12"},
+    {1, PIN_PULL_DIS, 3, "PE.13"},
+
 };
 
 void aic_board_pinmux_init(void)
@@ -370,21 +374,36 @@ void aic_board_pinmux_init(void)
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
     hal_gpio_direction_output(g, p);
-    hal_gpio_set_output(g,p);
+    hal_gpio_clr_output(g,p);
 
     pin = hal_gpio_name2pin("PC.1");
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
     hal_gpio_direction_output(g, p);
-    hal_gpio_set_output(g,p);
+    hal_gpio_clr_output(g,p);
 
     pin = hal_gpio_name2pin("PC.2");
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
     hal_gpio_direction_output(g, p);
-    hal_gpio_set_output(g,p);
+    hal_gpio_clr_output(g,p);
     
     pin = hal_gpio_name2pin("PC.3");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_clr_output(g,p);
+
+
+    //工作状态指示灯
+    pin = hal_gpio_name2pin("PE.12");
+    g = GPIO_GROUP(pin);
+    p = GPIO_GROUP_PIN(pin);
+    hal_gpio_direction_output(g, p);
+    hal_gpio_set_output(g,p);
+
+    //系统状态指示灯
+    pin = hal_gpio_name2pin("PE.13");
     g = GPIO_GROUP(pin);
     p = GPIO_GROUP_PIN(pin);
     hal_gpio_direction_output(g, p);

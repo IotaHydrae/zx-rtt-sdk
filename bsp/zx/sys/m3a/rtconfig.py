@@ -40,7 +40,6 @@ else:
 prj_out_dir = ''
 if os.environ.get('PRJ_OUT_DIR'):
     prj_out_dir = os.environ.get('PRJ_OUT_DIR')
-
 if PLATFORM == 'gcc':
     # toolchains
     PREFIX  = 'riscv64-unknown-elf-'
@@ -67,7 +66,9 @@ if PLATFORM == 'gcc':
         DEVICE = ' -march=rv32imafdc_xtheade -mabi=ilp32d'
     if CPUNAME == 'e906f' or CPUNAME == 'e907f':
         DEVICE = ' -march=rv32imafc_xtheade -mabi=ilp32f'
+        TOOLCHAIN_LIB = 'rv32imafc'
         M_DEVICE = ' -march=rv32imafc -mabi=ilp32f'
+        M_TOOLCHAIN_LIB = 'rv32imafc'
     if CPUNAME == 'e906' or CPUNAME == 'e907':
         DEVICE = ' -march=rv32imac_xtheade -mabi=ilp32'
 

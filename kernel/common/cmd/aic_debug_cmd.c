@@ -29,10 +29,10 @@ static int cmd_pmem(int argc, char **argv)
         addr = strtoul(argv[1], NULL, 0);
         break;
     default:
-        rt_kprintf("p <addr> <nunits> <width>\r\n");
-        rt_kprintf("addr  : address to display\r\n");
-        rt_kprintf("nunits: number of units to display (default is 16)\r\n");
-        rt_kprintf("width : width of unit, 1/2/4 (default is 4)\r\n");
+        rt_kprintf("p <addr> <nunits> <width>\n");
+        rt_kprintf("addr  : address to display\n");
+        rt_kprintf("nunits: number of units to display (default is 16)\n");
+        rt_kprintf("width : width of unit, 1/2/4 (default is 4)\n");
         return 0;
     }
 
@@ -45,9 +45,11 @@ static int cmd_pmem(int argc, char **argv)
             rt_kprintf(" %02x", *(unsigned char *)addr);
             addr += 1;
             if (i % 16 == 15) {
-                rt_kprintf("\r\n");
+                rt_kprintf("\n");
             }
         }
+        if (i % 16 != 0)
+            rt_kprintf("\n");
         break;
     case 2:
         for (i = 0; i < nunits; i++) {
@@ -57,9 +59,11 @@ static int cmd_pmem(int argc, char **argv)
             rt_kprintf(" %04x", *(unsigned short *)addr);
             addr += 2;
             if (i % 8 == 7) {
-                rt_kprintf("\r\n");
+                rt_kprintf("\n");
             }
         }
+        if (i % 8 != 0)
+            rt_kprintf("\n");
         break;
     default:
         for (i = 0; i < nunits; i++) {
@@ -69,9 +73,11 @@ static int cmd_pmem(int argc, char **argv)
             rt_kprintf(" %08x", *(unsigned int *)addr);
             addr += 4;
             if (i % 4 == 3) {
-                rt_kprintf("\r\n");
+                rt_kprintf("\n");
             }
         }
+        if (i % 4 != 0)
+            rt_kprintf("\n");
         break;
     }
 
@@ -96,10 +102,10 @@ static int cmd_mmem(int argc, char **argv)
             addr = (void *)strtoul(argv[1], NULL, 0);
             break;
         default:
-            rt_kprintf("m <addr> <value> <width>\r\n");
-            rt_kprintf("addr  : address to modify\r\n");
-            rt_kprintf("value : new value (default is 0)\r\n");
-            rt_kprintf("width : width of unit, 1/2/4 (default is 4)\r\n");
+            rt_kprintf("m <addr> <value> <width>\n");
+            rt_kprintf("addr  : address to modify\n");
+            rt_kprintf("value : new value (default is 0)\n");
+            rt_kprintf("width : width of unit, 1/2/4 (default is 4)\n");
             return 0;
     }
 
@@ -121,7 +127,7 @@ static int cmd_mmem(int argc, char **argv)
             new_value = *(uint32_t volatile *)addr;
             break;
     }
-    rt_kprintf("value on %p change from 0x%x to 0x%x.\r\n", addr, old_value, new_value);
+    rt_kprintf("value on %p change from 0x%x to 0x%x.\n", addr, old_value, new_value);
 
     return 0;
 }
@@ -137,9 +143,9 @@ static int cmd_func(int argc, char **argv)
     func_ptr_t func_ptr;
 
     if (argc == 1) {
-        rt_kprintf("f <func> <para0> <para1> ... \r\n");
-        rt_kprintf("func  : address of function\r\n");
-        rt_kprintf("paraN : parameter of function\r\n");
+        rt_kprintf("f <func> <para0> <para1> ... \n");
+        rt_kprintf("func  : address of function\n");
+        rt_kprintf("paraN : parameter of function\n");
         return 0;
     }
 
@@ -150,9 +156,9 @@ static int cmd_func(int argc, char **argv)
         para[idx - 2] = strtoul(argv[idx], NULL, 0);
     }
 
-    rt_kprintf("function %p runing...\r\n", func_ptr);
+    rt_kprintf("function %p runing...\n", func_ptr);
     ret = func_ptr(para[0], para[1], para[2], para[3], para[4], para[5], para[6], para[7]);
-    rt_kprintf("function %p return 0x%x.\r\n", func_ptr, ret);
+    rt_kprintf("function %p return 0x%x.\n", func_ptr, ret);
 
     return 0;
 }

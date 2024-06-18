@@ -10,6 +10,7 @@
 #include <mtd.h>
 #include <sfud.h>
 #include "upg_internal.h"
+#include <spienc.h>
 
 #define MAX_DUPLICATED_PART 6
 #define MAX_NOR_NAME        32

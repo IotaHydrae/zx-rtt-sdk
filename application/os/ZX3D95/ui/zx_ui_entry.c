@@ -18,9 +18,12 @@ static void btn_air_condition_right_cb(lv_event_t *e);
 static void btn_air_condition_cold_cb(lv_event_t *e);
 static void btn_air_condition_hot_cb(lv_event_t *e);
 static void btn_air_condition_wet_cb(lv_event_t *e);
+static void disp_check_tiemr_cb(struct _lv_timer_t * timer);
 
 static void test_tv_cb(lv_event_t *e);
 static lv_timer_t *disp_check_tiemr = NULL;
+
+static lv_obj_t *top_black = NULL;
 
 typedef struct test_demo
 {
@@ -738,6 +741,8 @@ void test_demo(void)
         style_flag = true;
     }
 
+    
+
     test_obj.test_tv = lv_tileview_create(lv_scr_act());
     lv_obj_add_style(test_obj.test_tv, &style, 0); //添加样式
     lv_obj_set_scrollbar_mode(test_obj.test_tv, LV_SCROLLBAR_MODE_OFF);
@@ -762,6 +767,15 @@ void test_demo(void)
     test_obj.img_top_src2 = lv_img_create(lv_layer_top());
     lv_img_set_src(test_obj.img_top_src2, IMG_SWICH_N);
     lv_obj_align(test_obj.img_top_src2, LV_ALIGN_BOTTOM_MID, 15, -15);
+
+    top_black = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(top_black);
+    lv_obj_set_size(top_black, 480, 480);
+    lv_obj_set_style_bg_color(top_black, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(top_black, LV_OPA_100, 0);
+    lv_obj_add_flag(top_black, LV_OBJ_FLAG_HIDDEN);
+
+    disp_check_tiemr = lv_timer_create(disp_check_tiemr_cb, 1000, NULL);
 }
 
 static void disp_check_tiemr_cb(struct _lv_timer_t * timer)
@@ -774,7 +788,7 @@ static void disp_check_tiemr_cb(struct _lv_timer_t * timer)
     p = GPIO_GROUP_PIN(pin);
 
     uint32_t tick = lv_disp_get_inactive_time(lv_disp_get_default());
-    rt_kprintf("tick:%u\n", tick);
+    // rt_kprintf("tick:%u\n", tick);
     static bool disp_flag = false;
     if(10000 >= tick)   //熄屏
     {
@@ -782,12 +796,14 @@ static void disp_check_tiemr_cb(struct _lv_timer_t * timer)
         {
             disp_flag = true;
             hal_gpio_set_output(g, p);
+            lv_obj_add_flag(top_black, LV_OBJ_FLAG_HIDDEN);
         }
     }else{
         if(disp_flag == true)
         {
             disp_flag = false;
             hal_gpio_clr_output(g, p);
+            lv_obj_clear_flag(top_black, LV_OBJ_FLAG_HIDDEN);
         }
     }
 }
@@ -795,5 +811,4 @@ void zx_ui_entry(void)
 {
     test_demo();
 
-    disp_check_tiemr = lv_timer_create(disp_check_tiemr_cb, 1000, NULL);
 }

@@ -32,7 +32,7 @@ struct aic_sdmc_pdata {
 };
 
 /**
- * struct aic_sdmc - Information about a ArtInChip SDMC host
+ * struct aic_sdmc - Information about a ZX SDMC host
  *
  * @quirks:     Quick flags - see SDMC_QUIRK_...
  * @caps:       Capabilities - see MMC_MODE_...
@@ -50,6 +50,7 @@ struct aic_sdmc {
     u32 clk;
     u32 irq;
     u32 index;
+    u32 cid[4];
 
     unsigned int quirks;
     unsigned int caps;
@@ -410,7 +411,6 @@ static void aic_sdmc_set_iocfg(struct rt_mmcsd_host *rthost,
                                struct rt_mmcsd_io_cfg *io_cfg)
 {
     struct aic_sdmc *host;
-    static uint8_t is_enable;
 
     RT_ASSERT(rthost != RT_NULL);
     RT_ASSERT(rthost->private_data != RT_NULL);

@@ -37,6 +37,21 @@ config CPU_BASE
     depends on AIC_CHIP_M3
 
 #--------------------------------------------
+# interrupt global option
+#--------------------------------------------
+
+config GLOBAL_INT_SW_THRESHOLD_EN
+    bool "Use threshold as global interrupt switch"
+    default n
+
+if GLOBAL_INT_SW_THRESHOLD_EN
+    config GLOBAL_INT_SW_THRESHOLD
+        int "Threshold value (0-7)"
+        default 6
+        range 0 7
+endif
+
+#--------------------------------------------
 # cmu driver global option
 #--------------------------------------------
 
@@ -476,7 +491,7 @@ config AIC_TSEN_DRV_VER
 
 config AIC_TSEN_CH_NUM
     int
-    default 1 if AIC_TSEN_DRV_V20
+    default 2 if AIC_TSEN_DRV_V20
 
 #--------------------------------------------
 # GPAI driver global option

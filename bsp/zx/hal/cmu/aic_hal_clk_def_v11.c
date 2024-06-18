@@ -91,7 +91,7 @@ FPCLK(CLK_WDT, "wdt", CLK_OSC32K, PARENT("clk_32k"), CLK_WDT_REG, 12, 8, 0,
       0);
 FPCLK(CLK_SID, "sid", CLK_OSC24M, PARENT("osc24m"), CLK_SID_REG, 12, 8, 0, 0);
 FPCLK(CLK_GTC, "gtc", CLK_APB1, PARENT("apb1"), CLK_GTC_REG, 12, -1, 0, 0);
-FPCLK(CLK_GPIO, "gpio", CLK_APB0, PARENT("apb0"), CLK_GPIO_REG, 12, 8, 0, 5);
+FPCLK(CLK_GPIO, "gpio", CLK_APB0, PARENT("apb0"), CLK_GPIO_REG, 12, -1, 0, 0);
 FPCLK(CLK_UART0, "uart0", CLK_PLL_INT1, PARENT("pll_int1"), CLK_UART0_REG, 12,
       8, 0, 5);
 FPCLK(CLK_UART1, "uart1", CLK_PLL_INT1, PARENT("pll_int1"), CLK_UART1_REG, 12,
@@ -128,7 +128,7 @@ FPCLK(CLK_SPIENC, "spienc", CLK_AHB0, PARENT("ahb0"), CLK_SPIENC_REG, 12, 8, 0,
       0);
 FPCLK(CLK_RGB, "rgb", CLK_SCLK, PARENT("sclk"), CLK_RGB_REG, 12, 8, 0, 0);
 FPCLK(CLK_LVDS, "lvds", CLK_SCLK, PARENT("sclk"), CLK_LVDS_REG, 12, 8, 0, 0);
-FPCLK(CLK_MIPIDSI, "mipidsi", CLK_SCLK, PARENT("sclk"), CLK_MIPID_REG, 12, 8, 0,
+FPCLK(CLK_MIPIDSI, "mipidsi", CLK_PLL_FRA2, PARENT("pll_fra2"), CLK_MIPID_REG, 12, 8, 0,
       0);
 FPCLK(CLK_PSADC, "psadc", CLK_PLL_INT1, PARENT("pll_int1"), CLK_PSADC_REG, 12, 8, 0, 5);
 FPCLK(CLK_PWMCS, "pwmcs", CLK_PLL_INT1, PARENT("pll_int1"), CLK_PWMCS_REG, 12, 8, 0, 0);
@@ -184,7 +184,7 @@ DISPCLK(CLK_SCLK, "sclk", CLK_PLL_FRA2, PARENT("pll_fra2"), CLK_DISP_REG, 0, 3,
 
 /* Clock cfg array */
 
-const struct aic_clk_comm_cfg *aic_clk_cfgs[AIC_CLK_END] = {
+const struct aic_clk_comm_cfg *aic_clk_cfgs[AIC_CLK_NUM] = {
     /* Fixed rate clock */
     DUMMY_CFG(CLK_DUMMY),
     AIC_CLK_CFG(CLK_OSC24M),

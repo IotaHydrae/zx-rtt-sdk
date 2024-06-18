@@ -9,6 +9,11 @@
 
 #include "disp_com.h"
 
+#ifndef AIC_DE_DRV_V10
+#include "disp_ccm.h"
+#include "disp_gamma.h"
+#endif
+
 #define MAX_LAYER_NUM 2
 #define MAX_RECT_NUM 4
 #define RECT_NUM_SHIFT 2
@@ -238,17 +243,19 @@ static int aic_de_timing_enable(void)
     u32 vbp = comp->timing->vback_porch;
     u32 hsync = comp->timing->hsync_len;
     u32 vsync = comp->timing->vsync_len;
+    bool h_pol = !!(comp->timing->flags & DISPLAY_FLAGS_HSYNC_HIGH);
+    bool v_pol = !!(comp->timing->flags & DISPLAY_FLAGS_VSYNC_HIGH);
 
     de_config_timing(comp->regs, active_w, active_h, hfp, hbp,
-            vfp, vbp, hsync, vsync);
+            vfp, vbp, hsync, vsync, h_pol, v_pol);
 
     de_set_blending_size(comp->regs, active_w, active_h);
     de_set_ui_layer_size(comp->regs, active_w, active_h, 0, 0);
 
     comp->alpha[1].layer_id = AICFB_LAYER_TYPE_UI;
-    comp->alpha[1].enable = 1;
-    comp->alpha[1].mode = 0;
-    comp->alpha[1].value = 0xff;
+    comp->alpha[1].mode     = AICFB_PIXEL_ALPHA_MODE;
+    comp->alpha[1].enable   = 1;
+    comp->alpha[1].value    = 0x0;
 
     de_config_prefetch_line_set(comp->regs, 2);
     de_soft_reset_ctrl(comp->regs, 1);
@@ -1397,8 +1404,16 @@ static int aic_de_probe(void)
     comp->disp_prop.saturation = 50;
     comp->disp_prop.hue = 50;
 
+#if defined(AIC_DE_DRV_V10) || defined(AIC_DE_V10)
     memset(&comp->ccm, 0x0, sizeof(struct aicfb_ccm_config));
     memset(&comp->gamma, 0x0, sizeof(struct aicfb_gamma_config));
+#else
+    comp->ccm.enable = 1;
+    memcpy(&comp->ccm.ccm_table, ccm_lut, sizeof(ccm_lut));
+
+    comp->gamma.enable = 1;
+    memcpy(&comp->gamma.gamma_lut, gam_lut, sizeof(gam_lut));
+#endif
 
     g_aic_de_comp = comp;
 

@@ -63,12 +63,13 @@ menu "Display Panels"
 
     endchoice
 
-if AIC_SIMPLE_PANEL
+if AIC_SIMPLE_PANEL && !AIC_DISP_PQ_TOOL
 source "bsp/zx/drv/display/panel/Kconfig.timing"
 endif
 
 if AIC_PANEL_RGB_ST7701
 source "bsp/zx/drv/display/panel/Kconfig.st7701"
 endif
+
 
 endmenu

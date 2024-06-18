@@ -15,6 +15,7 @@
 #define AIC_RTP_MAX_VAL             0xFFF
 #define AIC_RTP_VAL_RANGE           (AIC_RTP_MAX_VAL + 1)
 #define AIC_RTP_INVALID_VAL         (AIC_RTP_MAX_VAL + 1)
+#define AIC_RTP_INVALID_MIN_VAL     50
 
 #define AIC_RTP_EVT_BUF_SIZE        64
 
@@ -98,7 +99,7 @@ u32 hal_rtp_ebuf_read_space(struct aic_rtp_ebuf *ebuf);
 #define hal_rtp_ebuf_empty(buf) (hal_rtp_ebuf_read_space((buf)) == 0)
 s32 hal_rtp_ebuf_write(struct aic_rtp_ebuf *ebuf, struct aic_rtp_event *e);
 s32 hal_rtp_ebuf_read(struct aic_rtp_ebuf *ebuf, struct aic_rtp_event *e);
-
+s32 hal_rtp_ebuf_init(struct aic_rtp_ebuf *ebuf);
 s32 hal_rtp_clk_init(void);
 s32 hal_rtp_register_callback(rtp_callback_t callback);
 s32 hal_rtp_ebuf_sync(struct aic_rtp_ebuf *ebuf);

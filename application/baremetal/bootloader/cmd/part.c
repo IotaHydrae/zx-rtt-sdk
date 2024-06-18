@@ -1,9 +1,5 @@
 /*
- * Copyright (c) 2023, Artinchip Technology Co., Ltd
- *
  * SPDX-License-Identifier: Apache-2.0
- *
- * Wu Dehuang <dehuang.wu@artinchip.com>
  */
 
 #include <stdio.h>
@@ -13,7 +9,9 @@
 #include <console.h>
 #include <mmc.h>
 #include <disk_part.h>
-#include <hexdump.h>
+#include <aic_utils.h>
+
+#ifdef CONFIG_AIC_SDMC_DRV
 
 static struct aic_sdmc *mmc_host = NULL;
 
@@ -165,3 +163,5 @@ static int do_part(int argc, char *argv[])
 }
 
 CONSOLE_CMD(part, do_part, "Partition util");
+#endif
+

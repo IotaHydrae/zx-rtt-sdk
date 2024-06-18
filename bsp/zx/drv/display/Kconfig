@@ -4,6 +4,12 @@ config AIC_DISPLAY_DRV
     default y
     depends on AIC_DE_DRV
 
+config AIC_DISP_PQ_TOOL
+    bool "Ai PQ Tool Support"
+    default n
+    depends on AIC_DE_DRV
+    select AIC_FB_DRV_DEBUG
+
 config AIC_DISP_DE_DRV
     bool
     default y
@@ -61,11 +67,18 @@ if AIC_DISP_MIPI_DSI_DRV
 source "bsp/zx/drv/display/Kconfig.mipi"
 endif
 
-if AIC_DISP_LVDS
+if AIC_DISP_PQ_TOOL
+config AIC_DSI_SIMPLE_PANEL
+    bool
+    default y
+    depends on AIC_DISP_MIPI_DSI
+endif
+
+if AIC_DISP_LVDS && !AIC_DISP_PQ_TOOL
 source "bsp/zx/drv/display/Kconfig.lvds"
 endif
 
-if AIC_DISP_RGB
+if AIC_DISP_RGB && !AIC_DISP_PQ_TOOL
 source "bsp/zx/drv/display/Kconfig.rgb"
 endif
 
@@ -169,6 +182,8 @@ if AIC_DISPLAY_DRV
 source "bsp/zx/drv/display/panel/Kconfig"
 endif
 
+if !AIC_DISP_PQ_TOOL
+
 choice
     prompt "panel backlight control"
     default AIC_GPIO_BACKLIGHT
@@ -201,6 +216,7 @@ if AIC_PWM_BACKLIGHT
         int "default brightness level"
         default 80
         range 0 100
+endif
 endif
 
 config AIC_PANEL_SPI_EMULATION

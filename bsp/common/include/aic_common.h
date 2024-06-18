@@ -17,8 +17,8 @@ extern "C" {
 
 /* ZX-RTT version information */
 #define LL_VERSION      1               /**< major version number */
-#define LL_SUBVERSION   0               /**< minor version number */
-#define LL_REVISION     1               /**< revise version number */
+#define LL_SUBVERSION   3               /**< minor version number */
+#define LL_REVISION     0               /**< revise version number */
 
 typedef __signed__ char     s8;
 typedef unsigned char       u8;
@@ -71,6 +71,8 @@ typedef unsigned long ptr_t;
                                         || aic_in_range(c, 'A', 'F'))
 #define aic_isspace(c)  ((c) == ' ' || (c) == '\f' || (c) == '\n' \
                         || (c) == '\r' || (c) == '\t' || (c) == '\v')
+
+#define aic_convert_tx_dlymode(c, d)  (((c > 4) ? 0 : c) | (d ? 1UL << 14 : 0))
 
 #ifndef CHECK_PARAM
 #define CHECK_PARAM(x, ret) \
@@ -217,6 +219,7 @@ typedef unsigned long ptr_t;
 #define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 #define ROUNDUP(a, b)      ((((a)-1) / (b) + 1) * (b))
 #define ROUND(a, b)        (((a) + (b)-1) & ~((b)-1))
+#define ROUNDDOWN(a, b)    ((a) & ~((b) - 1))
 
 #define roundup(x, y) (                 \
 {                           \
@@ -237,6 +240,8 @@ typedef unsigned long ptr_t;
 #define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
 #define ALIGN_UP(x,a)           __ALIGN_MASK((x),(typeof(x))(a)-1)
 #define ALIGN_DOWN(x, a)        ((x) & (~((typeof(x))(a)-1)))
+
+#define IS_ALIGNED(x, a) (((x) & ((typeof(x))(a)-1)) == 0)
 
 #define PAD_COUNT(s, pad)   (((s) - 1) / (pad) + 1)
 #define PAD_SIZE(s, pad)    (PAD_COUNT(s, pad) * pad)

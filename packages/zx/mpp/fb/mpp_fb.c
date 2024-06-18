@@ -40,6 +40,11 @@ struct mpp_fb *mpp_fb_open(void)
 
 #if defined(KERNEL_RTTHREAD)
     dev = rt_device_find("aicfb");
+    if (!dev) {
+        pr_err("Failed to find aicfb device\n");
+        aicos_free(0, fb);
+        return NULL;
+    }
     fb->dev = dev;
 #endif
 

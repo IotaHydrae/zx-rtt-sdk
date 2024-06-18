@@ -150,6 +150,9 @@ typedef struct
     CLIC_INT_Control CLICINT[4096];
 } CLIC_Type;
 
+#define CLIC_MINTTHRESH_MTH_Pos      24U
+#define CLIC_MINTTHRESH_MTH_Msk      (0xFFUL << CLIC_MINTTHRESH_MTH_Pos)
+
 #define CLIC_INFO_CLICINTCTLBITS_Pos 21U
 #define CLIC_INFO_CLICINTCTLBITS_Msk (0xFUL << CLIC_INFO_CLICINTCTLBITS_Pos)
 
@@ -571,6 +574,24 @@ __STATIC_INLINE uint32_t csi_vic_get_prio(int32_t IRQn)
 {
     uint8_t nlbits = (CLIC->CLICINFO & CLIC_INFO_CLICINTCTLBITS_Msk) >> CLIC_INFO_CLICINTCTLBITS_Pos;
     return CLIC->CLICINT[IRQn].CTL >> (8 - nlbits);
+}
+
+__STATIC_INLINE void csi_vic_set_threshold(uint32_t threshold)
+{
+    uint8_t nlbits = (CLIC->CLICINFO & CLIC_INFO_CLICINTCTLBITS_Msk) >> CLIC_INFO_CLICINTCTLBITS_Pos;
+    uint8_t prio_msk = (1 << nlbits) - 1;
+    uint8_t pos = 8 - nlbits;
+    if (threshold)
+        threshold = ((threshold & prio_msk) << pos) + (1 << pos) - 1;
+    CLIC->MINTTHRESH = (threshold << CLIC_MINTTHRESH_MTH_Pos) & CLIC_MINTTHRESH_MTH_Msk;
+}
+
+__STATIC_INLINE uint32_t csi_vic_get_threshold(void)
+{
+    uint8_t threshold = (CLIC->MINTTHRESH & CLIC_MINTTHRESH_MTH_Msk) >> CLIC_MINTTHRESH_MTH_Pos;
+    uint8_t nlbits = (CLIC->CLICINFO & CLIC_INFO_CLICINTCTLBITS_Msk) >> CLIC_INFO_CLICINTCTLBITS_Pos;
+    uint8_t pos = 8 - nlbits;
+    return threshold >> pos;
 }
 
 /**
@@ -1156,9 +1177,13 @@ __STATIC_INLINE void csi_dcache_invalid_range(phy_addr_t addr, u32 dsize)
     s32 op_size = dsize + addr % CACHE_LINE_SIZE;
     phy_addr_t op_addr = addr & CACHE_INV_ADDR_Msk;
 
+    if (op_size % CACHE_LINE_SIZE)
+        op_size += CACHE_LINE_SIZE - op_size % CACHE_LINE_SIZE;
+#ifdef AIC_CACHE_LINE_DEBUG
     if ((op_size != dsize) || (op_addr != addr))
         printf("Alarm! Invalid cache out of range: 0x%x[%d] > 0x%x[%d]\n",
                op_addr, op_size, addr, dsize);
+#endif
 
     __DSB();
 
@@ -1195,9 +1220,13 @@ __STATIC_INLINE void csi_dcache_clean_range(phy_addr_t addr, u32 dsize)
     s32 op_size = dsize + addr % CACHE_LINE_SIZE;
     phy_addr_t op_addr = addr & CACHE_INV_ADDR_Msk;
 
+    if (op_size % CACHE_LINE_SIZE)
+        op_size += CACHE_LINE_SIZE - op_size % CACHE_LINE_SIZE;
+#ifdef AIC_CACHE_LINE_DEBUG
     if ((op_size != dsize) || (op_addr != addr))
         printf("Alarm! Clean cache out of range: 0x%x[%d] > 0x%x[%d]\n",
                op_addr, op_size, addr, dsize);
+#endif
 
     __DSB();
 
@@ -1234,9 +1263,13 @@ __STATIC_INLINE void csi_dcache_clean_invalid_range(phy_addr_t addr, u32 dsize)
     s32 op_size = dsize + addr % CACHE_LINE_SIZE;
     phy_addr_t op_addr = addr & CACHE_INV_ADDR_Msk;
 
+    if (op_size % CACHE_LINE_SIZE)
+        op_size += CACHE_LINE_SIZE - op_size % CACHE_LINE_SIZE;
+#ifdef AIC_CACHE_LINE_DEBUG
     if ((op_size != dsize) || (op_addr != addr))
         printf("Alarm! Clean&Invalid cache out of range: 0x%x[%d] > 0x%x[%d]\n",
                op_addr, op_size, addr, dsize);
+#endif
 
     __DSB();
 

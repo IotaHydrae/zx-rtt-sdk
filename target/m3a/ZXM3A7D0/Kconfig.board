@@ -77,15 +77,22 @@ config AIC_USING_PWM1
     default n
     select AIC_PWM_DRV
 
-config AIC_USING_PWM2
-    bool "Using PWM2"
-    default n
-    select AIC_PWM_DRV
+#---------------------------
+# HRTimer device global option
+#---------------------------
 
-config AIC_USING_PWM3
-    bool "Using PWM3"
+menu "Using HRTIMER"
+
+config AIC_USING_HRTIMER0
+    bool "Using HRTimer0"
     default n
-    select AIC_PWM_DRV
+    select AIC_HRTIMER_DRV
+
+config AIC_USING_HRTIMER1
+    bool "Using HRTimer1"
+    default n
+    select AIC_HRTIMER_DRV
+endmenu
 
 #---------------------------
 # CAN device global option
@@ -127,14 +134,70 @@ comment "Storage Related:"
 #--------------------------------------------
 
 config AIC_USING_QSPI0
-    bool "Using Qspi0"
+    bool "Using SPI0"
     default n
     select AIC_QSPI_DRV
 
+menu "SPI0 Parameter"
+    depends on AIC_USING_QSPI0
+
+    config AIC_DEV_QSPI0_MAX_SRC_FREQ_HZ
+        int "Max frequency(Hz)"
+        default 100000000
+
+    choice
+        prompt "Set SPI0 bus width"
+        default AIC_QSPI0_BUS_WIDTH_4
+        config AIC_QSPI0_BUS_WIDTH_1
+            bool "Standard"
+        config AIC_QSPI0_BUS_WIDTH_4
+            bool "Quad"
+    endchoice
+
+    config AIC_QSPI0_BUS_WIDTH
+        int
+        default 1 if AIC_QSPI0_BUS_WIDTH_1
+        default 4 if AIC_QSPI0_BUS_WIDTH_4
+
+    config AIC_DEV_QSPI0_DELAY_MODE
+        int "RX Data Sample Delay"
+        default 2
+        range 0 4
+
+endmenu
+
 config AIC_USING_QSPI1
-    bool "Using Qspi1"
+    bool "Using SPI1"
     default n
     select AIC_QSPI_DRV
+
+menu "SPI1 Parameter"
+    depends on AIC_USING_QSPI1
+
+    config AIC_DEV_QSPI1_MAX_SRC_FREQ_HZ
+        int "Max frequency(Hz)"
+        default 100000000
+
+    choice
+        prompt "Set SPI1 bus width"
+        default AIC_QSPI1_BUS_WIDTH_4
+        config AIC_QSPI1_BUS_WIDTH_1
+            bool "Standard"
+        config AIC_QSPI1_BUS_WIDTH_4
+            bool "Quad"
+    endchoice
+
+    config AIC_QSPI1_BUS_WIDTH
+        int
+        default 1 if AIC_QSPI1_BUS_WIDTH_1
+        default 4 if AIC_QSPI1_BUS_WIDTH_4
+
+    config AIC_DEV_QSPI1_DELAY_MODE
+        int "RX Data Sample Delay"
+        default 2
+        range 0 4
+
+endmenu
 
 source "bsp/zx/drv/qspi/Kconfig.dev"
 
@@ -168,6 +231,24 @@ config AIC_USING_TSEN
     bool "Using TSensor"
     default n
     select AIC_TSEN_DRV
+
+menu "TSENS options"
+    depends on AIC_USING_TSEN
+
+config AIC_USING_TSEN_CPU
+    bool "Using TSEN_CPU"
+    depends on AIC_USING_TSEN
+    default n
+    select AIC_TSEN_DRV
+
+config AIC_USING_TSEN_GPAI
+    bool "Using TSEN_GPAI"
+    depends on AIC_USING_TSEN
+    default n
+    select AIC_TSEN_DRV
+
+source "bsp/zx/drv/tsen/Kconfig.dev"
+endmenu
 
 #---------------------------
 # GPAI device global option
@@ -253,15 +334,6 @@ config AIC_USING_VE
     bool "Using Video Engine (VE)"
     default y
     select AIC_VE_DRV
-
-#---------------------------
-# MDI device global option
-#---------------------------
-
-config AIC_USING_MDI
-    bool "Using MDI"
-    default n
-    select AIC_MDI_DRV
 
 #---------------------------
 # AUDIO device global option

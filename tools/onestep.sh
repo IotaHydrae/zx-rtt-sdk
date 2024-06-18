@@ -25,6 +25,21 @@ backup_list=
 display_list=
 display_list_total=
 
+function _hline()
+{
+	local cmd="$1"
+	local opt="$2"
+	local txt="$3"
+
+	if [ "${cmd}" == "" ]; then
+		printf "  ${txt}\n"
+	elif [ "${opt}" == "" ]; then
+		printf "  \e[1;36m%-25s\e[0m : %s\n" "${cmd}" "${txt}"
+	else
+		printf "  \e[1;36m%-14s\e[0m \e[0;35m%-10s\e[0m : %s\n" "${cmd}" "${opt}" "${txt}"
+	fi
+}
+
 function hmm()
 {
 	echo "ZX-RTT SDK OneStep commands:"
@@ -41,6 +56,7 @@ function hmm()
 	_hline "ctarget|ct" "" "cd to target board directory."
 	_hline "godir|gd" "[keyword]" "Go/jump to selected directory."
 	_hline "list" "" "List all SDK defconfig."
+	_hline "list_module" "" "List all enabled modules."
 	_hline "i" "" "Get current project's information."
 	_hline "buildall"   "" "Build all the *defconfig in target/configs"
 	_hline "rebuildall" "" "Clean and build all the *defconfig in target/configs"
@@ -64,7 +80,7 @@ function _get_solution_list()
 cd_root()
 {
 	if [ ! "$PWD" = "$SDK_PRJ_TOP_DIR" ]; then
-		cd $SDK_PRJ_TOP_DIR
+		cd $SDK_PRJ_TOP_DIR || exit 110
 		GO_BACK=yes
 	else
 		GO_BACK=no
@@ -74,7 +90,7 @@ cd_root()
 cd_back()
 {
 	if [ "$GO_BACK" = "yes" ]; then
-		cd - > /dev/null
+		cd - > /dev/null || exit 110
 	fi
 }
 
@@ -174,7 +190,9 @@ function ctarget()
 	board_name=`echo $cur_def | awk -F '_' '{print $2}'`
 
 	target_dir=${SDK_PRJ_TOP_DIR}/target/${chip_name}/${board_name}
-	cd ${target_dir}
+	if [ -d ${target_dir} ]; then
+		cd ${target_dir} || exit 110
+	fi
 }
 alias ct=ctarget
 
@@ -196,8 +214,10 @@ function cout()
 
 	dst_dir=${SDK_PRJ_TOP_DIR}/output/$(cat $SDK_CFG_FILE)
 	if [ -d $dst_dir ]; then
-		cd ${dst_dir}
-		[ -d images ] && cd images
+		cd ${dst_dir} || exit 110
+		if [ -d images ]; then
+			cd images || exit 110
+		fi
 	fi
 }
 alias co=cout
@@ -212,7 +232,7 @@ build_one_solution()
 	NEED_CLEAN=$2
 
 	SOLUTION_NAME=${DEFCONFIG_NAME::-10}
-	LOG_FILE=$LOG_DIR"/"$SOLUTION_NAME".log"
+	LOG_FILE=$LOG_DIR/$SOLUTION_NAME".log"
 	echo
 	echo --------------------------------------------------------------
 	echo Build $SOLUTION_NAME
@@ -229,21 +249,21 @@ build_one_solution()
 
 	BUILD_CNT=`expr $BUILD_CNT + 1`
 	SUCCESS=`grep "ZX-RTT is built successfully" $LOG_FILE -wc`
-	WAR_CNT=`grep "warning:" $LOG_FILE -i | grep "is shorter than expected" -vc`
+	WAR_CNT=`grep -E "warning:|pinmux conflicts" $LOG_FILE -i | grep "is shorter than expected" -vc`
 
 	if [ $SUCCESS -ne 0 ]; then
 		printf "%2s. %-40s is OK. Warning: %s \n" \
 			$BUILD_CNT $SOLUTION_NAME $WAR_CNT >> $RESULT_FILE
 		if [ $WAR_CNT -gt 0 ]; then
 			echo [$SOLUTION_NAME]: >> $WARNING_FILE
-			grep "warning:" $LOG_FILE -i | grep "is shorter than expected" -v >> $WARNING_FILE
+			grep -E "warning:|pinmux conflicts" $LOG_FILE -i | grep "is shorter than expected" -v >> $WARNING_FILE
 			echo >> $WARNING_FILE
 		fi
 		return 0
 	else
 		printf "%2s. %-40s is failed. \n" \
 			$BUILD_CNT $SOLUTION_NAME >> $RESULT_FILE
-		return -1
+		return 100
 	fi
 }
 
@@ -394,7 +414,7 @@ function c()
 	else
 		echo "Clean $SDK_PRJ_TOP_DIR/$CUR_APP"
 		scons -c -C $SDK_PRJ_TOP_DIR
-		rm -rf ${SDK_PRJ_TOP_DIR}/output/$(cat $SDK_CFG_FILE)/images
+		rm -rf ${SDK_PRJ_TOP_DIR}/output/"$(cat $SDK_CFG_FILE)"/images
 	fi
 }
 
@@ -413,7 +433,7 @@ function godir()
 	_search_in_list "${keyword}"
 	# change directory
 	[[ ! ${select_item} == "" ]] && {
-		cd ${SDK_PRJ_TOP_DIR}/${select_item}
+		cd ${SDK_PRJ_TOP_DIR}/${select_item} || exit 100
 	}
 	_display_list_clear
 }
@@ -422,12 +442,14 @@ alias gd=godir
 function genindex()
 {
 	local keyword="$*"
-	local gen_options=`printf "application\ndriver\nkernel\ntarget\tools\nall"`
+	local gen_options=
 	local result=
 	local gen_path=
 	local dir_list1=
 	local dir_list2=
 	local topdir_tmp=
+
+	gen_options=`printf "application\nbsp\nkernel\ntarget\tools\nall"`
 
 	[[ -z ${SDK_PRJ_TOP_DIR} ]] && {
 		return
@@ -509,19 +531,14 @@ function addboard()
 }
 alias ab=addboard
 
-function _hline()
+function aicupg()
 {
-	local cmd="$1"
-	local opt="$2"
-	local txt="$3"
+	scons --aicupg -C $SDK_PRJ_TOP_DIR
+}
 
-	if [ "${cmd}" == "" ]; then
-		printf "  ${txt}\n"
-	elif [ "${opt}" == "" ]; then
-		printf "  \e[1;36m%-25s\e[0m : %s\n" "${cmd}" "${txt}"
-	else
-		printf "  \e[1;36m%-14s\e[0m \e[0;35m%-10s\e[0m : %s\n" "${cmd}" "${opt}" "${txt}"
-	fi
+function list_module()
+{
+	scons --list-module -C $SDK_PRJ_TOP_DIR
 }
 
 function _lunch_check()
@@ -550,7 +567,7 @@ function _get_dir_list()
 
 	dir_list1=`find ${SDK_PRJ_TOP_DIR}/application/ -type d ! -path "*/.*"`
 	dir_list1+="${sep}"
-	dir_list1+=`find ${SDK_PRJ_TOP_DIR}/driver/ -type d ! -path "*/.*"`
+	dir_list1+=`find ${SDK_PRJ_TOP_DIR}/bsp/ -type d ! -path "*/.*"`
 	dir_list1+="${sep}"
 	dir_list1+=`find ${SDK_PRJ_TOP_DIR}/kernel/ -type d ! -path "*/.*"`
 	dir_list1+="${sep}"
@@ -770,7 +787,7 @@ function _display_list_init()
 function _display_list_clear()
 {
 	backup_list=""
-	display_list=""
+	unset display_list
 	display_list_total=0
 }
 

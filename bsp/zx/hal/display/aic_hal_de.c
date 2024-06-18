@@ -14,7 +14,7 @@
 
 #define CSC_COEFFS_NUM  12
 #define CCM_COEF_NUM    12
-#define GAMMA_COEF_NUM  64
+#define GAMMA_COEF_NUM  16
 
 static int yuv2rgb_bt601_limit[3][4] = {
     {1192, 0, 1634, -3269},
@@ -615,7 +615,8 @@ void de_config_timing(void *base_addr,
               u32 active_w, u32 active_h,
               u32 hfp, u32 hbp,
               u32 vfp, u32 vbp,
-              u32 hsync, u32 vsync)
+              u32 hsync, u32 vsync,
+              u32 h_pol, u32 v_pol)
 {
     reg_write(base_addr + TIMING_ACTIVE_SIZE,
           TIMING_ACTIVE_SIZE_SET(active_w, active_h));
@@ -623,6 +624,8 @@ void de_config_timing(void *base_addr,
     reg_write(base_addr + TIMING_V_PORCH, TIMING_V_PORCH_SET(vfp, vbp));
     reg_write(base_addr + TIMING_SYNC_PLUSE,
           TIMING_SYNC_PLUSE_SET_H_V(hsync, vsync));
+    reg_write(base_addr + TIMING_POL_SET,
+		  TIMING_POL_SET_H_V(h_pol, v_pol));
 }
 
 void de_set_blending_size(void *base_addr, u32 active_w, u32 active_h)
@@ -659,21 +662,20 @@ void de_config_gamma_lut(void *base_addr, const u32 *gamma_table, int channel)
 {
     int i, value;
 
-    for (i = 0; i < GAMMA_COEF_NUM; i += 4) {
-        value = (GAMMA_LUT0(gamma_table[i + 0]) & GAMMA_LUT0_MASK) |
-                (GAMMA_LUT1(gamma_table[i + 1]) & GAMMA_LUT1_MASK) |
-                (GAMMA_LUT2(gamma_table[i + 2]) & GAMMA_LUT2_MASK) |
-                (GAMMA_LUT3(gamma_table[i + 3]) & GAMMA_LUT3_MASK);
+    for (i = 0; i < GAMMA_COEF_NUM; i++) {
+        value = gamma_table[i];
 
         switch (channel) {
-        case 0:
-            reg_write(base_addr + GAMMA_RED_LUT(i / 4), value);
+        case GAMMA_RED:
+            reg_write(base_addr + GAMMA_RED_LUT(i), value);
             break;
-        case 1:
-            reg_write(base_addr + GAMMA_GREEN_LUT(i / 4), value);
+        case GAMMA_GREEN:
+            reg_write(base_addr + GAMMA_GREEN_LUT(i), value);
+            break;
+        case GAMMA_BLUE:
+            reg_write(base_addr + GAMMA_BLUE_LUT(i), value);
             break;
         default:
-            reg_write(base_addr + GAMMA_BLUE_LUT(i / 4), value);
             break;
         }
     }

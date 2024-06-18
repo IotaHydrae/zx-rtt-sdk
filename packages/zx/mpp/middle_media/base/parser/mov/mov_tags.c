@@ -20,7 +20,7 @@ const struct codec_tag mov_audio_tags[] = {
     { CODEC_ID_AAC,             MKTAG('m', 'p', '4', 'a') },
     { CODEC_ID_MP3,             MKTAG('.', 'm', 'p', '3') },
     { CODEC_ID_MP3,             MKTAG('m', 'p', '3', ' ') }, /* vlc */
-    { CODEC_ID_MP3,             0x6D730055                },
+    { CODEC_ID_MP3,                            0x6D730055 },
     { CODEC_ID_PCM_ALAW,        MKTAG('a', 'l', 'a', 'w') },
     { CODEC_ID_PCM_F32BE,       MKTAG('f', 'l', '3', '2') },
     { CODEC_ID_PCM_F32LE,       MKTAG('f', 'l', '3', '2') },

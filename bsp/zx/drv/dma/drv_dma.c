@@ -102,7 +102,7 @@ void drv_dma_ch_start(struct dma_chan *dma_ch, void *srcaddr, void *dstaddr, u32
     struct aic_dma_chan * chan = *(struct aic_dma_chan **)dma_ch;
     int ret;
 
-    if (DMA_MEM_TO_MEM == chan->cfg.direction){
+    if (DMA_MEM_TO_MEM == chan->cfg.direction) {
         ret = hal_dma_chan_prep_memcpy(chan, (unsigned long)dstaddr,
                                         (unsigned long)srcaddr, length);
     } else {
@@ -117,7 +117,7 @@ void drv_dma_ch_start(struct dma_chan *dma_ch, void *srcaddr, void *dstaddr, u32
 
 void drv_dma_ch_stop(struct dma_chan *dma_ch)
 {
-    struct aic_dma_chan * chan = *(struct aic_dma_chan **)dma_ch;
+    struct aic_dma_chan * chan = (struct aic_dma_chan *)dma_ch;
 
     hal_dma_chan_stop(chan);
 }
@@ -142,7 +142,7 @@ static void cmd_dma_dump(int argc, char **argv)
 
     hal_dma_chan_dump(ch_nr);
 }
-MSH_CMD_EXPORT_ALIAS(cmd_dma_dump, dma_dump,
+MSH_CMD_EXPORT_ALIAS(cmd_dma_dump, dma_dump, \
                      Dump DMA register. Argument: channel_num);
 
 #endif

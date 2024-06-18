@@ -11,7 +11,7 @@
 #include <boot_param.h>
 #include <private_param.h>
 #include <partition_table.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include <mtd.h>
 #include <aic_log.h>
 #include <aic_osal.h>

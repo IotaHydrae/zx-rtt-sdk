@@ -11,7 +11,7 @@
 #include <console.h>
 #include <aic_common.h>
 #include <aic_errno.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include <sfud.h>
 
 #define SPINOR_HELP                           \

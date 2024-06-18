@@ -41,7 +41,6 @@ struct audio_packet_manager {
 	size_t available_size;
 };
 
-
 struct audio_packet_manager *audio_pm_create(struct aic_audio_decode_config *cfg)
 {
 	struct aic_audio_decode_config *init_cfg = cfg;

@@ -1,7 +1,3 @@
-/*
-*
-*  Desc: aic_player
-*/
 
 #include <string.h>
 #include <malloc.h>
@@ -40,10 +36,7 @@
 #define AIC_PLAYER_PREPARE_FORMAT_DETECTED 1
 #define AIC_PLAYER_PREPARE_FORMAT_NOT_DETECTED 2
 
-
-
 struct aic_player {
-    char uri[256];
     event_handler event_handle;
     void* app_data;
     OMX_HANDLETYPE demuxer_handle;
@@ -65,6 +58,7 @@ struct aic_player {
     s64 video_pts;
     s64 audio_pts;
     s32 volume;
+    s32 rotation_angle;
     s8 mute;
     s8 seeking;
 };
@@ -85,6 +79,7 @@ struct aic_player {
             }\
         }                /* Macro End */
 
+#define _CLOCK_COMPONENT_
 
 static OMX_ERRORTYPE component_event_handler (
     OMX_HANDLETYPE hComponent,
@@ -130,12 +125,12 @@ static OMX_ERRORTYPE component_event_handler (
             printf("[%s:%d]OMX_EventPortFormatDetected\n",__FUNCTION__,__LINE__);
             memcpy(&player->media_info,pEventData,sizeof(struct aic_parser_av_media_info));
             player->format_detected = AIC_PLAYER_PREPARE_FORMAT_DETECTED;
-            player->event_handle(player->app_data,AIC_PLAYER_EVENT_DEMUXER_FORMAT_DETECTED,0,0);
+            //player->event_handle(player->app_data,AIC_PLAYER_EVENT_DEMUXER_FORMAT_DETECTED,0,0);
             break;
         case OMX_EventError:
             if (Data1 == OMX_ErrorFormatNotDetected) {
                 player->format_detected = AIC_PLAYER_PREPARE_FORMAT_NOT_DETECTED;
-                player->event_handle(player->app_data,AIC_PLAYER_EVENT_DEMUXER_FORMAT_NOT_DETECTED,0,0);
+               // player->event_handle(player->app_data,AIC_PLAYER_EVENT_DEMUXER_FORMAT_NOT_DETECTED,0,0);
             } else if (Data1 == OMX_ErrorMbErrorsInFrame || Data1 == OMX_ErrorInsufficientResources) {
                 player->event_handle(player->app_data,AIC_PLAYER_EVENT_PLAY_END,0,0);
                 player->state = AIC_PLAYER_STATE_PLAYBACK_COMPLETED;
@@ -192,50 +187,76 @@ struct aic_player* aic_player_create(char *uri)
 {
     OMX_ERRORTYPE eError;
     struct aic_player * player = mpp_alloc(sizeof(struct aic_player));
+
     if (player == NULL) {
         loge("mpp_alloc aic_player error\n");
         return NULL;
     }
+
     memset(player,0x00,sizeof(struct aic_player));
 
+    player->uri_param = (OMX_PARAM_CONTENTURITYPE *)mpp_alloc(sizeof(OMX_PARAM_CONTENTURITYPE) + OMX_MAX_STRINGNAME_SIZE);
+
+    if (player->uri_param == NULL) {
+        loge("mpp_alloc aic_player error\n");
+        goto _exit;
+    }
 
     eError = OMX_Init();
+
     if (eError != OMX_ErrorNone) {
         loge("OMX_init error!!!\n");
-        mpp_free(player);
-        return NULL;
+        goto _exit;
     }
+
     if (uri != NULL) {
-        logi("uri:%s\n",uri);
-        aic_player_set_uri(player,uri);
+        if (aic_player_set_uri(player,uri)) {
+            loge("aic_player_set_uri error!!!\n");
+            goto _exit;
+        }
     } else {
         player->state = AIC_PLAYER_STATE_IDLE;
     }
+
+    if (OMX_ErrorNone !=OMX_GetHandle(&player->demuxer_handle, OMX_COMPONENT_DEMUXER_NAME,player, &component_event_callbacks)) {
+        loge("unable to get demuxer handle.\n");
+        goto _exit;
+    }
+
     return player;
+
+_exit:
+    if (player->uri_param) {
+        mpp_free(player->uri_param);
+        player->uri_param = NULL;
+    }
+    mpp_free(player);
+    return NULL;
 }
 
 s32 aic_player_set_uri(struct aic_player *player,char *uri)
 {
-    int bytes;
+    int uri_len;
+
     if (uri == NULL) {
         loge("param  error\n");
         return -1;
     }
-    memset(player->uri,0x00,sizeof(player->uri));
-    strncpy(player->uri,uri,sizeof(player->uri)-1);
-    if (player->uri_param) {
-        mpp_free(player->uri_param);
+    if (player->uri_param  == NULL) {
+        loge("player->uri_param=NULL\n");
+        return -1;
     }
-
-    bytes = strlen(player->uri);
-    player->uri_param = (OMX_PARAM_CONTENTURITYPE *)mpp_alloc(sizeof(OMX_PARAM_CONTENTURITYPE) + bytes);
-    player->uri_param->nSize = sizeof(OMX_PARAM_CONTENTURITYPE) + bytes;
-    strcpy((char *)player->uri_param->contentURI, player->uri);
+    uri_len = strlen(uri);
+    if (uri_len > OMX_MAX_STRINGNAME_SIZE-1) {
+        loge("path too long\n");
+        return -1;
+    }
+    memset(player->uri_param->contentURI,0x00,OMX_MAX_STRINGNAME_SIZE);
+    player->uri_param->nSize = sizeof(OMX_PARAM_CONTENTURITYPE) + uri_len;
+    strcpy((char *)player->uri_param->contentURI,uri);
     player->state = AIC_PLAYER_STATE_INITIALIZED;
     return 0;
 }
-
-#define _CLOCK_COMPONENT_TEST_
 
 static void* player_index_param_content_uri_thread(void *pThreadData)
 {
@@ -246,13 +267,12 @@ static void* player_index_param_content_uri_thread(void *pThreadData)
     player->thread_runing = 1;
     OMX_SetParameter(player->demuxer_handle, OMX_IndexParamContentURI, player->uri_param);
     if (player->format_detected != AIC_PLAYER_PREPARE_FORMAT_DETECTED) {
-        OMX_FreeHandle(player->demuxer_handle);
-        player->demuxer_handle = NULL;
-        loge("OMX_ErrorFormatNotDetected,please check file path and  whether file is mp4  !!!!");
-        player->state = AIC_PLAYER_STATE_INITIALIZED;
+        loge("OMX_ErrorFormatNotDetected !!!!");
+         player->event_handle(player->app_data,AIC_PLAYER_EVENT_DEMUXER_FORMAT_NOT_DETECTED,0,0);
         return (void*)-1;
     } else {
         player->state = AIC_PLAYER_STATE_PREPARED;
+        player->event_handle(player->app_data,AIC_PLAYER_EVENT_DEMUXER_FORMAT_DETECTED,0,0);
     }
     player->thread_runing = 0;
     return (void*)0;
@@ -265,19 +285,15 @@ s32 aic_player_prepare_async(struct aic_player *player)
         logw("player->state hase been in AIC_PLAYER_STATE_PREPARING \n");
         return 0;
     }
-    if (player->demuxer_handle) {
-        loge("player->demuxer_handle has been created ,somthing wrong take\n");
+    if (NULL == player->demuxer_handle) {
+        loge("player->demuxer_handle has not been created \n");
         return -1;
     }
-    if (OMX_ErrorNone !=OMX_GetHandle(&player->demuxer_handle, OMX_COMPONENT_DEMUXER_NAME,player, &component_event_callbacks)) {
-        loge("unable to get demuxer handle.\n");
-        return -1;
-    }
+
     player->sync_flag = AIC_PLAYER_PREPARE_ASYNC;
+
     ret = pthread_create(&player->threadId, NULL, player_index_param_content_uri_thread, player);
-    if (ret || !player->threadId) {
-        OMX_FreeHandle(player->demuxer_handle);
-        player->demuxer_handle = NULL;
+    if (ret) {
         loge("pthread_create fail!");
         return -1;
     }
@@ -288,32 +304,22 @@ s32 aic_player_prepare_async(struct aic_player *player)
 s32 aic_player_prepare_sync(struct aic_player *player)
 {
     OMX_ERRORTYPE eError = OMX_ErrorNone;
-    if (player->state == AIC_PLAYER_STATE_PREPARING) {
-        loge("player->state has been  in AIC_PLAYER_STATE_PREPARING \n");
-        return 0;
-    }
     if (player->state != AIC_PLAYER_STATE_INITIALIZED) {
         loge("player->state is not  in AIC_PLAYER_STATE_INITIALIZED,plaese set uri!!!\n");
         return -1;
     }
-    if (player->demuxer_handle) {
-        loge("player->demuxer_handle has been created ,somthing wrong take\n");
+
+    if (NULL == player->demuxer_handle) {
+        loge("player->demuxer_handle has not been created \n");
         return -1;
     }
-    if (OMX_ErrorNone !=OMX_GetHandle(&player->demuxer_handle, OMX_COMPONENT_DEMUXER_NAME,player, &component_event_callbacks)) {
-        loge("unable to get demuxer handle.\n");
-        return -1;
-    }
+
     player->sync_flag = AIC_PLAYER_PREPARE_SYNC;
     player->format_detected = AIC_PLAYER_PREPARE_FORMAT_DETECTING;
-    player->state = AIC_PLAYER_STATE_PREPARING;
     /*OMX_SetParameter is blocking*/
     eError = OMX_SetParameter(player->demuxer_handle, OMX_IndexParamContentURI, player->uri_param);
     if ((eError != OMX_ErrorNone) || (player->format_detected != AIC_PLAYER_PREPARE_FORMAT_DETECTED)) {
-        OMX_FreeHandle(player->demuxer_handle);
-        player->demuxer_handle = NULL;
-        loge("OMX_ErrorFormatNotDetected,please check file path and  whether file is mp4  !!!!");
-        player->state = AIC_PLAYER_STATE_INITIALIZED;
+        loge("OMX_ErrorFormatNotDetected!!!!");
         return -1;
     } else {
         player->state = AIC_PLAYER_STATE_PREPARED;
@@ -340,246 +346,239 @@ s32 aic_player_start(struct aic_player *player)
 
     if (player->sync_flag == AIC_PLAYER_PREPARE_ASYNC) {
         if (player->threadId != 0) {
-            printf("[%s:%d]pthread_cancel\n",__FUNCTION__,__LINE__);
-            if (player->thread_runing == 1) {
-                pthread_cancel(player->threadId);
-            }
-            printf("[%s:%d]wait    pthread_join\n",__FUNCTION__,__LINE__);
+            printf("[%s:%d]wait pthread_join\n",__FUNCTION__,__LINE__);
             pthread_join(player->threadId, NULL);
             printf("[%s:%d]pthread_join ok\n",__FUNCTION__,__LINE__);
             player->threadId = 0;
         }
     }
 
-    if (player->format_detected == 1) {//detected ok
-        if (player->media_info.has_video) {
-            video_port_format.nSize = sizeof(OMX_AUDIO_PARAM_PORTFORMATTYPE);
-            video_port_format.nPortIndex = DEMUX_PORT_VIDEO_INDEX;
-            video_port_format.nIndex = 0;
-            if (OMX_ErrorNone !=OMX_GetParameter(player->demuxer_handle, OMX_IndexParamVideoPortFormat,&video_port_format)) {
-                loge("OMX_GetParameter Error!!!!.\n");
-                goto _EXIT;
-            }
+    if (player->media_info.has_video) {
+        video_port_format.nSize = sizeof(OMX_AUDIO_PARAM_PORTFORMATTYPE);
+        video_port_format.nPortIndex = DEMUX_PORT_VIDEO_INDEX;
+        video_port_format.nIndex = 0;
+        if (OMX_ErrorNone !=OMX_GetParameter(player->demuxer_handle, OMX_IndexParamVideoPortFormat,&video_port_format)) {
+            loge("OMX_GetParameter Error!!!!.\n");
+            goto _EXIT;
+        }
 
-            //step5  create vdecoder
-            if (!player->vdecoder_handle) {
-                if (OMX_ErrorNone !=OMX_GetHandle(&player->vdecoder_handle, OMX_COMPONENT_VDEC_NAME,player, &component_event_callbacks)) {
-                        loge("unable to get vdecoder_handle handle.\n");
+        if (player->vdecoder_handle) {
+            loge("please call aic_player_stop,free(vdecoder_handle)\n");
+            goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_GetHandle(&player->vdecoder_handle, OMX_COMPONENT_VDEC_NAME,player, &component_event_callbacks)) {
+                loge("unable to get vdecoder_handle handle.\n");
+                goto _EXIT;
+        }
+
+        video_port_format.eColorFormat = OMX_COLOR_FormatYUV420Planar;
+        if (video_port_format.eCompressionFormat == OMX_VIDEO_CodingMJPEG) {
+            if (strcmp(PRJ_CHIP,"m3a") == 0 || strcmp(PRJ_CHIP,"m3c") == 0) {
+                switch (AICFB_FORMAT) {
+                    case 0x00:
+                        video_port_format.eColorFormat = OMX_COLOR_Format32bitARGB8888;
+                        break;
+                    case 0x08:
+                        video_port_format.eColorFormat = OMX_COLOR_Format24bitRGB888;
+                        break;
+                    case 0x0a:
+                        video_port_format.eColorFormat = OMX_COLOR_Format16bitARGB1555;
+                        break;
+                    case 0x0e:
+                        video_port_format.eColorFormat = OMX_COLOR_Format16bitRGB565;
+                        break;
+                    default:
+                        loge("unsupport format:%d\n",AICFB_FORMAT);
                         goto _EXIT;
                 }
             } else {
-                loge("please call aic_player_stop,free(vdecoder_handle)\n");
-                goto _EXIT;
+                video_port_format.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
             }
-
-            //clear frame end flag
-            //sFrameEnd.bFrameEnd = 0;
-            //OMX_SetParameter(player->vdecoder_handle,OMX_IndexVendorStreamFrameEnd,&sFrameEnd);
-
-            logi("OMX_SetParameter!!!\n");
-            video_port_format.eColorFormat = OMX_COLOR_FormatYUV420Planar;
-            if (video_port_format.eCompressionFormat == OMX_VIDEO_CodingMJPEG) {
-                if (strcmp(PRJ_CHIP,"m3a") == 0) {
-                    switch (AICFB_FORMAT) {
-                        case 0x00:
-                            video_port_format.eColorFormat = OMX_COLOR_Format32bitARGB8888;
-                            break;
-                        case 0x08:
-                            video_port_format.eColorFormat = OMX_COLOR_Format24bitRGB888;
-                            break;
-                        case 0x0a:
-                            video_port_format.eColorFormat = OMX_COLOR_Format16bitARGB1555;
-                            break;
-                        case 0x0e:
-                            video_port_format.eColorFormat = OMX_COLOR_Format16bitRGB565;
-                            break;
-                        default:
-                            loge("unsupport format:%d\n",AICFB_FORMAT);
-                            goto _EXIT;
-                    }
-                } else {
-                    video_port_format.eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
-                }
-            }
-            video_port_format.nPortIndex = VDEC_PORT_IN_INDEX;
-            //step7 set vdec param
-            if (OMX_ErrorNone != OMX_SetParameter(player->vdecoder_handle, OMX_IndexParamVideoPortFormat,&video_port_format)) {
-                OMX_PARAM_SKIP_TRACK skip_track;
-                loge("OMX_IndexParamVideoPortFormat Error!!!!.\n");
-                skip_track.nPortIndex = DEMUX_PORT_VIDEO_INDEX;
-                OMX_SetParameter(player->demuxer_handle, OMX_IndexVendorDemuxerSkipTrack,&skip_track);
-                OMX_FreeHandle(player->vdecoder_handle);
-                player->vdecoder_handle = NULL;
-                player->media_info.has_video = 0;
-                goto _AUDIO;
-            }
-            //step6 create video_render
-            if (!player->video_render_handle) {
-                if (OMX_ErrorNone !=OMX_GetHandle(&player->video_render_handle, OMX_COMPONENT_VIDEO_RENDER_NAME,player, &component_event_callbacks)) {
-                    loge("unable to get video_render_handle handle.\n");
-                    goto _EXIT;
-                }
-            } else {
-                loge("please call aic_player_stop,free(vdecoder_handle)\n");
-                goto _EXIT;
-            }
-
-            if (OMX_ErrorNone != OMX_SetConfig(player->video_render_handle,OMX_IndexVendorVideoRenderInit, NULL)) {
-                loge("OMX_SetConfig Error!!!!.\n");
-                goto _EXIT;
-            }
-            //clear frame end flag
-            //sFrameEnd.bFrameEnd = 0;
-            //OMX_SetParameter(player->video_render_handle,OMX_IndexVendorStreamFrameEnd,&sFrameEnd);
-
-
-            // step8 set up tunnel demuxer.out_port=1 ----> vdecoder.in_port=0
-            if (OMX_ErrorNone !=OMX_SetupTunnel(player->demuxer_handle, DEMUX_PORT_VIDEO_INDEX, player->vdecoder_handle, VDEC_PORT_IN_INDEX)) {
-                    loge("OMX_SetupTunnel error.\n");
-                    goto _EXIT;
-            }
-
-            // step9 set up tunnel vdecoder.out_port=1 ----> video_render.in_port=0
-            if (OMX_ErrorNone !=OMX_SetupTunnel(player->vdecoder_handle, VDEC_PORT_OUT_INDEX, player->video_render_handle, VIDEO_RENDER_PORT_IN_VIDEO_INDEX)) {
-                    loge("OMX_SetupTunnel error.\n");
-                    goto _EXIT;
-            }
-            player->video_audio_end_mask |= AIC_VIDEO;
         }
 
-_AUDIO:
-        if (player->media_info.has_audio) {
+        video_port_format.nPortIndex = VDEC_PORT_IN_INDEX;
 
-            audio_port_format.nSize = sizeof(OMX_AUDIO_PARAM_PORTFORMATTYPE);
-            audio_port_format.nPortIndex = DEMUX_PORT_AUDIO_INDEX;
-            audio_port_format.nIndex = 0;
-            if (OMX_ErrorNone !=OMX_GetParameter(player->demuxer_handle, OMX_IndexParamAudioPortFormat,&audio_port_format)) {
-                loge("OMX_GetParameter Error!!!!.\n");
-                goto _EXIT;
-            }
-            if (!player->adecoder_handle) {
-                if (OMX_ErrorNone !=OMX_GetHandle(&player->adecoder_handle, OMX_COMPONENT_ADEC_NAME,player, &component_event_callbacks)) {
-                    loge("unable to get adecoder_handle handle.\n");
-                    goto _EXIT;
-                }
-            } else {
-                loge("please call aic_player_stop,free(adecoder_handle)\n");
-                goto _EXIT;
-            }
-
-            //clear frame end flag
-            //sFrameEnd.bFrameEnd = 0;
-            //OMX_SetParameter(player->adecoder_handle, OMX_IndexVendorStreamFrameEnd,&sFrameEnd);
-            logi("OMX_SetParameter!!!\n");
-            audio_port_format.nPortIndex = ADEC_PORT_IN_INDEX;
-            if(OMX_ErrorNone != OMX_SetParameter(player->adecoder_handle, OMX_IndexParamAudioPortFormat,&audio_port_format)) {
-                OMX_PARAM_SKIP_TRACK skip_track;
-                loge("OMX_IndexParamAudioPortFormat Error!!!!.\n");
-                skip_track.nPortIndex = DEMUX_PORT_AUDIO_INDEX;
-                OMX_SetParameter(player->demuxer_handle, OMX_IndexVendorDemuxerSkipTrack,&skip_track);
-                OMX_FreeHandle(player->adecoder_handle);
-                player->adecoder_handle = NULL;
-                player->media_info.has_audio = 0;
-                goto _CLOCK;
-            }
-
-            if (!player->audio_render_handle) {
-                if (OMX_ErrorNone !=OMX_GetHandle(&player->audio_render_handle, OMX_COMPONENT_AUDIO_RENDER_NAME,player, &component_event_callbacks)) {
-                    loge("unable to get audio_render_handle handle.\n");
-                    goto _EXIT;
-                }
-            } else {
-                loge("please call aic_player_stop,free(audio_render_handle)\n");
-                goto _EXIT;
-            }
-
-            if (OMX_ErrorNone != OMX_SetConfig(player->audio_render_handle,OMX_IndexVendorAudioRenderInit, NULL)) {
-                loge("OMX_SetConfig Error!!!!.\n");
-                goto _EXIT;
-            }
-
-            //clear frame end flag
-            //sFrameEnd.bFrameEnd = 0;
-            //OMX_SetParameter(player->audio_render_handle,OMX_IndexVendorStreamFrameEnd,&sFrameEnd);
-
-            // step8 set up tunnel demuxer.out_port=1 ----> vdecoder.in_port=0
-            if (OMX_ErrorNone !=OMX_SetupTunnel(player->demuxer_handle, DEMUX_PORT_AUDIO_INDEX, player->adecoder_handle, ADEC_PORT_IN_INDEX)) {
-                    loge("OMX_SetupTunnel error.\n");
-                    goto _EXIT;
-            }
-
-            // step9 set up tunnel vdecoder.out_port=1 ----> video_render.in_port=0
-            if (OMX_ErrorNone !=OMX_SetupTunnel(player->adecoder_handle, ADEC_PORT_OUT_INDEX, player->audio_render_handle, AUDIO_RENDER_PORT_IN_AUDIO_INDEX)) {
-                    loge("OMX_SetupTunnel error.\n");
-                    goto _EXIT;
-            }
-            player->video_audio_end_mask |= AIC_AUDIO;
+        if (OMX_ErrorNone != OMX_SetParameter(player->vdecoder_handle, OMX_IndexParamVideoPortFormat,&video_port_format)) {
+            OMX_PARAM_SKIP_TRACK skip_track;
+            loge("OMX_IndexParamVideoPortFormat Error!!!!.\n");
+            skip_track.nPortIndex = DEMUX_PORT_VIDEO_INDEX;
+            OMX_SetParameter(player->demuxer_handle, OMX_IndexVendorDemuxerSkipTrack,&skip_track);
+            OMX_FreeHandle(player->vdecoder_handle);
+            player->vdecoder_handle = NULL;
+            player->media_info.has_video = 0;
+            goto _AUDIO;
         }
 
-#ifdef _CLOCK_COMPONENT_TEST_
-_CLOCK:
-        if (player->media_info.has_video && player->media_info.has_audio) {
-            OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
-            if (!player->clock_handle) {
-                if (OMX_ErrorNone !=OMX_GetHandle(&player->clock_handle, OMX_COMPONENT_CLOCK_NAME,player, &component_event_callbacks)) {
-                    loge("unable to get clock_handle handle.\n");
-                    goto _EXIT;
-                }
-            } else {
-                loge("please call aic_player_stop,free(clock_handle)\n");
-                goto _EXIT;
-            }
-
-            //clock_handle need to implement and video need to add a port
-            if (OMX_ErrorNone !=OMX_SetupTunnel(player->clock_handle, CLOCK_PORT_OUT_VIDEO, player->video_render_handle, VIDEO_RENDER_PORT_IN_CLOCK_INDEX)) {
-                    loge("unable to get video_render handle.\n");
-                    goto _EXIT;
-            }
-
-            if (OMX_ErrorNone !=OMX_SetupTunnel(player->clock_handle, CLOCK_PORT_OUT_AUDIO, player->audio_render_handle, AUDIO_RENDER_PORT_IN_CLOCK_INDEX)) {
-                    loge("unable to get video_render handle.\n");
-                    goto _EXIT;
-            }
-            memset(&clock_state,0x00,sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
-            clock_state.eState = OMX_TIME_ClockStateWaitingForStartTime;
-            clock_state.nWaitMask |= OMX_CLOCKPORT0;
-            clock_state.nWaitMask |= OMX_CLOCKPORT1;
-            OMX_SetConfig(player->clock_handle, OMX_IndexConfigTimeClockState,&clock_state);
-        }
-#endif
-        if(!player->vdecoder_handle && !player->adecoder_handle) {
-            loge("video and audio all  do not support !!!!.\n");
+        if (player->video_render_handle) {
+            loge("please call aic_player_stop,free(vdecoder_handle)\n");
             goto _EXIT;
         }
-#ifdef _CLOCK_COMPONENT_TEST_
+
+        if (OMX_ErrorNone !=OMX_GetHandle(&player->video_render_handle, OMX_COMPONENT_VIDEO_RENDER_NAME,player, &component_event_callbacks)) {
+            loge("unable to get video_render_handle handle.\n");
+            goto _EXIT;
+        }
+
+        if (OMX_ErrorNone != OMX_SetConfig(player->video_render_handle,OMX_IndexVendorVideoRenderInit, NULL)) {
+            loge("OMX_SetConfig Error!!!!.\n");
+            goto _EXIT;
+        }
+
+        if (player->disp_rect.width != 0 && player->disp_rect.height != 0) {
+            aic_player_set_disp_rect(player,&player->disp_rect);
+        }
+        if (player->rotation_angle != MPP_ROTATION_0) {
+            aic_player_set_rotation(player,player->rotation_angle);
+        }
+
+        if (OMX_ErrorNone !=OMX_SetupTunnel(player->demuxer_handle, DEMUX_PORT_VIDEO_INDEX, player->vdecoder_handle, VDEC_PORT_IN_INDEX)) {
+                loge("OMX_SetupTunnel error.\n");
+                goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_SetupTunnel(player->vdecoder_handle, VDEC_PORT_OUT_INDEX, player->video_render_handle, VIDEO_RENDER_PORT_IN_VIDEO_INDEX)) {
+                loge("OMX_SetupTunnel error.\n");
+                goto _EXIT;
+        }
+
+        player->video_audio_end_mask |= AIC_VIDEO;
+    }
+
+_AUDIO:
+    if (player->media_info.has_audio) {
+        audio_port_format.nSize = sizeof(OMX_AUDIO_PARAM_PORTFORMATTYPE);
+        audio_port_format.nPortIndex = DEMUX_PORT_AUDIO_INDEX;
+        audio_port_format.nIndex = 0;
+
+        if (OMX_ErrorNone !=OMX_GetParameter(player->demuxer_handle, OMX_IndexParamAudioPortFormat,&audio_port_format)) {
+            loge("OMX_GetParameter Error!!!!.\n");
+            goto _EXIT;
+        }
+
+        if (player->adecoder_handle) {
+            loge("please call aic_player_stop,free(adecoder_handle)\n");
+            goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_GetHandle(&player->adecoder_handle, OMX_COMPONENT_ADEC_NAME,player, &component_event_callbacks)) {
+            loge("unable to get adecoder_handle handle.\n");
+            goto _EXIT;
+        }
+
+        audio_port_format.nPortIndex = ADEC_PORT_IN_INDEX;
+
+        if(OMX_ErrorNone != OMX_SetParameter(player->adecoder_handle, OMX_IndexParamAudioPortFormat,&audio_port_format)) {
+            OMX_PARAM_SKIP_TRACK skip_track;
+            loge("OMX_IndexParamAudioPortFormat Error!!!!.\n");
+            skip_track.nPortIndex = DEMUX_PORT_AUDIO_INDEX;
+            OMX_SetParameter(player->demuxer_handle, OMX_IndexVendorDemuxerSkipTrack,&skip_track);
+            OMX_FreeHandle(player->adecoder_handle);
+            player->adecoder_handle = NULL;
+            player->media_info.has_audio = 0;
+            goto _CLOCK;
+        }
+
+        if (player->audio_render_handle) {
+                    loge("please call aic_player_stop,free(audio_render_handle)\n");
+                    goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_GetHandle(&player->audio_render_handle, OMX_COMPONENT_AUDIO_RENDER_NAME,player, &component_event_callbacks)) {
+            loge("unable to get audio_render_handle handle.\n");
+            goto _EXIT;
+        }
+
+        if (OMX_ErrorNone != OMX_SetConfig(player->audio_render_handle,OMX_IndexVendorAudioRenderInit, NULL)) {
+            loge("OMX_SetConfig Error!!!!.\n");
+            goto _EXIT;
+        }
+
+        if (player->volume != 0) {
+            aic_player_set_volum(player,player->volume);
+        }
+
+        if (OMX_ErrorNone !=OMX_SetupTunnel(player->demuxer_handle, DEMUX_PORT_AUDIO_INDEX, player->adecoder_handle, ADEC_PORT_IN_INDEX)) {
+                loge("OMX_SetupTunnel error.\n");
+                goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_SetupTunnel(player->adecoder_handle, ADEC_PORT_OUT_INDEX, player->audio_render_handle, AUDIO_RENDER_PORT_IN_AUDIO_INDEX)) {
+                loge("OMX_SetupTunnel error.\n");
+                goto _EXIT;
+        }
+
+        player->video_audio_end_mask |= AIC_AUDIO;
+    }
+
+#ifdef _CLOCK_COMPONENT_
+_CLOCK:
+    if (player->media_info.has_video && player->media_info.has_audio) {
+        OMX_TIME_CONFIG_CLOCKSTATETYPE clock_state;
+
         if (player->clock_handle) {
-            OMX_SendCommand(player->clock_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+            loge("please call aic_player_stop,free(clock_handle)\n");
+            goto _EXIT;
         }
+
+        if (OMX_ErrorNone !=OMX_GetHandle(&player->clock_handle, OMX_COMPONENT_CLOCK_NAME,player, &component_event_callbacks)) {
+            loge("unable to get clock_handle handle.\n");
+            goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_SetupTunnel(player->clock_handle, CLOCK_PORT_OUT_VIDEO, player->video_render_handle, VIDEO_RENDER_PORT_IN_CLOCK_INDEX)) {
+                loge("unable to get video_render handle.\n");
+                goto _EXIT;
+        }
+
+        if (OMX_ErrorNone !=OMX_SetupTunnel(player->clock_handle, CLOCK_PORT_OUT_AUDIO, player->audio_render_handle, AUDIO_RENDER_PORT_IN_CLOCK_INDEX)) {
+                loge("unable to get video_render handle.\n");
+                goto _EXIT;
+        }
+        memset(&clock_state,0x00,sizeof(OMX_TIME_CONFIG_CLOCKSTATETYPE));
+        clock_state.eState = OMX_TIME_ClockStateWaitingForStartTime;
+        clock_state.nWaitMask |= OMX_CLOCKPORT0;
+        clock_state.nWaitMask |= OMX_CLOCKPORT1;
+        OMX_SetConfig(player->clock_handle, OMX_IndexConfigTimeClockState,&clock_state);
+    }
 #endif
-        if (player->media_info.has_video && player->video_render_handle && player->vdecoder_handle) {
-            OMX_SendCommand(player->video_render_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
-            OMX_SendCommand(player->vdecoder_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
-        }
-        if (player->media_info.has_audio && player->audio_render_handle && player->adecoder_handle) {
-            OMX_SendCommand(player->audio_render_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
-            OMX_SendCommand(player->adecoder_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
-        }
-        if (player->demuxer_handle) {
-            OMX_SendCommand(player->demuxer_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
-        }
-        player->state = AIC_PLAYER_STATE_STARTED;
-    } else {// not dectected
-        loge("not dectected video and audio!!!!.\n");
+    if(!player->vdecoder_handle && !player->adecoder_handle) {
+        loge("video and audio all  do not support !!!!.\n");
+        goto _EXIT;
+    }
+#ifdef _CLOCK_COMPONENT_
+    if (player->clock_handle) {
+        OMX_SendCommand(player->clock_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    }
+#endif
+    if (player->media_info.has_video && player->video_render_handle && player->vdecoder_handle) {
+        OMX_SendCommand(player->video_render_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+        OMX_SendCommand(player->vdecoder_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    }
+    if (player->media_info.has_audio && player->audio_render_handle && player->adecoder_handle) {
+        OMX_SendCommand(player->audio_render_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+        OMX_SendCommand(player->adecoder_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    }
+    if (player->demuxer_handle) {
+        OMX_SendCommand(player->demuxer_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
+    }
+    player->state = AIC_PLAYER_STATE_STARTED;
+
+    if (aic_player_play(player)) {
+        loge("aic_player_play fail !!!!.\n");
         goto _EXIT;
     }
 
     return 0;
 
 _EXIT:
+
+#ifdef _CLOCK_COMPONENT_
     if (player->clock_handle) {
         OMX_FreeHandle(player->clock_handle);
         player->clock_handle = NULL;
     }
+#endif
 
     if (player->audio_render_handle) {
         OMX_FreeHandle(player->audio_render_handle);
@@ -601,10 +600,6 @@ _EXIT:
         player->vdecoder_handle = NULL;
     }
 
-    if (player->demuxer_handle) {
-        OMX_FreeHandle(player->demuxer_handle);
-        player->demuxer_handle = NULL;
-    }
     return -1;
 }
 
@@ -620,7 +615,7 @@ s32 aic_player_play(struct aic_player *player)
         return -1;
     }
 
-#ifdef _CLOCK_COMPONENT_TEST_
+#ifdef _CLOCK_COMPONENT_
         if (player->clock_handle) {
             OMX_SendCommand(player->clock_handle, OMX_CommandStateSet, OMX_StateExecuting, NULL);
         }
@@ -647,7 +642,6 @@ s32 aic_player_play(struct aic_player *player)
     return 0;
 }
 
-
 s32 aic_player_pause(struct aic_player *player)
 {
     if (player->state == AIC_PLAYER_STATE_PAUSED) {
@@ -673,7 +667,7 @@ s32 aic_player_pause(struct aic_player *player)
         OMX_SendCommand(player->demuxer_handle, OMX_CommandStateSet, OMX_StatePause, NULL);
         wait_state(player->demuxer_handle,OMX_StatePause);
     }
-#ifdef _CLOCK_COMPONENT_TEST_
+#ifdef _CLOCK_COMPONENT_
     if (player->clock_handle) {
         OMX_SendCommand(player->clock_handle, OMX_CommandStateSet, OMX_StatePause, NULL);
         wait_state(player->clock_handle,OMX_StatePause);
@@ -682,8 +676,6 @@ s32 aic_player_pause(struct aic_player *player)
         player->state = AIC_PLAYER_STATE_PAUSED;
     return 0;
 }
-
-
 
 static int do_seek(struct aic_player *player,u64 seek_time)
 {
@@ -778,9 +770,14 @@ s32 aic_player_seek(struct aic_player *player,u64 seek_time)
 
     return ret;
 }
+
 s32 aic_player_stop(struct aic_player *player)
 {
-    //OMX_STATETYPE state = OMX_StateInvalid;
+
+    if (player->state == AIC_PLAYER_STATE_STOPPED) {
+         loge("player->state has been  in AIC_PLAYER_STATE_STOPPED \n");
+         return 0;
+    }
 
     if (player->sync_flag == AIC_PLAYER_PREPARE_ASYNC) {
         if (player->threadId != 0) {
@@ -833,7 +830,7 @@ s32 aic_player_stop(struct aic_player *player)
         wait_state(player->demuxer_handle,OMX_StateLoaded);
     }
 
-#ifdef _CLOCK_COMPONENT_TEST_
+#ifdef _CLOCK_COMPONENT_
     if (player->media_info.has_video && player->media_info.has_audio) {
         if (player->clock_handle) {
             OMX_SendCommand(player->clock_handle, OMX_CommandStateSet, OMX_StateIdle, NULL);
@@ -862,7 +859,7 @@ s32 aic_player_stop(struct aic_player *player)
 
     }
 
-#ifdef _CLOCK_COMPONENT_TEST_
+#ifdef _CLOCK_COMPONENT_
     if (player->media_info.has_video && player->media_info.has_audio) {
         if (player->clock_handle && player->video_render_handle && player->audio_render_handle) {
             OMX_SetupTunnel(player->clock_handle,CLOCK_PORT_OUT_VIDEO,NULL,0);
@@ -876,27 +873,28 @@ s32 aic_player_stop(struct aic_player *player)
     player->video_audio_end_mask = 0;
 
     if (player->media_info.has_video) {
-        if (player->vdecoder_handle) {
-            OMX_FreeHandle(player->vdecoder_handle);
-            player->vdecoder_handle = NULL;
-        }
         if (player->video_render_handle) {
             OMX_FreeHandle(player->video_render_handle);
             player->video_render_handle = NULL;
         }
-    }
-    if (player->media_info.has_audio) {
-        if (player->adecoder_handle) {
-            OMX_FreeHandle(player->adecoder_handle);
-            player->adecoder_handle = NULL;
+        if (player->vdecoder_handle) {
+            OMX_FreeHandle(player->vdecoder_handle);
+            player->vdecoder_handle = NULL;
         }
+    }
+
+    if (player->media_info.has_audio) {
         if (player->audio_render_handle) {
             OMX_FreeHandle(player->audio_render_handle);
             player->audio_render_handle = NULL;
         }
+        if (player->adecoder_handle) {
+            OMX_FreeHandle(player->adecoder_handle);
+            player->adecoder_handle = NULL;
+        }
     }
 
-#ifdef _CLOCK_COMPONENT_TEST_
+#ifdef _CLOCK_COMPONENT_
     if (player->media_info.has_video && player->media_info.has_audio) {
         if (player->clock_handle) {
             OMX_FreeHandle(player->clock_handle);
@@ -906,26 +904,32 @@ s32 aic_player_stop(struct aic_player *player)
     }
 #endif
 
-    if (player->demuxer_handle) {
-            OMX_FreeHandle(player->demuxer_handle);
-            player->demuxer_handle = NULL;
-    }
-
     memset(&player->media_info,0x00,sizeof(struct aic_parser_av_media_info));
-
     player->state = AIC_PLAYER_STATE_STOPPED;
     player->seeking = 0;
-
     return 0;
 }
 
 s32 aic_player_destroy(struct aic_player *player)
 {
-    OMX_Deinit();
+    if (player->state != AIC_PLAYER_STATE_STOPPED) {
+        aic_player_stop(player);
+    }
+
+    if (player->demuxer_handle) {
+        OMX_FreeHandle(player->demuxer_handle);
+        player->demuxer_handle = NULL;
+    }
+
     if (player->uri_param) {
         mpp_free(player->uri_param);
+        player->uri_param = NULL;
     }
+
     mpp_free(player);
+
+    OMX_Deinit();
+
     return 0;
 }
 
@@ -962,7 +966,7 @@ s32 aic_player_get_media_info(struct aic_player *player,struct av_media_info *me
 
 s32 aic_player_get_screen_size(struct aic_player *player,struct mpp_size *screen_size)
 {
-    OMX_PARAM_SCREEN_SIZE rect;
+    OMX_PARAM_SCREEN_SIZE rect = {0};
 
     if (!player->media_info.has_video || !player->video_render_handle) {
         loge("no video!!!!\n");
@@ -977,11 +981,11 @@ s32 aic_player_get_screen_size(struct aic_player *player,struct mpp_size *screen
 
 s32 aic_player_set_disp_rect(struct aic_player *player,struct mpp_rect *disp_rect)
 {
-    OMX_CONFIG_RECTTYPE rect;
+    OMX_CONFIG_RECTTYPE rect = {0};
 
+    player->disp_rect = *disp_rect;
     if (!player->media_info.has_video || !player->video_render_handle) {
-        loge("no video!!!!\n");
-        return -1;
+        return 0;
     }
     rect.nLeft = disp_rect->x;
     rect.nTop = disp_rect->y;
@@ -1005,6 +1009,7 @@ s32 aic_player_get_disp_rect(struct aic_player *player,struct mpp_rect *disp_rec
     disp_rect->y = rect.nTop;
     disp_rect->width = rect.nWidth;
     disp_rect->height = rect.nHeight;
+    player->disp_rect = *disp_rect;
     return 0;
 }
 
@@ -1041,13 +1046,10 @@ s32 aic_player_set_mute(struct aic_player *player)
 s32 aic_player_set_volum(struct aic_player *player,s32 vol)
 {
     OMX_PARAM_AUDIO_VOLUME sVolume;
-
-    if (!player->media_info.has_audio || !player->audio_render_handle) {
-        loge("aic_player_set_volum\n");
-        return -1;
-    }
-    logd("aic_player_set_volum\n");
     player->volume = vol;
+    if (!player->media_info.has_audio || !player->audio_render_handle) {
+        return 0;
+    }
     sVolume.nVolume = vol;
     OMX_SetParameter(player->audio_render_handle, OMX_IndexVendorAudioRenderVolume, &sVolume);
     return 0;
@@ -1055,13 +1057,14 @@ s32 aic_player_set_volum(struct aic_player *player,s32 vol)
 
 s32 aic_player_get_volum(struct aic_player *player,s32 *vol)
 {
-    OMX_PARAM_AUDIO_VOLUME sVolume;
+    OMX_PARAM_AUDIO_VOLUME sVolume = {0};
     if (!player->media_info.has_audio || !player->audio_render_handle || !vol) {
         return -1;
     }
 
     OMX_GetParameter(player->video_render_handle, OMX_IndexVendorAudioRenderVolume, &sVolume);
     *vol = sVolume.nVolume;
+    player->volume = sVolume.nVolume;
     return 0;
 }
 
@@ -1074,10 +1077,6 @@ s32 aic_player_capture(struct aic_player *player, struct aic_capture_info *captu
 s32 aic_player_set_rotation(struct aic_player *player, int rotation_angle)
 {
     OMX_CONFIG_ROTATIONTYPE rotation;
-    if (!player->media_info.has_video || !player->video_render_handle) {
-        loge("no video!!!!\n");
-        return -1;
-    }
 
     if (rotation_angle != MPP_ROTATION_0
         && rotation_angle != MPP_ROTATION_90
@@ -1085,6 +1084,10 @@ s32 aic_player_set_rotation(struct aic_player *player, int rotation_angle)
         && rotation_angle != MPP_ROTATION_270) {
             loge("param error!!!!\n");
             return -1;
+    }
+    player->rotation_angle = rotation_angle;
+    if (!player->media_info.has_video || !player->video_render_handle) {
+        return 0;
     }
     rotation.nRotation = rotation_angle;
     if (OMX_ErrorNone != OMX_SetConfig(player->video_render_handle,OMX_IndexConfigCommonRotate,&rotation)) {
@@ -1096,7 +1099,7 @@ s32 aic_player_set_rotation(struct aic_player *player, int rotation_angle)
 
 s32 aic_player_get_rotation(struct aic_player *player)
 {
-    OMX_CONFIG_ROTATIONTYPE rotation;
+    OMX_CONFIG_ROTATIONTYPE rotation = {0};
     if (!player->media_info.has_video || !player->video_render_handle) {
         loge("no video!!!!\n");
         return -1;
@@ -1106,7 +1109,7 @@ s32 aic_player_get_rotation(struct aic_player *player)
         loge("no video!!!!\n");
         return -1;
     }
-
+    player->rotation_angle = rotation.nRotation;
     return rotation.nRotation;
 }
 

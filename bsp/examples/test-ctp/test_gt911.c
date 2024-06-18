@@ -6,7 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2021-01-13     RiceChen     the first version
- * 2023-05-04     GeoDong      modified for ArtInChip 
+ * 2023-05-04     GeoDong      modified for ZX 
  */
 
 #include <rtthread.h>

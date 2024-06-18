@@ -1,6 +1,4 @@
 ﻿/*
- * Copyright (c) 2022, Artinchip Technology Co., Ltd
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -23,7 +21,7 @@ void usb_hc_low_level_init(void)
 
     /* set phy type: UTMI/ULPI */
     val = readl((volatile void *)(unsigned long)(CONFIG_USB_EHCI_HCCR_BASE+0x800));
-#ifdef FPGA_BOARD_ARTINCHIP
+#ifdef FPGA_BOARD_ZX
     /* fpga phy type = ULPI */
     writel((val  & ~0x1U), (volatile void *)(unsigned long)(CONFIG_USB_EHCI_HCCR_BASE+0x800));
 #else
@@ -36,7 +34,7 @@ void usb_hc_low_level_init(void)
         Set EHCI packet buffer IN/OUT threshold (in DWORDs)
         Must increase the OUT threshold to avoid underrun. (FIFO size - 4)
     */
-#ifdef FPGA_BOARD_ARTINCHIP
+#ifdef FPGA_BOARD_ZX
     writel((32 | (127 << 16)), (volatile void *)(unsigned long)(CONFIG_USB_EHCI_HCCR_BASE+0x94));
 #else
     writel((32 | (32 << 16)), (volatile void *)(unsigned long)(CONFIG_USB_EHCI_HCCR_BASE+0x94));

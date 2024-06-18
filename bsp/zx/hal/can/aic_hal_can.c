@@ -367,6 +367,17 @@ static void hal_can_error_handle(can_handle *phandle, u32 err_status)
 
     if (err_status & CAN_INTR_ERRB) {
         hal_can_bus_error_msg(phandle);
+
+        if(phandle->status.recverrcnt > 10)
+        {
+            hal_can_set_mode(phandle, CAN_MODE_RST);
+            hal_can_mode_release(phandle, CAN_MODE_RST);
+        }
+        if(phandle->status.snderrcnt > 10)
+        {
+            hal_can_set_mode(phandle, CAN_MODE_RST);
+            hal_can_mode_release(phandle, CAN_MODE_RST);
+        }
     }
 
     if (err_status & CAN_INTR_ARBLOST) {

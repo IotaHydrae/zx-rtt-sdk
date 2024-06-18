@@ -567,7 +567,7 @@ int dfs_mount_device(rt_device_t dev)
                    mount_table[index].path);
         return -RT_ERROR;
       } else {
-        LOG_D("mount fs[%s] device[%s] to %s ok.\n", mount_table[index].filesystemtype, dev->parent.name,
+        LOG_I("mount fs[%s] device[%s] to %s ok.\n", mount_table[index].filesystemtype, dev->parent.name,
                    mount_table[index].path);
         return RT_EOK;
       }
@@ -576,7 +576,7 @@ int dfs_mount_device(rt_device_t dev)
     index ++;
   }
 
-  rt_kprintf("can't find device:%s to be mounted.\n", dev->parent.name);
+  LOG_D("can't find device:%s to be mounted.\n", dev->parent.name);
   return -RT_ERROR;
 }
 
@@ -591,6 +591,9 @@ int dfs_unmount_device(rt_device_t dev)
     for (iter = &filesystem_table[0];
             iter < &filesystem_table[DFS_FILESYSTEMS_MAX]; iter++)
     {
+        if (iter->dev_id == NULL)
+            continue;
+
         /* check if the PATH is mounted */
         if (strcmp(iter->dev_id->parent.name, dev->parent.name) == 0)
         {

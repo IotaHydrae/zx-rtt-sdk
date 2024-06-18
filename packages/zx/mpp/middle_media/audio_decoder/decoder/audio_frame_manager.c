@@ -3,7 +3,6 @@
 #include <string.h>
 #include <pthread.h>
 
-
 #include "audio_frame_manager.h"
 #include "mpp_list.h"
 #include "mpp_log.h"
@@ -38,7 +37,6 @@ struct audio_frame_manager {
 };
 
 #define MAX_FRAME_COUNT 128
-
 
 struct audio_frame_manager *audio_fm_create(struct audio_frame_manager_cfg *cfg)
 {

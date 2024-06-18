@@ -11,6 +11,8 @@
 #define SPINAND_ERR         1 /**< not found or not supported */
 #define SPINAND_ERR_TIMEOUT 2 /**< timeout error */
 #define SPINAND_ERR_ECC     3 /**< ecc check error */
+#define SPINAND_TRUE        1
+#define SPINAND_FALSE       0
 
 #define SPINAND_DIE_ID0 (0)
 #define SPINAND_DIE_ID1 (1)
@@ -234,6 +236,9 @@ extern const struct spinand_manufacturer umtek_spinand_manufacturer;
 #endif
 #ifdef SPI_NAND_QUANXING
 extern const struct spinand_manufacturer quanxing_spinand_manufacturer;
+#endif
+#ifdef SPI_NAND_XINCUN
+extern const struct spinand_manufacturer xincun_spinand_manufacturer;
 #endif
 
 extern struct spi_nand_cmd_cfg cmd_cfg_table[];

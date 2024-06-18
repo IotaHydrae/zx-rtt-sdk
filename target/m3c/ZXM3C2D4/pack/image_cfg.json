@@ -4,7 +4,7 @@
         "partitions": {
             "spl":        { "size": "256k" },
             "os":         { "size": "2m" },
-            "rodata":     { "size": "1m" },
+            "rodata":     { "size": "1636k" },
             // "data":       { "size": "512k" }
         },
     },
@@ -46,11 +46,11 @@
                 "attr": ["mtd", "optional"],
                 "part": ["rodata"]
             },
-            "data": {
-                "file": "data.lfs",
-                "attr": ["mtd", "optional"],
-                "part": ["data"]
-            },
+            // "data": {
+            //     "file": "data.lfs",
+            //     "attr": ["mtd", "optional"],
+            //     "part": ["data"]
+            // },
         },
     },
     "temporary": { // Pre-proccess to generate image components from raw data

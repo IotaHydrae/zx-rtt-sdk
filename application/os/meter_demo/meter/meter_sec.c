@@ -137,10 +137,11 @@ LV_IMG_DECLARE(icon06);
 
 void meter_sec_ui_init(lv_obj_t *par)
 {
-    // _lv_sw_png_src_add(&_lv_sw_img_ll, LVGL_PATH2(icon05.png));
-    // _lv_sw_png_src_add(&_lv_sw_img_ll, LVGL_PATH2(icon06.png));
-    // lv_img_dsc_t *_icon05 = _lv_get_sw_png_src_index(&_lv_sw_img_ll, 0);
-    // lv_img_dsc_t *_icon06 = _lv_get_sw_png_src_index(&_lv_sw_img_ll, 1);
+    extern void _lv_hw_png_src_add(lv_ll_t *_lv_sw_img_ll, char *src);
+    _lv_hw_png_src_add(&_lv_sw_img_ll, LVGL_PATH2(icon05.png));
+    _lv_hw_png_src_add(&_lv_sw_img_ll, LVGL_PATH2(icon06.png));
+    lv_img_dsc_t *_icon05 = _lv_get_sw_png_src_index(&_lv_sw_img_ll, 0);
+    lv_img_dsc_t *_icon06 = _lv_get_sw_png_src_index(&_lv_sw_img_ll, 1);
 
     lv_obj_t *bg01 = lv_obj_create(par);
     lv_obj_set_style_bg_color(bg01, lv_color_black(), 0);
@@ -192,7 +193,7 @@ void meter_sec_ui_init(lv_obj_t *par)
 	lv_obj_set_style_arc_rounded(arc_left, 0, LV_PART_INDICATOR);
 	lv_obj_set_style_arc_opa(arc_left, 0, LV_PART_MAIN);
 	// lv_obj_set_style_arc_img_src(arc_left, LVGL_PATH2(icon06.png), LV_PART_INDICATOR);
-	lv_obj_set_style_arc_img_src(arc_left, &icon06, LV_PART_INDICATOR);
+	lv_obj_set_style_arc_img_src(arc_left, _icon06, LV_PART_INDICATOR);
 	lv_obj_set_style_arc_opa(arc_left, 255, LV_PART_INDICATOR);
  
     arc_right = lv_arc_create(bg01);
@@ -208,7 +209,7 @@ void meter_sec_ui_init(lv_obj_t *par)
 	lv_obj_set_style_arc_rounded(arc_right, 0, LV_PART_INDICATOR);
 	lv_obj_set_style_arc_opa(arc_right, 0, LV_PART_MAIN);
 	// lv_obj_set_style_arc_img_src(arc_right, LVGL_PATH2(icon05.png), LV_PART_INDICATOR);
-	lv_obj_set_style_arc_img_src(arc_right, &icon05, LV_PART_INDICATOR);
+	lv_obj_set_style_arc_img_src(arc_right, _icon05, LV_PART_INDICATOR);
 	lv_obj_set_style_arc_opa(arc_right, 255, LV_PART_INDICATOR);
 
 

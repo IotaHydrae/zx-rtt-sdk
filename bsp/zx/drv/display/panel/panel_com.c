@@ -235,7 +235,16 @@ void panel_get_gpio(struct gpio_desc *desc, char *name)
 {
     long pin;
 
+    if (!desc || !name) {
+        pr_err("Invalid parameter\n");
+        return;
+    }
+
     pin = hal_gpio_name2pin(name);
+    if (pin < 0) {
+        pr_err("Failed to get GPIO %s\n", name);
+        return;
+    }
 
     desc->g = GPIO_GROUP(pin);
     desc->p = GPIO_GROUP_PIN(pin);
@@ -245,6 +254,11 @@ void panel_get_gpio(struct gpio_desc *desc, char *name)
 
 void panel_gpio_set_value(struct gpio_desc *desc, u32 value)
 {
+    if (!desc) {
+        pr_err("Invalid parameter\n");
+        return;
+    }
+
     if (value)
         hal_gpio_set_output(desc->g, desc->p);
     else

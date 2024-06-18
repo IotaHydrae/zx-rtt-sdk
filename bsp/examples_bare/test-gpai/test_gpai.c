@@ -111,7 +111,7 @@ struct aic_gpai_ch aic_gpai_chs[] = {
 #endif
 };
 
-/* The default voltages are set to D21x->3.0V, D31x->2.5V */
+/* The default voltages are set to M4->3.0V, M3->2.5V */
 #define AIC_GPAI_DEFAULT_VOLTAGE        3
 #define AIC_GPAI_ADC_MAX_VAL            0xFFF
 #define AIC_GPAI_VOLTAGE_ACCURACY       10000

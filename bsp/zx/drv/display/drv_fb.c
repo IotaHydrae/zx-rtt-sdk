@@ -33,12 +33,12 @@ struct aicfb_info
     struct rt_device device;
 #endif
 
-    u32 width;
-    u32 height;
-
+    bool power_on;
     u32 fb_rotate;
 
     void *fb_start;
+    u32 width;
+    u32 height;
     u32 stride;
     size_t fb_size;
     u32 bits_per_pixel;
@@ -46,6 +46,8 @@ struct aicfb_info
 
 static void aicfb_enable_clk(struct aicfb_info *fbi, u32 on);
 static void aicfb_enable_panel(struct aicfb_info *fbi, u32 on);
+static void aicfb_get_panel_info(struct aicfb_info *fbi);
+static void aicfb_fb_info_setup(struct aicfb_info *fbi);
 
 static struct aicfb_info *g_aicfb_info;
 static bool aicfb_probed = false;
@@ -60,6 +62,7 @@ static inline void aicfb_set_drvdata(struct aicfb_info *fbi)
     g_aicfb_info = fbi;
 }
 
+#ifndef AIC_MPP_VIN_DEV
 static void *aicfb_malloc_align(size_t size, size_t align)
 {
     size_t fb_size;
@@ -75,6 +78,7 @@ static void *aicfb_malloc_align(size_t size, size_t align)
 
     return (void *)ALIGN_UP((uintptr_t)fb_start, align);
 }
+#endif
 
 #ifdef AIC_FB_ROTATE_EN
 static int aicfb_rotate(struct aicfb_info *fbi, struct aicfb_layer_data *layer,
@@ -151,6 +155,129 @@ static int aicfb_pan_display(struct aicfb_info *fbi, u32 buf_id)
     return 0;
 }
 
+static void aicfb_reset(struct aicfb_info *fbi)
+{
+    struct aicfb_layer_data layer = {0};
+    struct platform_driver *de = fbi->de;
+    struct aic_panel *panel = fbi->panel;
+
+    aicfb_get_panel_info(fbi);
+    aicfb_fb_info_setup(fbi);
+    aicfb_enable_panel(fbi, AICFB_OFF);
+
+    layer.layer_id = AICFB_LAYER_TYPE_UI;
+    layer.rect_id = 0;
+    de->de_funcs->get_layer_config(&layer);
+
+    layer.enable = 0;
+    de->de_funcs->update_layer_config(&layer);
+    aicfb_enable_clk(fbi, AICFB_OFF);
+
+    aic_delay_ms(20);
+
+    aicfb_enable_clk(fbi, AICFB_ON);
+
+    layer.enable = 1;
+    layer.rect_id = 0;
+    layer.buf.size.width = panel->timings->hactive;
+    layer.buf.size.height = panel->timings->vactive;
+    layer.buf.stride[0] = fbi->stride;
+    de->de_funcs->update_layer_config(&layer);
+    aicfb_enable_panel(fbi, AICFB_ON);
+}
+
+static void
+aicfb_pq_set_config(struct aicfb_info *fbi, struct aicfb_pq_config *config)
+{
+    struct aic_panel *panel = fbi->panel;
+
+    switch (panel->connector_type)
+    {
+    case AIC_RGB_COM:
+        memcpy(panel->rgb, config->data, sizeof(struct panel_rgb));
+        break;
+    case AIC_LVDS_COM:
+        memcpy(panel->lvds, config->data, sizeof(struct panel_lvds));
+        break;
+    case AIC_MIPI_COM:
+    {
+        struct panel_dsi *dsi = config->data;
+
+#define MIPI_DSI_DISABLE_COMMAND 0
+#define MIPI_DSI_UPDATE_COMMAND  1
+#define MIPI_DSI_SEND_COMMAND    2
+
+        if (dsi->command.command_on == MIPI_DSI_UPDATE_COMMAND)
+        {
+
+            if (!panel->dsi->command.buf)
+                panel->dsi->command.buf = aicos_malloc(MEM_CMA, 4096);
+
+            panel->dsi->command.command_on = 1;
+            panel->dsi->command.len = dsi->command.len;
+            memcpy(panel->dsi->command.buf, dsi->command.buf, dsi->command.len);
+
+            return;
+        }
+        if (dsi->command.command_on == MIPI_DSI_DISABLE_COMMAND)
+        {
+            panel->dsi->command.command_on = 0;
+            return;
+        }
+        else
+        {
+            panel->dsi->mode      = dsi->mode;
+            panel->dsi->format    = dsi->format;
+            panel->dsi->lane_num  = dsi->lane_num;
+            panel->dsi->dc_inv    = dsi->dc_inv;
+            panel->dsi->vc_num    = dsi->vc_num;
+            panel->dsi->ln_polrs  = dsi->ln_polrs;
+            panel->dsi->ln_assign = dsi->ln_assign;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    memcpy(panel->timings, config->timing, sizeof(struct display_timing));
+
+    aicfb_reset(fbi);
+}
+
+static void
+aicfb_pq_get_config(struct aicfb_info *fbi, struct aicfb_pq_config *config)
+{
+        memcpy(config->timing, fbi->panel->timings, sizeof(struct display_timing));
+
+        if (config->connector_type != fbi->panel->connector_type)
+            return;
+
+        switch (fbi->panel->connector_type)
+        {
+        case AIC_RGB_COM:
+            memcpy(config->data, fbi->panel->rgb, sizeof(struct panel_rgb));
+            break;
+        case AIC_LVDS_COM:
+            memcpy(config->data, fbi->panel->lvds, sizeof(struct panel_lvds));
+            break;
+        case AIC_MIPI_COM:
+        {
+            struct panel_dsi *dsi = config->data;
+
+            dsi->mode      = fbi->panel->dsi->mode;
+            dsi->format    = fbi->panel->dsi->format;
+            dsi->lane_num  = fbi->panel->dsi->lane_num;
+            dsi->dc_inv    = fbi->panel->dsi->dc_inv;
+            dsi->vc_num    = fbi->panel->dsi->vc_num;
+            dsi->ln_polrs  = fbi->panel->dsi->ln_polrs;
+            dsi->ln_assign = fbi->panel->dsi->ln_assign;
+        }
+            break;
+        default:
+            break;
+        }
+}
+
 int aicfb_ioctl(int cmd, void *args)
 {
     struct aicfb_info *fbi = aicfb_get_drvdata();
@@ -192,6 +319,9 @@ int aicfb_ioctl(int cmd, void *args)
         struct aicfb_layer_data layer = {0};
         struct platform_driver *de = fbi->de;
 
+        if (fbi->power_on)
+            break;
+
         aicfb_enable_clk(fbi, AICFB_ON);
 
         layer.layer_id = AICFB_LAYER_TYPE_UI;
@@ -202,12 +332,16 @@ int aicfb_ioctl(int cmd, void *args)
         de->de_funcs->update_layer_config(&layer);
 
         aicfb_enable_panel(fbi, AICFB_ON);
+        fbi->power_on = true;
         break;
     }
     case AICFB_POWEROFF:
     {
         struct aicfb_layer_data layer = {0};
         struct platform_driver *de = fbi->de;
+
+        if (!fbi->power_on)
+            break;
 
         aicfb_enable_panel(fbi, AICFB_OFF);
 
@@ -219,6 +353,7 @@ int aicfb_ioctl(int cmd, void *args)
         de->de_funcs->update_layer_config(&layer);
 
         aicfb_enable_clk(fbi, AICFB_OFF);
+        fbi->power_on = false;
         break;
     }
     case AICFB_GET_LAYER_CONFIG:
@@ -260,15 +395,29 @@ int aicfb_ioctl(int cmd, void *args)
     case AICFB_GET_CCM_CONFIG:
         return fbi->de->de_funcs->get_ccm_config(args);
 
-    case AICFB_SET_CCM_CONFIG:
+    case AICFB_UPDATE_CCM_CONFIG:
         return fbi->de->de_funcs->set_ccm_config(args);
 
-    case AICFB_SET_GAMMA_CONFIG:
+    case AICFB_UPDATE_GAMMA_CONFIG:
         return fbi->de->de_funcs->set_gamma_config(args);
 
     case AICFB_GET_GAMMA_CONFIG:
         return fbi->de->de_funcs->get_gamma_config(args);
 
+    case AICFB_PQ_SET_CONFIG:
+    {
+        struct aicfb_pq_config *config = args;
+
+        aicfb_pq_set_config(fbi, config);
+        break;
+    }
+    case AICFB_PQ_GET_CONFIG:
+    {
+        struct aicfb_pq_config *config = args;
+
+        aicfb_pq_get_config(fbi, config);
+        break;
+    }
     default:
         pr_err("Invalid ioctl cmd %#x\n", cmd);
         return -EINVAL;
@@ -778,7 +927,9 @@ static inline size_t aicfb_calc_fb_size(struct aicfb_info *fbi)
 int aicfb_probe(void)
 {
     struct aicfb_info *fbi;
+#ifndef AIC_MPP_VIN_DEV
     size_t fb_size;
+#endif
     int ret = -EINVAL;
 
     if (aicfb_probed)
@@ -814,6 +965,7 @@ int aicfb_probe(void)
 
     aicfb_fb_info_setup(fbi);
 
+#ifndef AIC_MPP_VIN_DEV
     fb_size = aicfb_calc_fb_size(fbi);
     /* fb_start must be cache line align */
     fbi->fb_start = aicfb_malloc_align(fb_size, CACHE_LINE_SIZE);
@@ -823,6 +975,7 @@ int aicfb_probe(void)
         goto err;
     }
     pr_info("fb0 allocated at 0x%x\n", (u32)(uintptr_t)fbi->fb_start);
+#endif
 
     fb_color_block(fbi);
 
@@ -836,12 +989,14 @@ int aicfb_probe(void)
 #endif
 
     aicfb_probed = true;
+    fbi->power_on = false;
     aicfb_set_drvdata(fbi);
 
     aicfb_enable_clk(fbi, AICFB_ON);
     aicfb_update_alpha(fbi);
     aicfb_update_layer(fbi);
 #if defined(AIC_DISP_COLOR_BLOCK)
+    fbi->power_on = true;
     aicfb_enable_panel(fbi, AICFB_ON);
 #endif
     return 0;
@@ -850,7 +1005,7 @@ err:
     free(fbi);
     return ret;
 }
-#if defined(KERNEL_RTTHREAD)
+#if defined(KERNEL_RTTHREAD) && !defined(AIC_MPP_VIN_DEV)
 INIT_DEVICE_EXPORT(aicfb_probe);
 #endif
 

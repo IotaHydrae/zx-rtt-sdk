@@ -1,7 +1,4 @@
 /*
-* Copyright (C) 2020-2022 Artinchip Technology Co. Ltd
-*
-*  author: <qi.xu@artinchip.com>
 *  Desc: jpeg/png decode demo
 */
 

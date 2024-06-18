@@ -27,6 +27,8 @@ source "packages/third-party/blobmsg/Kconfig"
 source "packages/third-party/lzma/Kconfig"
 source "packages/third-party/mini_gzip/Kconfig"
 source "packages/third-party/zx_button/Kconfig"
+source "packages/third-party/mbedtls/Kconfig"
+source "packages/third-party/libmodbus/Kconfig"
 
 # for baremetal mode
 source "packages/third-party/dfs/Kconfig"

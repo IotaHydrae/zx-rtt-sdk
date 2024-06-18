@@ -1,5 +1,4 @@
 /*
- *
  * SPDX-License-Identifier: Apache-2.0
  *
  */
@@ -15,7 +14,8 @@
 #include "zx_fb.h"
 #include "mpp_fb.h"
 
-#define BLENDING_BG_COLOR   0x18a00100
+#define UI_BG_COLOR         0x18a000a8
+#define UI_FG_CTRL          0x18a000b0
 #define DE_CONFIG_UPDATE    0x18a00008
 
 #define BG_BLUE_MASK        GENMASK(7, 0)
@@ -28,7 +28,7 @@
 
 static inline void bg_update_bits(unsigned int mask, unsigned int value)
 {
-    void *base = (void *)BLENDING_BG_COLOR;
+    void *base = (void *)UI_BG_COLOR;
     void *update = (void *)DE_CONFIG_UPDATE;
     unsigned int tmp, orig;
 
@@ -38,6 +38,15 @@ static inline void bg_update_bits(unsigned int mask, unsigned int value)
     tmp |= value & mask;
 
     writel(tmp, base);
+    writel(1, update);
+}
+
+static inline void fg_color_disable(void)
+{
+    void *base = (void *)UI_FG_CTRL;
+    void *update = (void *)DE_CONFIG_UPDATE;
+
+    writel(0, base);
     writel(1, update);
 }
 
@@ -59,7 +68,6 @@ static void usage(char *app)
     printf("Usage: %s [Options], built on %s %s\n", app, __DATE__, __TIME__);
     printf("\t-m, --mode, ");
     printf("\t0(default): disable background color, 1: enable background color");
-    printf("\t-c, --ccm \n");
     printf("\t-r, --red \n");
     printf("\t-g, --green \n");
     printf("\t-b, --blue \n");
@@ -142,23 +150,25 @@ static int background_color_test(int argc, char **argv)
         }
     }
 
-    layer.layer_id = AICFB_LAYER_TYPE_UI;
-    layer.rect_id = 0;
-    mpp_fb_ioctl(fb, AICFB_GET_LAYER_CONFIG, &layer);
-
     switch (mode) {
     case 0:
+    {
+        /* enable fg color */
+        layer.layer_id = AICFB_LAYER_TYPE_UI;
+        layer.rect_id = 0;
+        mpp_fb_ioctl(fb, AICFB_GET_LAYER_CONFIG, &layer);
+
         layer.enable = 1;
+        mpp_fb_ioctl(fb, AICFB_UPDATE_LAYER_CONFIG, &layer);
         break;
+    }
     case 1:
-        layer.enable = 0;
+        fg_color_disable();
         break;
     default:
         printf("Invalid mode: %d\n", mode);
         break;
     }
-
-    mpp_fb_ioctl(fb, AICFB_UPDATE_LAYER_CONFIG, &layer);
 
     mpp_fb_close(fb);
     return 0;

@@ -50,6 +50,14 @@ static const struct gpio_info pinmux_list[] = {
     {'E',   4,      18},
     {'U',   14,     2},
 };
+#elif defined(AIC_CHIP_M3C) || defined(AIC_CHIP_M3A)
+static const struct gpio_info pinmux_list[] = {
+    {'A',   0,      12},
+    {'B',   1,      18},
+    {'C',   2,      8},
+    {'D',   3,      28},
+    {'E',   4,      14},
+};
 #else
 static const struct gpio_info pinmux_list[] = {
     {'A',   0,      12},

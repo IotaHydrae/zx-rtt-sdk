@@ -133,5 +133,10 @@ source "application/os/meter_demo/Kconfig"
 source "application/os/base_demo/Kconfig"
 source "application/os/wft_longxin/Kconfig"
 source "application/os/m3a7d0_demo/Kconfig"
+source "application/os/m3c3d10_demo/Kconfig"
+
+source "application/os/ZX2D4_demo/Kconfig"
+source "application/os/de_cache/Kconfig"
+
 
 endmenu

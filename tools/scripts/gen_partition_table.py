@@ -9,6 +9,7 @@ from collections import OrderedDict
 
 VERBOSE = False
 
+
 def parse_image_cfg(cfgfile):
     """ Load image configuration file
     Args:
@@ -31,6 +32,7 @@ def parse_image_cfg(cfgfile):
         cfg = json.loads(jsonstr, object_pairs_hook=OrderedDict)
     return cfg
 
+
 def size_str_to_int(size_str):
     if "k" in size_str or "K" in size_str:
         numstr = re.sub(r"[^0-9]", "", size_str)
@@ -46,6 +48,7 @@ def size_str_to_int(size_str):
     if "-" in size_str:
         return 0
     return int(size_str, 10)
+
 
 def aic_create_parts_json(cfg):
     mtd = ""

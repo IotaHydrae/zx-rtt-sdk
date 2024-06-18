@@ -38,7 +38,7 @@ typedef struct AUDIO_RENDER_IN_FRAME {
 }AUDIO_RENDER_IN_FRAME;
 
 #define AUDIO_RENDER_FRAME_NUM_MAX 16
-#define AUDIO_RENDER_FRAME_ONE_TIME_CREATE_NUM 4
+#define AUDIO_RENDER_FRAME_ONE_TIME_CREATE_NUM 2
 
 #define AUDIO_RENDER_INPORT_FRAME_END_FLAG  0x01 //inprot stream end
 
@@ -107,6 +107,8 @@ typedef struct AUDIO_RENDER_DATA_TYPE {
 #endif
 
     OMX_S32 nWaitReayFrameFlag;
+
+    AUDIO_RENDER_IN_FRAME * pInFrameNodeHead;
 
 }AUDIO_RENDER_DATA_TYPE;
 #endif

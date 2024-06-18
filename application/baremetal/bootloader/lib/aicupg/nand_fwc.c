@@ -11,6 +11,7 @@
 #include <aic_common.h>
 #include "upg_internal.h"
 #include "nand_fwc_spl.h"
+#include <spienc.h>
 
 #ifdef AIC_NFTL_SUPPORT
 #include <nftl_api.h>
@@ -115,6 +116,9 @@ s32 nand_fwc_prepare(struct fwc_info *fwc, u32 id)
         return -1;
     }
 
+#ifdef AIC_SPIENC_BYPASS_IN_UPGMODE
+        spienc_set_bypass(1);
+#endif
     return 0;
 }
 
@@ -149,13 +153,13 @@ void nand_fwc_start(struct fwc_info *fwc)
         fwc->block_size = priv->mtd[0]->writesize;
     }
     if (strstr(fwc->meta.name, "target.spl")) {
-        ret = nand_fwc_spl_reserve_blocks(fwc);
+        ret = nand_fwc_spl_reserve_blocks(fwc->priv);
         if (ret) {
             pr_err("Reserve blocks for SPL failed.\n");
             goto out;
         }
 
-        ret = nand_fwc_spl_prepare(fwc);
+        ret = nand_fwc_spl_prepare(fwc->priv, fwc->meta.size, fwc->block_size);
         if (ret) {
             pr_err("Prepare to write SPL failed.\n");
             goto out;
@@ -198,7 +202,7 @@ s32 nand_fwc_uffs_write(struct fwc_info *fwc, u8 *buf, s32 len)
     int total_len = 0, remain_offset = 0;
     u8 *wbuf = NULL, *pbuf = NULL;
 
-    wbuf = malloc(ROUNDUP(len, fwc->block_size));
+    wbuf = aicos_malloc_align(0, ROUNDUP(len, fwc->block_size), CACHE_LINE_SIZE);
     if (!wbuf) {
         pr_err("malloc failed.\n");
         return 0;
@@ -285,13 +289,13 @@ s32 nand_fwc_uffs_write(struct fwc_info *fwc, u8 *buf, s32 len)
 
     pr_debug("%s, data len %d, trans len %d\n", __func__, len, fwc->trans_size);
 
-    free(wbuf);
+    aicos_free_align(0, wbuf);
 
     return len;
 
 out:
     if (wbuf)
-        free(wbuf);
+        aicos_free_align(0, wbuf);
 
     return ret;
 }
@@ -427,7 +431,7 @@ s32 nand_fwc_data_write(struct fwc_info *fwc, u8 *buf, s32 len)
     } else if (aicupg_get_fwc_attr(fwc) & FWC_ATTR_DEV_MTD) {
         priv = (struct aicupg_nand_priv *)fwc->priv;
         if (priv->spl_flag)
-            len = nand_fwc_spl_write(fwc, buf, len);
+            len = nand_fwc_spl_write(fwc->meta.size, buf, len);
         else
             len = nand_fwc_mtd_write(fwc, buf, len);
     } else {

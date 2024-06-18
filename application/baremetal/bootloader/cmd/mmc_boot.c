@@ -15,10 +15,30 @@
 #include <mmc.h>
 #include <image.h>
 #include <boot.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include "fitimage.h"
 
 #define APPLICATION_PART "os"
+
+#ifdef AIC_AB_SYSTEM_INTERFACE
+#include <absystem.h>
+
+char target[32] = { 0 };
+#endif
+
+static struct aic_partition *find_boot_part(struct aic_partition *part, char *name)
+{
+    struct aic_partition *p = part;
+
+    while (p) {
+        if (!strcmp(p->name, name))
+            break;
+
+        p = p->next;
+    }
+
+    return p;
+}
 
 static int do_mmc_boot(int argc, char *argv[])
 {
@@ -55,12 +75,27 @@ static int do_mmc_boot(int argc, char *argv[])
     }
 
     part = parts;
-    while (part) {
-        if (!strcmp(part->name, APPLICATION_PART))
-            break;
 
-        part = part->next;
+#ifdef AIC_AB_SYSTEM_INTERFACE
+    ret = aic_ota_check();
+    if (ret) {
+        printf("Aic ota check error.\n");
     }
+
+    ret = aic_get_os_to_startup(target);
+    if (ret) {
+        printf("Aic get os fail, startup from %s default.\n", APPLICATION_PART);
+
+        part = find_boot_part(part, APPLICATION_PART);
+
+    } else {
+        part = find_boot_part(part, target);
+
+        printf("Start-up from %s\n", target);
+    }
+#else
+        part = find_boot_part(part, APPLICATION_PART);
+#endif
 
     if (!part) {
         printf("Failed to get application partition.\n");
@@ -72,6 +107,7 @@ static int do_mmc_boot(int argc, char *argv[])
     info.dev_type = DEVICE_MMC;
     info.bl_len = MMC_BLOCK_SIZE;
 
+    entry_point = 0;
     ret = spl_load_simple_fit(&info, &entry_point);
     if (ret < 0)
         goto out;

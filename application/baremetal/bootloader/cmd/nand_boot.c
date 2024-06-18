@@ -16,7 +16,7 @@
 #include <mtd.h>
 #include <image.h>
 #include <boot.h>
-#include <hexdump.h>
+#include <aic_utils.h>
 #include "fitimage.h"
 
 #define APPLICATION_PART "os"
@@ -64,6 +64,7 @@ static int do_nand_boot(int argc, char *argv[])
     info.bl_len = mtd->writesize;
     info.dev_type = DEVICE_SPINAND;
 
+    entry_point = 0;
     ret = spl_load_simple_fit(&info, &entry_point);
     if (ret < 0)
         goto out;
