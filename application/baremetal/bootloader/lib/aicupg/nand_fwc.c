@@ -140,6 +140,7 @@ void nand_fwc_start(struct fwc_info *fwc)
     }
     memset(priv, 0, sizeof(struct aicupg_nand_priv));
     fwc->priv = priv;
+    priv->remain_len = fwc->meta.size;
 
     ret = nand_fwc_get_mtd_partitions(fwc, priv);
     if (ret) {
@@ -318,46 +319,132 @@ s32 nand_fwc_mtd_write(struct fwc_info *fwc, u8 *buf, s32 len)
             pr_err("Not enough space to write mtd %s\n", mtd->name);
             return 0;
         }
-
-        /* erase 1 sector when offset+len more than erased address */
+        pr_debug("\n ===%s, %d, mtd: %s, len:%u, remain_len: %u\n", __func__, __LINE__, mtd->name, len, priv->remain_len);
+        u32 dolen = mtd->erasesize;
+        u32 count = len / mtd->erasesize;
+        int j = 0;
+        /* Len is lager than block size, handle the aligned part. */
         erase_offset = priv->erase_offset[i];
-        while ((offset + len) > erase_offset) {
-            if (mtd_block_isbad(mtd, erase_offset)) {
-                pr_err("Erase block is bad, skip it.\n");
-                priv->erase_offset[i] = erase_offset + mtd->erasesize;
-                erase_offset = priv->erase_offset[i];
-                continue;
-            }
-
-            ret = mtd_erase(mtd, erase_offset, ROUNDUP(len, mtd->erasesize));
+        if (len > mtd->erasesize) {
+        for (j = 0; j < count; j++) {
+erase_err:
+            ret = mtd_erase(mtd, erase_offset, ROUNDUP(dolen, mtd->erasesize));
             if (ret) {
                 pr_err("Erase block is bad, mark it.\n");
                 ret = mtd_block_markbad(mtd, erase_offset);
                 if (ret)
                     pr_err("Mark block is bad.\n");
-
-                continue;
+                priv->erase_offset[i] += mtd->erasesize;
+                erase_offset += mtd->erasesize;
+                goto erase_err;
             }
-            priv->erase_offset[i] = erase_offset + ROUNDUP(len, mtd->erasesize);
-            erase_offset = priv->erase_offset[i];
+
+            /* Check block before write. */
+            if (mtd_block_isbad(mtd, erase_offset)) {
+                pr_err("Check block is bad, !!! unexecpt happened. !!!\n");
+                priv->erase_offset[i] += mtd->erasesize;
+                erase_offset += mtd->erasesize;
+                goto erase_err;
+            }
+            offset = erase_offset;
+            ret = mtd_write(mtd, offset, buf, dolen);
+            if (ret) {
+                pr_err("Write mtd %s block error, mark it.\n", mtd->name);
+                ret = mtd_block_markbad(mtd, offset);
+                if (ret)
+                    pr_err("Mark block is bad.\n");
+            }
+            buf += dolen;
+            priv->erase_offset[i] += mtd->erasesize;
+            erase_offset += mtd->erasesize;
+            priv->start_offset[i] = offset + dolen;
+            priv->remain_len -= dolen;
+        }
         }
 
-        if (mtd_block_isbad(mtd, erase_offset)) {
-            pr_err(" Write block is bad, skip it.\n");
-            priv->start_offset[i] = offset + mtd->erasesize;
+        /* Handle the part out of aligned. */
+        if (len % mtd->erasesize && (priv->remain_len == len)) {
+            pr_debug("%d== priv->erase_offset[i]: %lu, priv->start_offset[i]: %lu\n",__LINE__ , priv->erase_offset[i], priv->start_offset[i]);
+            dolen = len - (count * mtd->erasesize);
+            if (priv->start_offset[i] % mtd->erasesize == 0) {
+                /* Erase the block, before write it. */
+erase_err1:
+                ret = mtd_erase(mtd, erase_offset, ROUNDUP(dolen, mtd->erasesize));
+                if (ret) {
+                    pr_err("Erase block is bad, mark it.\n");
+                    ret = mtd_block_markbad(mtd, erase_offset);
+                    if (ret)
+                        pr_err("Mark block is bad.\n");
+                    priv->erase_offset[i] += mtd->erasesize;
+                    erase_offset += mtd->erasesize;
+                    goto erase_err1;
+                }
+
+                /* Check the block before write it. */
+                if (mtd_block_isbad(mtd, erase_offset)) {
+                    pr_err("Check block is bad, !!! unexecpt happened. !!!\n");
+                    priv->erase_offset[i] += mtd->erasesize;
+                    erase_offset += mtd->erasesize;
+                    goto erase_err1;
+                }
+            }
             offset = priv->start_offset[i];
-        }
+            ret = mtd_write(mtd, offset, buf, dolen);
+            if (ret) {
+                pr_err("Write mtd %s block error, mark it.\n", mtd->name);
+                ret = mtd_block_markbad(mtd, offset);
+                if (ret)
+                    pr_err("Mark block is bad.\n");
+            }
+            buf += dolen;
+            priv->erase_offset[i] += mtd->erasesize;
+            erase_offset += mtd->erasesize;
+            priv->start_offset[i] = offset + dolen;
+            priv->remain_len -= dolen;
+        } else if (len % mtd->erasesize && (priv->remain_len != len)) {
+            /* data len is not enough a blocksize */
+            dolen = len;
+            pr_debug("priv->erase_offset: %lu, priv->start_offset: %lu\n", priv->erase_offset[i], priv->start_offset[i]);
+            if (priv->start_offset[i] % mtd->erasesize == 0) {
+                /* Erase the block, before write it. */
+erase_err2:
+                ret = mtd_erase(mtd, erase_offset, mtd->erasesize);
+                if (ret) {
+                    pr_err("Erase block is bad, mark it.\n");
+                    ret = mtd_block_markbad(mtd, erase_offset);
+                    if (ret)
+                        pr_err("Mark block is bad.\n");
+                    priv->erase_offset[i] += mtd->erasesize;
+                    erase_offset += mtd->erasesize;
+                    priv->start_offset[i] += mtd->erasesize;
+                    goto erase_err2;
+                }
 
-        ret = mtd_write(mtd, offset, buf, len);
-        if (ret) {
-            pr_err("Write mtd %s block error, mark it.\n", mtd->name);
-            ret = mtd_block_markbad(mtd, erase_offset);
-            if (ret)
-                pr_err("Mark block is bad.\n");
-
-            continue;
+                /* Check the block before write it. */
+                if (mtd_block_isbad(mtd, erase_offset)) {
+                    pr_err("Check block is bad, !!! Unexecpt happened. !!!\n");
+                    priv->erase_offset[i] += mtd->erasesize;
+                    erase_offset += mtd->erasesize;
+                    priv->start_offset[i] += mtd->erasesize;
+                    goto erase_err2;
+                }
+                erase_offset += mtd->erasesize;
+                priv->erase_offset[i] += mtd->erasesize;
+            }
+            offset = priv->start_offset[i];
+            ret = mtd_write(mtd, offset, buf, dolen);
+            if (ret) {
+                pr_err("Write mtd %s block error, mark it.\n", mtd->name);
+                ret = mtd_block_markbad(mtd, offset);
+                if (ret)
+                    pr_err("Mark block is bad.\n");
+            }
+            buf += dolen;
+            priv->start_offset[i] = offset + dolen;
+            priv->remain_len -= dolen;
+        } else {
+            pr_err("!!! Unexpect happen! No handle.\n");
         }
-        priv->start_offset[i] = offset + len;
     }
 
     pr_debug("%s, data len %d, trans len %d\n", __func__, len, fwc->trans_size);

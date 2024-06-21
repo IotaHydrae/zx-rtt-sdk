@@ -43,12 +43,16 @@ static void trans_send_csw(struct phy_data_rw *rw, u32 tag, u8 status, u32 rest)
 }
 
 /* All income should start with CBW packet */
+u32 g_time = 0;
 s32 trans_layer_rw_proc(struct phy_data_rw *rw, u8 *buffer, u32 len)
 {
     struct aic_cbw cbw;
     u32 data_len, retlen, total, rest, slice;
     u8 status;
 
+    if (g_time < 5)
+        printf("%s, %d, len: %u\n", __func__, __LINE__, len);
+    g_time++;
     if (len != sizeof(struct aic_cbw)) {
         pr_err("length != 31, len = 0x%X\n", len);
         /* Status error or CBW not valid, just skip pakcet here */
@@ -81,6 +85,8 @@ s32 trans_layer_rw_proc(struct phy_data_rw *rw, u8 *buffer, u32 len)
     pr_debug("\nCBW tag 0x%X\n", cbw.dCBWTag);
     switch (cbw.bCommand) {
         case TRANS_LAYER_CMD_WRITE:
+            if (g_time < 5)
+                printf("%s, %d, CMD write\n", __func__, __LINE__);
             data_len = cbw.dCBWDataTransferLength;
             pr_debug("TRANS_LAYER_CMD_WRITE, data len %d\n", data_len);
             if (cbw.bmCBWFlags != 0) {
@@ -115,6 +121,8 @@ s32 trans_layer_rw_proc(struct phy_data_rw *rw, u8 *buffer, u32 len)
 
             break;
         case TRANS_LAYER_CMD_READ:
+            if (g_time < 5)
+                printf("%s, %d, CMD read\n", __func__, __LINE__);
             data_len = cbw.dCBWDataTransferLength;
             pr_debug("TRANS_LAYER_CMD_READ, data len %d\n", data_len);
             if ((cbw.bmCBWFlags != 0x80)) {

@@ -314,6 +314,53 @@ static rt_err_t spinand_mtd_block_markbad(struct rt_mtd_nand_device *device,
     return result;
 }
 
+static rt_uint32_t spinand_get_block_status(struct rt_mtd_nand_device *device,
+                                          rt_uint32_t block)
+{
+    rt_uint32_t result = RT_EOK;
+    struct aic_spinand *flash = (struct aic_spinand *)device->priv;
+
+    RT_ASSERT(device != RT_NULL);
+
+    if (block > device->block_end) {
+        pr_err("[Error] block:%d\n", block);
+        return -RT_MTD_EIO;
+    }
+
+    result = rt_mutex_take(flash->lock, RT_WAITING_FOREVER);
+    RT_ASSERT(result == RT_EOK);
+
+    result = spinand_block_status(flash, block);
+
+    rt_mutex_release(flash->lock);
+
+    return result;
+}
+
+static rt_err_t spinand_set_block_status(struct rt_mtd_nand_device *device,
+                                          rt_uint32_t block, rt_uint32_t block_pos,
+                                          rt_uint32_t status)
+{
+    rt_err_t result = RT_EOK;
+    struct aic_spinand *flash = (struct aic_spinand *)device->priv;
+
+    RT_ASSERT(device != RT_NULL);
+
+    if (block > device->block_end) {
+        pr_err("[Error] block:%d\n", block);
+        return -RT_MTD_EIO;
+    }
+
+    result = rt_mutex_take(flash->lock, RT_WAITING_FOREVER);
+    RT_ASSERT(result == RT_EOK);
+
+    result = spinand_set_block(flash, block, block_pos, status);
+
+    rt_mutex_release(flash->lock);
+
+    return result;
+}
+
 static int nand_read_data(void *dev, unsigned long offset, void *buf,
                           unsigned long len)
 {
@@ -354,7 +401,8 @@ static struct rt_mtd_nand_driver_ops spinand_ops = {
     spinand_read_id,           spinand_mtd_read,
     spinand_mtd_write,         NULL,
     spinand_mtd_erase,         spinand_mtd_block_isbad,
-    spinand_mtd_block_markbad, spinand_mtd_continuous_read
+    spinand_mtd_block_markbad, spinand_mtd_continuous_read,
+    spinand_set_block_status, spinand_get_block_status
 };
 
 rt_err_t rt_hw_mtd_spinand_init(struct aic_spinand *flash)

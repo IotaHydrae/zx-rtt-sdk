@@ -164,6 +164,8 @@ static int mtd_spinand_block_markbad(struct mtd_dev *mtd, u32 offset)
     err = spinand_block_markbad(flash, blk);
     if (err != 0) {
         pr_err("Mark badblock %d failed.\n", blk);
+    } else {
+        pr_info("Mark badblock %d succeed.\n", blk);
     }
     return err;
 }

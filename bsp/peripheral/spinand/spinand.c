@@ -1,5 +1,3 @@
-
-
 #include <rtconfig.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -684,31 +682,33 @@ bool spinand_isbad(struct aic_spinand *flash, u16 blk)
 
 int spinand_block_isbad(struct aic_spinand *flash, u16 blk)
 {
-    int status;
-
     if (!flash) {
         pr_err("flash is NULL\r\n");
         return -SPINAND_ERR;
     }
 
-    if (nand_bbt_is_initialized(flash)) {
-        status = nand_bbt_get_block_status(flash, blk);
-        if (status == NAND_BBT_BLOCK_STATUS_UNKNOWN) {
-            if (spinand_isbad(flash, blk))
-                status = NAND_BBT_BLOCK_FACTORY_BAD;
-            else
-                status = NAND_BBT_BLOCK_GOOD;
+    return spinand_isbad(flash, blk);
+}
 
-            nand_bbt_set_block_status(flash, blk, status);
-        }
-
-        if (status == NAND_BBT_BLOCK_FACTORY_BAD)
-            return true;
-
-        return false;
+int spinand_block_status(struct aic_spinand *flash, u16 blk)
+{
+    if (!flash) {
+        pr_err("flash is NULL\r\n");
+        return -SPINAND_ERR;
     }
 
-    return spinand_isbad(flash, blk);
+    return nand_bbt_get_block_status(flash, blk);
+}
+
+int spinand_set_block(struct aic_spinand *flash, u16 blk, u16 pos, u16 status)
+{
+    if (!flash) {
+        pr_err("flash is NULL\r\n");
+        return -SPINAND_ERR;
+    }
+
+    nand_bbt_set_block_status(flash, blk, pos, status);
+    return 0;
 }
 
 #ifdef AIC_SPINAND_CONT_READ
@@ -1054,7 +1054,7 @@ int spinand_erase(struct aic_spinand *flash, u32 offset, u32 size)
 
         err = spinand_block_erase(flash, blk);
         if (err != 0)
-            return err;
+            pr_err("Erase block %u failed, err: %d.\r\n", blk, err);
 
         cnt -= blk_size;
         off += blk_size;
