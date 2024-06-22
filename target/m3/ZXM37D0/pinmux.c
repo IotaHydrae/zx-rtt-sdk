@@ -338,6 +338,7 @@ struct aic_pinmux aic_pinmux_config[] = {
     {2, PIN_PULL_DIS, 3, "PA.10"},
     {2, PIN_PULL_DIS, 3, "PA.11"},
 #endif
+    {1, PIN_PULL_DIS, 3, "PA.10"},
 };
 
 void aic_board_pinmux_init(void)

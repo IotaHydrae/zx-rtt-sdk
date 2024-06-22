@@ -253,6 +253,9 @@ if GetDepend('AIC_PANEL_DSI_JD9365DA'):
 if GetDepend('AIC_PANEL_DSI_EK79007AD'):
     src += Glob('drv/display/panel/panel_dsi_ek79007ad.c')
 
+if GetDepend('AIC_PANEL_DSI_HX8394D'):
+    src += Glob('drv/display/panel/panel_dsi_hx8394d.c')
+
 if GetDepend('AIC_PANEL_DBI_ILI9488'):
     src += Glob('drv/display/panel/panel_dbi_ili9488.c')
 

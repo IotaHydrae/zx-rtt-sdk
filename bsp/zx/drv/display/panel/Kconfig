@@ -33,6 +33,10 @@ menu "Display Panels"
         bool "ZX MIPI DSI ek79007ad panel"
         depends on AIC_DISP_MIPI_DSI
 
+    config AIC_PANEL_DSI_HX8394D
+        bool "ZX MIPI DSI hx8394d panel"
+        depends on AIC_DISP_MIPI_DSI
+
     config AIC_PANEL_DBI_ST7789V
         bool "ZX MIPI DBI st7789v panel"
         depends on AIC_DISP_MIPI_DBI
