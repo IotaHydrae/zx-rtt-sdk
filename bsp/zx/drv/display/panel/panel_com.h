@@ -29,6 +29,7 @@ extern struct aic_panel dsi_ek79007ad;
 extern struct aic_panel dsi_hx8394d;
 extern struct aic_panel dbi_ili9488;
 extern struct aic_panel dbi_st7789v;
+extern struct aic_panel dbi_lg4572b;
 extern struct aic_panel dbi_ili9341;
 extern struct aic_panel dbi_st77903;
 extern struct aic_panel dbi_ili9486l;

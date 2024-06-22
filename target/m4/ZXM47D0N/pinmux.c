@@ -102,6 +102,36 @@ struct aic_pinmux aic_pinmux_config[] = {
     {3, PIN_PULL_DIS, 3, "PB.4"},
     {3, PIN_PULL_DIS, 3, "PB.5"},
 #endif
+#ifdef AIC_DISP_MIPI_DBI
+    {2, PIN_PULL_DIS, 3, "PD.0"},
+    {2, PIN_PULL_DIS, 3, "PD.1"},
+    {2, PIN_PULL_DIS, 3, "PD.2"},
+    {2, PIN_PULL_DIS, 3, "PD.3"},
+    {2, PIN_PULL_DIS, 3, "PD.4"},
+    {2, PIN_PULL_DIS, 3, "PD.5"},
+    {2, PIN_PULL_DIS, 3, "PD.6"},
+    {2, PIN_PULL_DIS, 3, "PD.7"},
+    {2, PIN_PULL_DIS, 3, "PD.8"},
+    {2, PIN_PULL_DIS, 3, "PD.9"},
+    {2, PIN_PULL_DIS, 3, "PD.10"},
+    {2, PIN_PULL_DIS, 3, "PD.11"},
+    {2, PIN_PULL_DIS, 3, "PD.12"},
+    {2, PIN_PULL_DIS, 3, "PD.13"},
+    {2, PIN_PULL_DIS, 3, "PD.14"},
+    {2, PIN_PULL_DIS, 3, "PD.15"},
+    {2, PIN_PULL_DIS, 3, "PD.16"},
+    {2, PIN_PULL_DIS, 3, "PD.17"},
+    {2, PIN_PULL_DIS, 3, "PD.18"},
+    {2, PIN_PULL_DIS, 3, "PD.19"},
+    {2, PIN_PULL_DIS, 3, "PD.20"},
+    {2, PIN_PULL_DIS, 3, "PD.21"},
+    {2, PIN_PULL_DIS, 3, "PD.22"},
+    {2, PIN_PULL_DIS, 3, "PD.23"},
+    {2, PIN_PULL_DIS, 3, "PD.24"},
+    {2, PIN_PULL_DIS, 3, "PD.25"},
+    {2, PIN_PULL_DIS, 3, "PD.26"},
+    {2, PIN_PULL_DIS, 3, "PD.27"},
+#endif
 #ifdef AIC_PRGB_24BIT
     {2, PIN_PULL_DIS, 3, "PD.0"},
     {2, PIN_PULL_DIS, 3, "PD.1"},
@@ -302,6 +332,7 @@ struct aic_pinmux aic_pinmux_config[] = {
     {2, PIN_PULL_DIS, 3, "PA.10"},
     {2, PIN_PULL_DIS, 3, "PA.11"},
 #endif
+    {1, PIN_PULL_DIS, 3, "PF.14"},
 };
 
 void aic_board_pinmux_init(void)
