@@ -1,0 +1,29 @@
+menu "FT6236 touch panel options"
+
+config ZX_TOUCH_PANEL_NAME
+    string "ft6236 name"
+    default "ft6236"
+    depends on ZX_TOUCH_FT6236
+
+config ZX_TOUCH_PANEL_FT6236_I2C_CHA
+    string "ft6236 using i2c channel index"
+    default "i2c0"
+    depends on ZX_TOUCH_FT6236
+
+config ZX_TOUCH_PANEL_FT6236_RST_PIN
+    string "ft6236 reset pin"
+    default "PA.8"
+    depends on ZX_TOUCH_FT6236
+
+config ZX_TOUCH_PANEL_FT6236_INT_PIN
+    string "ft6236 irq pin"
+    default "PA.9"
+    depends on ZX_TOUCH_FT6236
+
+config ZX_TOUCH_PANEL_FT6236_POLLING_PERIOD
+    string "ft6236 polling period"
+    default 10
+    depends on ZX_TOUCH_FT6236
+
+endmenu
+

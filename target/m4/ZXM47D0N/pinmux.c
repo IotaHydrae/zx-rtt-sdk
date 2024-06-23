@@ -74,8 +74,8 @@ struct aic_pinmux aic_pinmux_config[] = {
     {4, PIN_PULL_DIS, 3, "PE.17"},
 #endif
 #ifdef AIC_USING_I2C0
-    {4, PIN_PULL_DIS, 3, "PA.0"}, // SCK
-    {4, PIN_PULL_DIS, 3, "PA.1"}, // SDA
+    {4, PIN_PULL_DIS, 3, "PD.6"}, // SCK
+    {4, PIN_PULL_DIS, 3, "PD.7"}, // SDA
 #endif
 #ifdef AIC_USING_I2C1
     {4, PIN_PULL_DIS, 3, "PD.18"}, // SCK
@@ -90,8 +90,8 @@ struct aic_pinmux aic_pinmux_config[] = {
 #ifdef AIC_USING_I2C3
     {1, PIN_PULL_DIS, 3, "PA.8"},  // RST
     {1, PIN_PULL_DIS, 3, "PA.9"},  // INT
-    {4, PIN_PULL_DIS, 3, "PA.10"}, // SCK
-    {4, PIN_PULL_DIS, 3, "PA.11"}, // SDA
+    {4, PIN_PULL_DIS, 3, "PE.17"}, // SCK
+    {4, PIN_PULL_DIS, 3, "PE.18"}, // SDA
 #endif
 #ifdef AIC_USING_QSPI0
     /* qspi0 */
@@ -109,8 +109,8 @@ struct aic_pinmux aic_pinmux_config[] = {
     {2, PIN_PULL_DIS, 3, "PD.3"},
     {2, PIN_PULL_DIS, 3, "PD.4"},
     {2, PIN_PULL_DIS, 3, "PD.5"},
-    {2, PIN_PULL_DIS, 3, "PD.6"},
-    {2, PIN_PULL_DIS, 3, "PD.7"},
+    // {2, PIN_PULL_DIS, 3, "PD.6"},
+    // {2, PIN_PULL_DIS, 3, "PD.7"},
     {2, PIN_PULL_DIS, 3, "PD.8"},
     {2, PIN_PULL_DIS, 3, "PD.9"},
     {2, PIN_PULL_DIS, 3, "PD.10"},
