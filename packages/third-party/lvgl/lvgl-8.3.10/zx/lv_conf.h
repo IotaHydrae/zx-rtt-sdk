@@ -63,6 +63,18 @@
 #define LV_FONT_MONTSERRAT_40       1
 #endif
 
+#ifdef ZX_MUSIC_DEMO
+#define LV_FONT_MONTSERRAT_12       1
+#define LV_FONT_MONTSERRAT_16       1
+#if LV_USE_DEMO_MUSIC
+    #define LV_DEMO_MUSIC_SQUARE    0
+    #define LV_DEMO_MUSIC_LANDSCAPE 0
+    #define LV_DEMO_MUSIC_ROUND     0
+    #define LV_DEMO_MUSIC_LARGE     0
+    #define LV_DEMO_MUSIC_AUTO_PLAY 1
+#endif
+#endif
+
 #ifdef LPKG_USING_FREETYPE
 /*FreeType library*/
 #define LV_USE_FREETYPE 1

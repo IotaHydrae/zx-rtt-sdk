@@ -1,0 +1,6 @@
+menuconfig ZX_MUSIC_DEMO
+    tristate "ZX lvgl music player demo"
+    select LPKG_USING_LVGL
+    default n
+
+
