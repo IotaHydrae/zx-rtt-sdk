@@ -73,6 +73,7 @@
 #define MTP_RESPONSE_INVALID_STORAGE_ID                    0x2008U
 #define MTP_RESPONSE_INVALID_OBJECT_HANDLE                 0x2009U
 #define MTP_RESPONSE_DEVICEPROP_NOT_SUPPORTED              0x200AU
+#define MTP_RESPONSE_INVALID_OBJECT_FORMAT_CODE            0x200BU
 #define MTP_RESPONSE_STORE_FULL                            0x200CU
 #define MTP_RESPONSE_ACCESS_DENIED                         0x200FU
 #define MTP_RESPONSE_STORE_NOT_AVAILABLE                   0x2013U
@@ -406,6 +407,13 @@
 #define MTP_SESSION_CLOSED 0x00
 #define MTP_SESSION_OPENED 0x01
 
+struct mtp_container {
+    uint32_t conlen;
+    uint16_t contype;
+    uint16_t code;
+    uint32_t trans_id;
+};
+
 struct mtp_container_command {
     uint32_t conlen;
     uint16_t contype;
@@ -423,7 +431,7 @@ struct mtp_container_data {
     uint16_t contype;
     uint16_t code;
     uint32_t trans_id;
-    uint8_t data[512];
+    uint8_t data[2048];
 } __PACKED;
 
 struct mtp_container_response {
@@ -431,6 +439,11 @@ struct mtp_container_response {
     uint16_t contype;
     uint16_t code;
     uint32_t trans_id;
+    uint32_t param1;
+    uint32_t param2;
+    uint32_t param3;
+    uint32_t param4;
+    uint32_t param5;
 } __PACKED;
 
 /*Length of template descriptor: 23 bytes*/
@@ -444,7 +457,7 @@ struct mtp_container_response {
     bFirstInterface,               /* bInterfaceNumber */                \
     0x00,                          /* bAlternateSetting */               \
     0x03,                          /* bNumEndpoints */                   \
-    USB_DEVICE_CLASS_MASS_STORAGE, /* bInterfaceClass */                 \
+    USB_DEVICE_CLASS_IMAGE,        /* bInterfaceClass */                 \
     USB_MTP_SUB_CLASS,             /* bInterfaceSubClass */              \
     USB_MTP_PROTOCOL,              /* bInterfaceProtocol */              \
     str_idx,                       /* iInterface */                      \
@@ -464,8 +477,9 @@ struct mtp_container_response {
     USB_DESCRIPTOR_TYPE_ENDPOINT,  /* bDescriptorType */                 \
     int_ep,                        /* bEndpointAddress */                \
     0x03,                          /* bmAttributes */                    \
-    0x1c, 0x00,                    /* wMaxPacketSize */                  \
-    0x06                           /* bInterval */
+    0x1c,                          /* wMaxPacketSize */                  \
+    0x00,                          /* bInterval */                       \
+    0x06                           /* bLength */
 // clang-format on
 
 #endif /* USB_MTP_H */

@@ -1,8 +1,14 @@
+/*
+ * Copyright (c) 2022, sakumisu
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "usbd_core.h"
 #include "usbd_hid.h"
 
-#define USBD_VID           0xffff
-#define USBD_PID           0xffff
+#define USBD_VID           0x33C3
+#define USBD_PID           0x6788
 #define USBD_MAX_POWER     100
 #define USBD_LANGID_STRING 1033
 
@@ -204,9 +210,15 @@ void usbd_event_handler(uint8_t event)
 
 /*!< hid state ! Data can be sent only when state is idle  */
 static volatile uint8_t hid_state = HID_STATE_IDLE;
+USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t write_buffer[64];
 
 void usbd_hid_int_callback(uint8_t ep, uint32_t nbytes)
 {
+    if (hid_state == HID_STATE_BUSY) {
+        memset(write_buffer, 0, 8);
+        usbd_ep_start_write(HID_INT_EP, write_buffer, 8);
+    }
+
     hid_state = HID_STATE_IDLE;
 }
 
@@ -226,9 +238,7 @@ void hid_keyboard_init(void)
     usbd_initialize();
 }
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t write_buffer[64];
-
-void hid_keyboard_test(uint8_t busid)
+void hid_keyboard_test(void)
 {
     const uint8_t sendbuffer[8] = { 0x00, 0x00, HID_KBD_USAGE_A, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
@@ -258,7 +268,7 @@ INIT_DEVICE_EXPORT(usbd_hid_keyboard_init);
 
 int test_usbd_hid_keyboard(int argc, char **argv)
 {
-    hid_keyboard_test(0);
+    hid_keyboard_test();
     return 0;
 }
 MSH_CMD_EXPORT_ALIAS(test_usbd_hid_keyboard, test_usbd_hid_keyboard, test usb device hid mouse);

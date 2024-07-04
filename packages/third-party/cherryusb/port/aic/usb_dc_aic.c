@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2023, Artinchip Technology Co., Ltd
+ *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -36,7 +38,11 @@
 #define USB_BASE CONFIG_USB_AIC_DC_BASE
 #endif
 
-#define USB_RAM_SIZE 4096 /* define with minimum value*/
+#ifdef LPKG_CHERRYUSB_DEVICE_HID_IO_TEMPLATE
+#define USB_RAM_SIZE 1024 /* define with maximum value*/
+#else
+#define USB_RAM_SIZE 512  /* define with maximum value*/
+#endif
 
 #ifndef USB_NUM_BIDIR_ENDPOINTS
 #define USB_NUM_BIDIR_ENDPOINTS 5 /* define with minimum value*/
@@ -66,13 +72,17 @@ extern uint32_t usbd_clk;
     USB_MEM_ALIGNX struct usb_setup_packet setup;
     USB_MEM_ALIGNX struct aic_ep_state in_ep[USB_NUM_BIDIR_ENDPOINTS];  /*!< IN endpoint parameters*/
     struct aic_ep_state out_ep[USB_NUM_BIDIR_ENDPOINTS]; /*!< OUT endpoint parameters */
+    struct usb_endpoint_descriptor in_ep_desc[USB_NUM_BIDIR_ENDPOINTS];
     uint32_t tx_fifo_map;
+    uint32_t tx_fifo0_map;
 } g_aic_udc;
 
-uint8_t rst_allow = 0;
 uint8_t ep0_ctrl_stage = 0; /* 1 = setup stage, 2 = data stage, 3 = status stage */
 
 #ifdef CONFIG_USB_AIC_DMA_ENABLE
+static uint8_t g_aic_udc_ibuf[USB_RAM_SIZE] __ALIGNED(CACHE_LINE_SIZE);
+static uint8_t g_aic_udc_obuf[USB_RAM_SIZE] __ALIGNED(CACHE_LINE_SIZE);
+
 void aic_udc_dcache_clean(uintptr_t addr, uint32_t len)
 {
     aicos_dcache_clean_range((size_t *)addr, len);
@@ -86,6 +96,62 @@ void aic_udc_dcache_invalidate(uintptr_t addr, uint32_t len)
 void aic_udc_dcache_clean_invalidate(uintptr_t addr, uint32_t len)
 {
     aicos_dcache_clean_invalid_range((size_t *)addr, len);
+}
+
+static int aic_udc_ep_buf_alloc(struct aic_ep_state *ep, uint32_t len,
+                                uint8_t *sbuf)
+{
+    ep->xfer_len = len;
+    if (len % CACHE_LINE_SIZE)
+        ep->xfer_align_len = ALIGN_UP(len, CACHE_LINE_SIZE);
+    else
+        ep->xfer_align_len = len;
+
+    if (ep->xfer_align_len > USB_RAM_SIZE) {
+        ep->xfer_align_buf = aicos_malloc_align(0, ep->xfer_align_len,
+                                                CACHE_LINE_SIZE);
+        if (!ep->xfer_align_buf) {
+            USB_LOG_ERR("alloc error.\r\n");
+            return -5;
+        }
+    } else {
+        ep->xfer_align_buf = sbuf;
+    }
+
+    return 0;
+}
+
+static void aic_udc_ep_buf_free(struct aic_ep_state *ep, uint8_t *sbuf)
+{
+    if (!ep->xfer_align_buf)
+        return;
+
+    /* Whether the buf is allocated dynamically */
+    if (ep->xfer_align_buf != sbuf)
+        aicos_free_align(0, ep->xfer_align_buf);
+
+    ep->xfer_align_buf = NULL;
+    ep->xfer_align_len = 0;
+}
+
+static int aic_udc_ibuf_alloc(struct aic_ep_state *ep, uint32_t len)
+{
+    return aic_udc_ep_buf_alloc(ep, len, g_aic_udc_ibuf);
+}
+
+static int aic_udc_obuf_alloc(struct aic_ep_state *ep, uint32_t len)
+{
+    return aic_udc_ep_buf_alloc(ep, len, g_aic_udc_obuf);
+}
+
+static void aic_udc_ibuf_free(struct aic_ep_state *ep)
+{
+    aic_udc_ep_buf_free(ep, g_aic_udc_ibuf);
+}
+
+static void aic_udc_obuf_free(struct aic_ep_state *ep)
+{
+    aic_udc_ep_buf_free(ep, g_aic_udc_obuf);
 }
 #else
 #define aic_udc_dcache_clean(addr, len)
@@ -140,7 +206,7 @@ static inline int aic_core_init(void)
         | 0x5 << 10 /* USB Turnaround time (0x5 for HS phy) */
         | 0 << 7    /* ULPI DDR sel 0:single 8bit, 1:double 4bit */
         /*| 0 << 6   0: high speed utmi+, 1: full speed serial*/
-#ifdef FPGA_BOARD_ZX
+#ifdef FPGA_BOARD_ARTINCHIP
         | 1 << 4    /* 0: utmi+, 1:ulpi*/
 #else
         | 0 << 4    /* 0: utmi+, 1:ulpi*/
@@ -148,11 +214,11 @@ static inline int aic_core_init(void)
         | 0 << 3    /* UTMI+ PHY  0:8bit, 1:16bit (ULPI PHY set 8bit) */
         | 0x7 << 0; /* HS/FS timeout calibration**/
 
-    /* Reset after a PHY select */
-    ret = aic_reset();
-
     /* Activate the USB Transceiver */
     AIC_UDC_REG->usbphyif = usb_gusbcfg;
+
+    /* Reset after a PHY select */
+    ret = aic_reset();
 
     aic_set_dma_nextep();
 
@@ -178,7 +244,9 @@ static inline int aic_flush_txfifo(uint32_t num)
 {
     uint32_t count = 0U;
 
-    AIC_UDC_REG->usbdevinit |= USBDEVINIT_TXFNUM(num & USBDEVINIT_TXFNUM_LIMIT);
+    AIC_UDC_REG->usbdevinit &= ~ USBDEVINIT_TXFNUM(USBDEVINIT_TXFNUM_LIMIT);
+    AIC_UDC_REG->usbdevinit |= USBDEVINIT_TXFNUM(num & USBDEVINIT_TXFNUM_LIMIT)
+                               | USBDEVINIT_TXFFLSH;
 
     do {
         if (++count > 200000U) {
@@ -225,8 +293,7 @@ static void aic_set_turnaroundtime(uint32_t hclk, uint8_t speed)
         } else if ((hclk >= 27700000U) && (hclk < 32000000U)) {
             /* hclk Clock Range between 27.7-32 MHz */
             UsbTrd = 0x7U;
-        } else /* if(hclk >= 32000000) */
-        {
+        } else {/* if(hclk >= 32000000) */
             /* hclk Clock Range between 32-200 MHz */
             UsbTrd = 0x6U;
         }
@@ -235,6 +302,8 @@ static void aic_set_turnaroundtime(uint32_t hclk, uint8_t speed)
     } else {
         UsbTrd = USBPHYIF_DEFAULT_TRDT_VALUE;
     }
+
+    AIC_UDC_REG->usbphyif |= USBPHYIF_TOUTCAL_LIMIT;
 
     AIC_UDC_REG->usbphyif &= ~USBPHYIF_USBTRDTIM_MASK;
     AIC_UDC_REG->usbphyif |= (uint32_t)((UsbTrd << USBPHYIF_USBTRDTIM_SHIFT)
@@ -295,16 +364,17 @@ static void aic_ep0_start_read_setup(uint8_t *psetup)
     g_aic_udc.out_ep[0].xfer_len = 8;
     ep0_ctrl_stage = 1;
 
+    USB_LOG_DBG("\r\n");
+    USB_LOG_DBG("[1]: Control transfer start read setup.\r\n");
+
     aic_udc_dcache_invalidate((uintptr_t)psetup, CACHE_LINE_SIZE);
 
-    AIC_UDC_REG->outeptsfsiz[0] = 0U;
-    AIC_UDC_REG->outeptsfsiz[0] |= (DXEPTSIZ_PKT_CNT_MASK & (1U << 19));
-    AIC_UDC_REG->outeptsfsiz[0] |= (3U * 8U);
-    AIC_UDC_REG->outeptsfsiz[0] |= DXEPTSIZ_MULCNT_MASK;
+    AIC_UDC_REG->outeptsfsiz[0] = DXEPTSIZ_MULCNT_MASK | (DXEPTSIZ_PKT_CNT_MASK & (1U << 19)) | (3U * 8U);
 
 #ifdef CONFIG_USB_AIC_DMA_ENABLE
     AIC_UDC_REG->outepdmaaddr[0] = (uint32_t)(uintptr_t)psetup;
 #endif
+    AIC_UDC_REG->outepint[0] = 0xFFFFFFFFU;
 
     /* EP enable */
     AIC_UDC_REG->outepcfg[0] |= DEPCTL_CNAK | DEPCTL_EPENA | DEPCTL_USBACTEP;
@@ -415,7 +485,7 @@ static inline uint32_t aic_get_outep_intstatus(uint8_t epnum)
     uint32_t tmpreg;
 
     tmpreg = AIC_UDC_REG->outepint[epnum];
-    tmpreg &= AIC_UDC_REG->outepintmsk;
+    tmpreg &= (AIC_UDC_REG->outepintmsk | CTRL_OUT_EP_SETUP_RCVD | CTRL_OUT_EP_STATUS_PHASE_RCVD);
 
     return tmpreg;
 }
@@ -446,6 +516,8 @@ __WEAK void usb_dc_low_level_deinit(void)
 
 int usb_dc_rst(void)
 {
+    usbd_set_address(0);
+
     aic_flush_txfifo(0x10U);
     aic_flush_rxfifo();
 
@@ -454,27 +526,21 @@ int usb_dc_rst(void)
             AIC_UDC_REG->inepcfg[i] = DEPCTL_SNAK;
             AIC_UDC_REG->outepcfg[i] = DEPCTL_SNAK;
         } else {
-            if (AIC_UDC_REG->inepcfg[i] & DEPCTL_EPENA) {
-                AIC_UDC_REG->inepcfg[i] = (DEPCTL_EPDIS | DEPCTL_SNAK);
-            } else {
-                AIC_UDC_REG->inepcfg[i] = 0;
-            }
-            if (AIC_UDC_REG->outepcfg[i] & DEPCTL_EPENA) {
-                AIC_UDC_REG->outepcfg[i] = (DEPCTL_EPDIS | DEPCTL_SNAK);
-            } else {
-                AIC_UDC_REG->outepcfg[i] = 0;
-            }
+            usbd_ep_close(i);
+            usbd_ep_close(i | 0x80);
         }
+
         AIC_UDC_REG->ineptsfsiz[i] = 0U;
-        AIC_UDC_REG->inepint[i] = 0xFBFFU;
+        AIC_UDC_REG->inepint[i] = 0xFFFFFFFFU;
         AIC_UDC_REG->outeptsfsiz[i] = 0U;
-        AIC_UDC_REG->outepint[i] = 0xFBFFU;
+        AIC_UDC_REG->outepint[i] = 0xFFFFFFFFU;
     }
 
-    AIC_UDC_REG->usbepintmsk |= 0x10001U;
-    AIC_UDC_REG->outepintmsk = CTRL_OUT_EP_SETUP_PHASE_DONE | TRANSFER_DONE;
-    AIC_UDC_REG->inepintmsk = TRANSFER_DONE;
+    AIC_UDC_REG->usbepintmsk = 0;
+    AIC_UDC_REG->outepintmsk = TRANSFER_DONE;
+    AIC_UDC_REG->inepintmsk = TRANSFER_DONE | NON_ISO_IN_EP_TIMEOUT | INTKNEPMIS;
 #ifndef CONFIG_USB_AIC_DMA_ENABLE
+    AIC_UDC_REG->outepintmsk |= CTRL_OUT_EP_SETUP_PHASE_DONE;
     AIC_UDC_REG->inepintmsk |= INTKN_TXFEMP;
 #endif
 
@@ -482,17 +548,8 @@ int usb_dc_rst(void)
 
 #ifdef CONFIG_USB_AIC_DMA_ENABLE
     for (uint8_t i = 0U; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
-        if (g_aic_udc.out_ep[i].xfer_align_buf) {
-            aicos_free_align(0, g_aic_udc.out_ep[i].xfer_align_buf);
-            g_aic_udc.out_ep[i].xfer_align_buf = NULL;
-            g_aic_udc.out_ep[i].xfer_align_len = 0;
-        }
-
-        if (g_aic_udc.in_ep[i].xfer_align_buf) {
-            aicos_free_align(0, g_aic_udc.in_ep[i].xfer_align_buf);
-            g_aic_udc.in_ep[i].xfer_align_buf = NULL;
-            g_aic_udc.in_ep[i].xfer_align_len = 0;
-        }
+        aic_udc_obuf_free(&g_aic_udc.out_ep[i]);
+        aic_udc_ibuf_free(&g_aic_udc.in_ep[i]);
     }
 #endif
 
@@ -551,7 +608,7 @@ int usb_dc_init(void)
     /* Enable interrupts matching to the Device mode ONLY */
     AIC_UDC_REG->usbintmsk = INT_RESET | INT_ENUMDONE |
                              INT_OUT_EP | INT_IN_EP |
-                             INT_INCOMP_ISO_IN_INT | INT_INCOMP_ISO_OUT_INT;
+                             INT_INCOMP_ISO_IN_INT | INT_INCOMP_ISO_OUT_INT | INT_SUSPEND;
 
 #ifdef CONFIG_USB_AIC_DMA_ENABLE
     AIC_UDC_REG->usbdevinit |= (USBDEVINIT_HBSTLEN_INCR4 << USBDEVINIT_HBSTLEN_SHIFT);
@@ -582,7 +639,6 @@ int usb_dc_init(void)
 
 int usb_dc_deinit(void)
 {
-    usb_dc_low_level_deinit();
     /* Clear Pending interrupt */
     for (uint8_t i = 0U; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
         AIC_UDC_REG->outepint[i] = 0xFB7FU;
@@ -600,6 +656,7 @@ int usb_dc_deinit(void)
 
     AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_SFTDISCON;
 
+    usb_dc_low_level_deinit();
     return 0;
 }
 
@@ -607,6 +664,7 @@ int usbd_set_address(const uint8_t addr)
 {
     AIC_UDC_REG->usbdevconf &= ~(DEVICE_ADDRESS_MASK);
     AIC_UDC_REG->usbdevconf |= ((uint32_t)addr << 4) & DEVICE_ADDRESS_MASK;
+
     return 0;
 }
 
@@ -626,56 +684,56 @@ uint8_t usbd_get_port_speed(const uint8_t port)
     return speed;
 }
 
-int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
+int usbd_ep_open(const struct usb_endpoint_descriptor *ep)
 {
-    uint8_t ep_idx = USB_EP_GET_IDX(ep_cfg->ep_addr);
+    uint8_t ep_idx = USB_EP_GET_IDX(ep->bEndpointAddress);
     uint16_t ep_mps;
     uint8_t tx_fifo_num = 0;
     uint32_t i;
 
     if (ep_idx > (USB_NUM_BIDIR_ENDPOINTS - 1)) {
-        USB_LOG_ERR("Ep addr %d overflow\r\n", ep_cfg->ep_addr);
+        USB_LOG_ERR("Ep addr %d overflow\r\n", ep->bEndpointAddress);
         return -1;
     }
 
-    if (USB_EP_DIR_IS_OUT(ep_cfg->ep_addr)) {
-        g_aic_udc.out_ep[ep_idx].ep_mps = ep_cfg->ep_mps;
-        g_aic_udc.out_ep[ep_idx].ep_type = ep_cfg->ep_type;
+    ep_mps = USB_GET_MAXPACKETSIZE(ep->wMaxPacketSize);
+    if (ep_idx == 0) {
+        switch (ep_mps) {
+            case 8:
+                ep_mps = DEPCTL0_MPS_8;
+                break;
+            case 16:
+                ep_mps = DEPCTL0_MPS_16;
+                break;
+            case 32:
+                ep_mps = DEPCTL0_MPS_32;
+                break;
+            case 64:
+                ep_mps = DEPCTL0_MPS_64;
+                break;
+        }
+    }
+
+    if (USB_EP_DIR_IS_OUT(ep->bEndpointAddress)) {
+        g_aic_udc.out_ep[ep_idx].ep_mps = USB_GET_MAXPACKETSIZE(ep->wMaxPacketSize);
+        g_aic_udc.out_ep[ep_idx].ep_type = USB_GET_ENDPOINT_TYPE(ep->bmAttributes);
 
         AIC_UDC_REG->usbepintmsk |= DAINT_OUT_MASK & (uint32_t)(1UL << (16 + ep_idx));
-
-        ep_mps = ep_cfg->ep_mps;
-        if (ep_idx == 0) {
-            switch (ep_cfg->ep_mps) {
-                case 8:
-                    ep_mps = DEPCTL0_MPS_8;
-                    break;
-                case 16:
-                    ep_mps = DEPCTL0_MPS_16;
-                    break;
-                case 32:
-                    ep_mps = DEPCTL0_MPS_32;
-                    break;
-                case 64:
-                    ep_mps = DEPCTL0_MPS_64;
-                    break;
-            }
-        }
-
         AIC_UDC_REG->outepcfg[ep_idx] |= (ep_mps & DEPCTL_MPS_MASK) |
-                                          ((uint32_t)ep_cfg->ep_type << 18) |
+                                          ((uint32_t)USB_GET_ENDPOINT_TYPE(ep->bmAttributes) << 18) |
                                           DEPCTL_SETD0PID |
                                           DEPCTL_USBACTEP;
     } else {
-        g_aic_udc.in_ep[ep_idx].ep_mps = ep_cfg->ep_mps;
-        g_aic_udc.in_ep[ep_idx].ep_type = ep_cfg->ep_type;
+        g_aic_udc.in_ep_desc[ep_idx] = *ep;
+        g_aic_udc.in_ep[ep_idx].ep_mps = USB_GET_MAXPACKETSIZE(ep->wMaxPacketSize);
+        g_aic_udc.in_ep[ep_idx].ep_type = USB_GET_ENDPOINT_TYPE(ep->bmAttributes);
 
         AIC_UDC_REG->usbepintmsk |= DAINT_IN_MASK & (uint32_t)(1UL << ep_idx);
 
         /* Period IN EP alloc fifo num */
-        if ((ep_cfg->ep_type == USB_ENDPOINT_TYPE_INTERRUPT) ||
-            (ep_cfg->ep_type == USB_ENDPOINT_TYPE_ISOCHRONOUS)){
-            for (i=1; i<=2; i++){
+        if ((USB_GET_ENDPOINT_TYPE(ep->bmAttributes) == USB_ENDPOINT_TYPE_INTERRUPT) ||
+            (USB_GET_ENDPOINT_TYPE(ep->bmAttributes) == USB_ENDPOINT_TYPE_ISOCHRONOUS)) {
+            for (i=1; i<=2; i++) {
                 if (g_aic_udc.tx_fifo_map & (1<<i))
                     continue;
                 g_aic_udc.tx_fifo_map |= (1 << i);
@@ -685,14 +743,17 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
 
             if (tx_fifo_num == 0)
                 return -1;
+
+            aic_flush_txfifo(tx_fifo_num);
+        } else {
+            g_aic_udc.tx_fifo0_map |= (1 << ep_idx);
         }
 
-        AIC_UDC_REG->inepcfg[ep_idx] |= (ep_cfg->ep_mps & DEPCTL_MPS_MASK) |
-                                         ((uint32_t)ep_cfg->ep_type << 18) |
+        AIC_UDC_REG->inepcfg[ep_idx] |= (ep_mps & DEPCTL_MPS_MASK) |
+                                         ((uint32_t)USB_GET_ENDPOINT_TYPE(ep->bmAttributes) << 18) |
                                          (tx_fifo_num << 22) |
                                          DEPCTL_SETD0PID |
                                          DEPCTL_USBACTEP;
-        aic_flush_txfifo(ep_idx);
     }
     return 0;
 }
@@ -700,69 +761,212 @@ int usbd_ep_open(const struct usbd_endpoint_cfg *ep_cfg)
 int usbd_ep_close(const uint8_t ep)
 {
     uint8_t ep_idx = USB_EP_GET_IDX(ep);
-    volatile uint32_t count = 0U;
     uint8_t tx_fifo_num = 0;
-
-#ifdef CONFIG_USB_AIC_DMA_ENABLE
-    if (USB_EP_DIR_IS_OUT(ep)) {
-        if (g_aic_udc.out_ep[ep_idx].xfer_align_buf) {
-            aicos_free_align(0, g_aic_udc.out_ep[ep_idx].xfer_align_buf);
-            g_aic_udc.out_ep[ep_idx].xfer_align_buf = NULL;
-            g_aic_udc.out_ep[ep_idx].xfer_align_len = 0;
-        }
-    } else {
-        if (g_aic_udc.in_ep[ep_idx].xfer_align_buf) {
-            aicos_free_align(0, g_aic_udc.in_ep[ep_idx].xfer_align_buf);
-            g_aic_udc.in_ep[ep_idx].xfer_align_buf = NULL;
-            g_aic_udc.in_ep[ep_idx].xfer_align_len = 0;
-        }
-    }
-#endif
+    int i = 0;
+    #define DIS_EP_TIMOUT 100
 
     if (USB_EP_DIR_IS_OUT(ep)) {
         if (AIC_UDC_REG->outepcfg[ep_idx] & DEPCTL_EPENA) {
+            /* (1) Wait for global nak to take effect */
+            if (!(AIC_UDC_REG->usbintsts & INT_GOUTNAKEFF))
+                AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_SGOUTNAK;
+
+            for (i = 0; i < DIS_EP_TIMOUT; i++) {
+                if (AIC_UDC_REG->usbintsts & INT_GOUTNAKEFF)
+                    break;
+                aic_udelay(1);
+            }
+
+            if (i == DIS_EP_TIMOUT)
+                USB_LOG_ERR("%s: timeout USBINTSTS.GOUTNAKEFF\n", __func__);
+
+            /* (2) Disable ep */
             AIC_UDC_REG->outepcfg[ep_idx] |= DEPCTL_SNAK;
             AIC_UDC_REG->outepcfg[ep_idx] |= DEPCTL_EPDIS;
 
-            /* Wait for endpoint disabled interrupt */
-            count = 0;
-            do {
-                if (++count > 50000) {
+            for (i = 0; i < DIS_EP_TIMOUT*10; i++) {
+                if (AIC_UDC_REG->outepint[ep_idx] & EPDISBLD)
                     break;
-                }
-            } while ((AIC_UDC_REG->outepint[ep_idx] & EPDISBLD) != EPDISBLD);
+                aic_udelay(1);
+            }
 
-            /* Clear and unmask endpoint disabled interrupt */
+            if (i == DIS_EP_TIMOUT)
+                USB_LOG_ERR("%s: timeout OUTEPCFG.EPDisable\n", __func__);
+
+            /* Clear EPDISBLD interrupt */
             AIC_UDC_REG->outepint[ep_idx] |= EPDISBLD;
+
+            /* (3) Remove global NAKs */
+            AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_CGOUTNAK;
         }
 
         AIC_UDC_REG->usbepintmsk &= ~(DAINT_OUT_MASK & (uint32_t)(1UL << (16 + ep_idx)));
         AIC_UDC_REG->outepcfg[ep_idx] = 0;
     } else {
+        tx_fifo_num = (AIC_UDC_REG->inepcfg[ep_idx] & DEPCTL_TXFIFONUM_MASK) >> DEPCTL_TXFIFONUM_SHIFT;
+
         if (AIC_UDC_REG->inepcfg[ep_idx] & DEPCTL_EPENA) {
+            if (tx_fifo_num) {
+                /* (1) Wait for Nak effect */
+                AIC_UDC_REG->inepcfg[ep_idx] |= DEPCTL_SNAK;
+
+                for (i = 0; i < DIS_EP_TIMOUT; i++) {
+                    if (AIC_UDC_REG->inepint[ep_idx] & INEP_NAKEFF)
+                        break;
+                    aic_udelay(1);
+                }
+
+                if (i == DIS_EP_TIMOUT)
+                    USB_LOG_ERR("%s: timeout INEPINT.NAKEFF\n", __func__);
+            } else {
+                /* (1) Wait for Nak effect */
+                AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_SGNPINNAK;
+
+                for (i = 0; i < DIS_EP_TIMOUT; i++) {
+                    if (AIC_UDC_REG->usbintsts & INT_GINNAKEFF)
+                        break;
+                    aic_udelay(1);
+                }
+
+                if (i == DIS_EP_TIMOUT)
+                    USB_LOG_ERR("%s: timeout USBINTSTS.GOUTNAKEFF\n", __func__);
+            }
+
+            /* (2) Disable ep */
             AIC_UDC_REG->inepcfg[ep_idx] |= DEPCTL_SNAK;
             AIC_UDC_REG->inepcfg[ep_idx] |= DEPCTL_EPDIS;
 
-            /* Wait for endpoint disabled interrupt */
-            count = 0;
-            do {
-                if (++count > 50000) {
+            for (i = 0; i < DIS_EP_TIMOUT; i++) {
+                if (AIC_UDC_REG->inepint[ep_idx] & EPDISBLD)
                     break;
-                }
-            } while ((AIC_UDC_REG->inepint[ep_idx] & EPDISBLD) != EPDISBLD);
+                aic_udelay(1);
+            }
 
-            /* Clear and unmask endpoint disabled interrupt */
+            if (i == DIS_EP_TIMOUT)
+                USB_LOG_ERR("%s: timeout OUTEPCFG.EPDisable\n", __func__);
+
+            /* Clear EPDISBLD interrupt */
             AIC_UDC_REG->inepint[ep_idx] |= EPDISBLD;
+
+            /* (3) Flush TX FIFO */
+            aic_flush_txfifo(tx_fifo_num);
+
+            /* Period IN EP free fifo num */
+            if (tx_fifo_num > 0)
+                g_aic_udc.tx_fifo_map &= ~(1<<tx_fifo_num);
+            else
+                g_aic_udc.tx_fifo0_map &= ~(1<<ep_idx);
+
+            /* (4) Clear Global In NP NAK in Shared FIFO for non periodic ep */
+            if (!tx_fifo_num)
+                AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_CGNPINNAK;
         }
 
         AIC_UDC_REG->usbepintmsk &= ~(DAINT_OUT_MASK & (uint32_t)(1UL << ep_idx));
-        tx_fifo_num = (AIC_UDC_REG->inepcfg[ep_idx] & DEPCTL_TXFIFONUM_MASK) >> DEPCTL_TXFIFONUM_SHIFT;
         AIC_UDC_REG->inepcfg[ep_idx] = 0;
-
-        /* Period IN EP free fifo num */
-        if (tx_fifo_num > 0)
-            g_aic_udc.tx_fifo_map &= ~(1<<tx_fifo_num);
     }
+
+#ifdef CONFIG_USB_AIC_DMA_ENABLE
+    if (USB_EP_DIR_IS_OUT(ep)) {
+        aic_udc_obuf_free(&g_aic_udc.out_ep[ep_idx]);
+    } else {
+        aic_udc_ibuf_free(&g_aic_udc.in_ep[ep_idx]);
+    }
+#endif
+
+    return 0;
+}
+
+int usbd_npinep_rewrite(const uint8_t ep)
+{
+    int i = 0;
+    int j = 0;
+    int fail = 0;
+    unsigned int pending_map = 0;
+    //int data_len = 0;
+
+    /* (1) close all no-periodic ep */
+    /* (1.1) Set Global In NP NAK in Shared FIFO for non periodic ep */
+    AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_SGNPINNAK;
+
+    for (i = 0; i < DIS_EP_TIMOUT; i++) {
+        if (AIC_UDC_REG->usbintsts & INT_GINNAKEFF)
+            break;
+        aic_udelay(1);
+    }
+
+    if (i == DIS_EP_TIMOUT)
+        USB_LOG_ERR("%s: timeout USBINTSTS.GOUTNAKEFF\n", __func__);
+
+    /* (1.2) Disable ep */
+    for (i = 0U; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
+        if (!((g_aic_udc.tx_fifo0_map & (1 << i)) &&
+            (AIC_UDC_REG->inepcfg[i] & DEPCTL_EPENA)))
+            continue;
+
+        AIC_UDC_REG->inepcfg[i] |= DEPCTL_SNAK;
+        AIC_UDC_REG->inepcfg[i] |= DEPCTL_EPDIS;
+
+        /* remain data */
+        #if 0
+        data_len = AIC_UDC_REG->ineptsfsiz[i] & DXEPTSIZ_XFER_SIZE_MASK;
+        g_aic_udc.in_ep[ep].xfer_buf += g_aic_udc.in_ep[ep].xfer_len - data_len;
+        g_aic_udc.in_ep[ep].xfer_len = data_len;
+        #endif
+
+        pending_map |= (1 << i);
+    }
+
+    for (j = 0; j < DIS_EP_TIMOUT; j++) {
+        fail = 0;
+        for (i = 0U; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
+            if (!(pending_map & (1 << i)))
+                continue;
+            if (!(AIC_UDC_REG->inepint[i] & EPDISBLD)) {
+                fail = i+1;
+                break;
+            }
+        }
+        if (!fail)
+            break;
+        aic_udelay(1);
+    }
+
+    if (j == DIS_EP_TIMOUT)
+        USB_LOG_ERR("%s: ep%d timeout OUTEPCFG.EPDisable\n", __func__, fail-1);
+
+    /* Clear EPDISBLD interrupt */
+    for (i = 0U; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
+        if (!(pending_map & (1 << i)))
+            continue;
+        AIC_UDC_REG->inepint[i] |= EPDISBLD;
+    }
+
+    /* (1.3) Flush TX FIFO0 */
+    aic_flush_txfifo(0);
+
+    /* (1.4) Clear Global In NP NAK in Shared FIFO for non periodic ep */
+    AIC_UDC_REG->usbdevfunc |= USBDEVFUNC_CGNPINNAK;
+
+    if (pending_map & (1 << ep)) {
+        /* (2) reopen current ep */
+        usbd_ep_open(&g_aic_udc.in_ep_desc[ep]);
+
+        /* (3) rewrite current ep */
+        usbd_ep_start_write(ep, g_aic_udc.in_ep[ep].xfer_buf,
+                                g_aic_udc.in_ep[ep].xfer_len);
+    }
+
+    /* (4) reopen & rewrite other ep, let's receive ep mismtach interrupt */
+    for (i = 0U; i < USB_NUM_BIDIR_ENDPOINTS; i++) {
+        if (!(pending_map & (1 << i)) ||
+            (i == ep))
+            continue;
+        usbd_ep_open(&g_aic_udc.in_ep_desc[i]);
+        usbd_ep_start_write(i, g_aic_udc.in_ep[i].xfer_buf,
+                            g_aic_udc.in_ep[i].xfer_len);
+    }
+
     return 0;
 }
 
@@ -847,28 +1051,17 @@ int usbd_ep_start_write(const uint8_t ep, const uint8_t *data, uint32_t data_len
          (((uint32_t)(uintptr_t)(data + data_len) % CACHE_LINE_SIZE) != 0))) {
 
         if (g_aic_udc.in_ep[ep_idx].xfer_align_len != data_len) {
+            int ret = 0;
 
-            if (g_aic_udc.in_ep[ep_idx].xfer_align_buf) {
-                aicos_free_align(0, g_aic_udc.in_ep[ep_idx].xfer_align_buf);
-                g_aic_udc.in_ep[ep_idx].xfer_align_buf = NULL;
-                g_aic_udc.in_ep[ep_idx].xfer_align_len = 0;
-            }
-
-            g_aic_udc.in_ep[ep_idx].xfer_align_buf = aicos_malloc_align(0, data_len, CACHE_LINE_SIZE);
-            if (NULL == g_aic_udc.in_ep[ep_idx].xfer_align_buf) {
-                USB_LOG_ERR("alloc error.\r\n");
-                return -5;
-            }
-            g_aic_udc.in_ep[ep_idx].xfer_align_len = data_len;
+            aic_udc_ibuf_free(&g_aic_udc.in_ep[ep_idx]);
+            ret = aic_udc_ibuf_alloc(&g_aic_udc.in_ep[ep_idx], data_len);
+            if (ret)
+                return ret;
         }
         memcpy(g_aic_udc.in_ep[ep_idx].xfer_align_buf, data, data_len);
         data = g_aic_udc.in_ep[ep_idx].xfer_align_buf;
     } else {
-        if (g_aic_udc.in_ep[ep_idx].xfer_align_buf) {
-            aicos_free_align(0, g_aic_udc.in_ep[ep_idx].xfer_align_buf);
-            g_aic_udc.in_ep[ep_idx].xfer_align_buf = NULL;
-            g_aic_udc.in_ep[ep_idx].xfer_align_len = 0;
-        }
+        aic_udc_ibuf_free(&g_aic_udc.in_ep[ep_idx]);
     }
 
     if (data_len>0)
@@ -877,7 +1070,6 @@ int usbd_ep_start_write(const uint8_t ep, const uint8_t *data, uint32_t data_len
 
     AIC_UDC_REG->ineptsfsiz[ep_idx] &= ~(DXEPTSIZ_PKT_CNT_MASK);
     AIC_UDC_REG->ineptsfsiz[ep_idx] &= ~(DXEPTSIZ_XFER_SIZE_MASK);
-    AIC_UDC_REG->ineptsfsiz[ep_idx] &= ~(DXEPTSIZ_MULCNT_MASK);
 
     if (data_len == 0) {
         AIC_UDC_REG->ineptsfsiz[ep_idx] |= (DXEPTSIZ_PKT_CNT_MASK & (1U << 19));
@@ -923,6 +1115,7 @@ int usbd_ep_start_write(const uint8_t ep, const uint8_t *data, uint32_t data_len
     AIC_UDC_REG->inepdmaaddr[ep_idx] = (uint32_t)(uintptr_t)data;
 #endif
 
+    AIC_UDC_REG->inepint[ep_idx] = 0xFFFFFFFFU;
     AIC_UDC_REG->inepcfg[ep_idx] |= (DEPCTL_CNAK | DEPCTL_EPENA);
 
     return 0;
@@ -956,35 +1149,26 @@ int usbd_ep_start_read(const uint8_t ep, uint8_t *data, uint32_t data_len)
          (((uint32_t)(uintptr_t)(data + data_len) % CACHE_LINE_SIZE) != 0))) {
 
         if (g_aic_udc.out_ep[ep_idx].xfer_align_len != data_len) {
+            int ret = 0;
 
-            if (g_aic_udc.out_ep[ep_idx].xfer_align_buf) {
-                aicos_free_align(0, g_aic_udc.out_ep[ep_idx].xfer_align_buf);
-                g_aic_udc.out_ep[ep_idx].xfer_align_buf = NULL;
-                g_aic_udc.out_ep[ep_idx].xfer_align_len = 0;
-            }
-
-            g_aic_udc.out_ep[ep_idx].xfer_align_buf = aicos_malloc_align(0, data_len, CACHE_LINE_SIZE);
-            if (NULL == g_aic_udc.out_ep[ep_idx].xfer_align_buf) {
-                USB_LOG_ERR("alloc error.\r\n");
-                return -5;
-            }
-            g_aic_udc.out_ep[ep_idx].xfer_align_len = data_len;
+            aic_udc_obuf_free(&g_aic_udc.out_ep[ep_idx]);
+            ret = aic_udc_obuf_alloc(&g_aic_udc.out_ep[ep_idx], data_len);
+            if (ret)
+                return ret;
         }
         data = g_aic_udc.out_ep[ep_idx].xfer_align_buf;
     } else {
-        if (g_aic_udc.out_ep[ep_idx].xfer_align_buf) {
-            aicos_free_align(0, g_aic_udc.out_ep[ep_idx].xfer_align_buf);
-            g_aic_udc.out_ep[ep_idx].xfer_align_buf = NULL;
-            g_aic_udc.out_ep[ep_idx].xfer_align_len = 0;
-        }
+        aic_udc_obuf_free(&g_aic_udc.out_ep[ep_idx]);
     }
 
-    if (data_len>0)
+    if (data_len > 0)
         aic_udc_dcache_invalidate((uintptr_t)data, ALIGN_UP(data_len, CACHE_LINE_SIZE));
 #endif
 
     AIC_UDC_REG->outeptsfsiz[ep_idx] &= ~(DXEPTSIZ_PKT_CNT_MASK);
     AIC_UDC_REG->outeptsfsiz[ep_idx] &= ~(DXEPTSIZ_XFER_SIZE_MASK);
+    AIC_UDC_REG->outeptsfsiz[ep_idx] &= ~(DXEPTSIZ_MULCNT_MASK);
+
     if (data_len == 0) {
         AIC_UDC_REG->outeptsfsiz[ep_idx] |= (DXEPTSIZ_PKT_CNT_MASK & (1 << 19));
         AIC_UDC_REG->outeptsfsiz[ep_idx] |= (DXEPTSIZ_XFER_SIZE_MASK & g_aic_udc.out_ep[ep_idx].ep_mps);
@@ -1018,7 +1202,9 @@ int usbd_ep_start_read(const uint8_t ep, uint8_t *data, uint32_t data_len)
             AIC_UDC_REG->outepcfg[ep_idx] |= DEPCTL_SETD0PID;
         }
     }
+    AIC_UDC_REG->outepint[ep_idx] = 0xFFFFFFFFU;
     AIC_UDC_REG->outepcfg[ep_idx] |= (DEPCTL_CNAK | DEPCTL_EPENA);
+
     return 0;
 }
 
@@ -1063,45 +1249,62 @@ void USBD_IRQHandler(void)
         ep_intr = aic_get_outeps_intstatus();
         while (ep_intr != 0U) {
             if ((ep_intr & 0x1U) != 0U) {
+                USB_LOG_DBG("[int]: Out ep%d outepint = 0x%x, outepcfg = 0x%x.\r\n",
+                            (unsigned int)ep_idx,
+                            (unsigned int)AIC_UDC_REG->outepint[ep_idx],
+                            (unsigned int)AIC_UDC_REG->outepcfg[ep_idx]);
+
                 epint = aic_get_outep_intstatus(ep_idx);
                 uint32_t DoepintReg = AIC_UDC_REG->outepint[ep_idx];
                 AIC_UDC_REG->outepint[ep_idx] = DoepintReg;
 
+                struct aic_ep_state *ep = &g_aic_udc.out_ep[ep_idx];
+
                 if ((epint & TRANSFER_DONE) == TRANSFER_DONE) {
                     #ifdef CONFIG_USB_AIC_DMA_ENABLE
-                    if (g_aic_udc.out_ep[ep_idx].xfer_align_buf) {
-                        memcpy(g_aic_udc.out_ep[ep_idx].xfer_buf,
-                                g_aic_udc.out_ep[ep_idx].xfer_align_buf,
-                                g_aic_udc.out_ep[ep_idx].xfer_align_len);
-                    }
+                    extern void usb_dc_sync_dma(void);
+                    usb_dc_sync_dma();
+                    if (ep->xfer_align_buf)
+                        memcpy(ep->xfer_buf, ep->xfer_align_buf, ep->xfer_len);
                     #endif
                     if ((ep_idx == 0)) {
                         if (ep0_ctrl_stage == 1) {
+#ifndef CONFIG_USB_AIC_DMA_ENABLE
                             ep0_ctrl_stage = 2;
                             usbd_event_ep0_setup_complete_handler((uint8_t *)&g_aic_udc.setup);
-                        } else {
-                            if (g_aic_udc.out_ep[ep_idx].xfer_len == 0) {
-                                /* Out status, start reading setup */
+#else
+                            if (epint & CTRL_OUT_EP_SETUP_RCVD) {
+                                ep0_ctrl_stage = 2;
+                                usbd_event_ep0_setup_complete_handler((uint8_t *)&g_aic_udc.setup);
+                            } else if (epint & CTRL_OUT_EP_STATUS_PHASE_RCVD) {
+                                /* Discard incorrect setup packet, restart read */
                                 aic_ep0_start_read_setup((uint8_t *)&g_aic_udc.setup);
-                            } else {
-                                g_aic_udc.out_ep[ep_idx].actual_xfer_len = g_aic_udc.out_ep[ep_idx].xfer_len - ((AIC_UDC_REG->outeptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
-                                g_aic_udc.out_ep[ep_idx].xfer_len = 0;
-                                usbd_event_ep_out_complete_handler(0x00, g_aic_udc.out_ep[ep_idx].actual_xfer_len);
                             }
+#endif
+                        } else if (ep0_ctrl_stage == 3) {
+                            /* Out status, start reading setup */
+                            aic_ep0_start_read_setup((uint8_t *)&g_aic_udc.setup);
+                        } else {
+                            //ep->actual_xfer_len = ep->xfer_len - ((AIC_UDC_REG->outeptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
+                            ep->actual_xfer_len = ep->xfer_len;
+                            ep->xfer_len = 0;
+                            usbd_event_ep_out_complete_handler(0x00, ep->actual_xfer_len);
                         }
                     } else {
-                        g_aic_udc.out_ep[ep_idx].actual_xfer_len = g_aic_udc.out_ep[ep_idx].xfer_len - ((AIC_UDC_REG->outeptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
-                        g_aic_udc.out_ep[ep_idx].xfer_len = 0;
-                        usbd_event_ep_out_complete_handler(ep_idx, g_aic_udc.out_ep[ep_idx].actual_xfer_len);
+                        ep->actual_xfer_len = ep->xfer_len - ((AIC_UDC_REG->outeptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
+                        ep->xfer_len = 0;
+                        usbd_event_ep_out_complete_handler(ep_idx, ep->actual_xfer_len);
                     }
                 }
 
+#ifndef CONFIG_USB_AIC_DMA_ENABLE
                 if ((epint & CTRL_OUT_EP_SETUP_PHASE_DONE) == CTRL_OUT_EP_SETUP_PHASE_DONE) {
                     if (ep0_ctrl_stage == 1) {
                         ep0_ctrl_stage = 2;
                         usbd_event_ep0_setup_complete_handler((uint8_t *)&g_aic_udc.setup);
                     }
                 }
+#endif
             }
             ep_intr >>= 1U;
             ep_idx++;
@@ -1120,22 +1323,27 @@ void USBD_IRQHandler(void)
         ep_intr = aic_get_ineps_intstatus();
         while (ep_intr != 0U) {
             if ((ep_intr & 0x1U) != 0U) {
+                USB_LOG_DBG("[int]: In ep%d inepint = 0x%x, inepcfg = 0x%x.\r\n",
+                            (unsigned int)ep_idx,
+                            (unsigned int)AIC_UDC_REG->inepint[ep_idx],
+                            (unsigned int)AIC_UDC_REG->inepcfg[ep_idx]);
+
                 epint = aic_get_inep_intstatus(ep_idx);
                 uint32_t DiepintReg = AIC_UDC_REG->inepint[ep_idx];
                 AIC_UDC_REG->inepint[ep_idx] = DiepintReg;
 
+                if (epint & INTKNEPMIS)
+                    usbd_npinep_rewrite(ep_idx);
+
                 if ((epint & TRANSFER_DONE) == TRANSFER_DONE) {
                     if (ep_idx == 0) {
-                        g_aic_udc.in_ep[ep_idx].actual_xfer_len = g_aic_udc.in_ep[ep_idx].xfer_len - ((AIC_UDC_REG->ineptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
-                        g_aic_udc.in_ep[ep_idx].xfer_len = 0;
-                        usbd_event_ep_in_complete_handler(0x80, g_aic_udc.in_ep[ep_idx].actual_xfer_len);
-
-                        if (g_aic_udc.setup.wLength && ((g_aic_udc.setup.bmRequestType & USB_REQUEST_DIR_MASK) == USB_REQUEST_DIR_OUT)) {
+                        if (ep0_ctrl_stage == 3) {
                             /* In status, start reading setup */
                             aic_ep0_start_read_setup((uint8_t *)&g_aic_udc.setup);
-                        } else if (g_aic_udc.setup.wLength == 0) {
-                            /* In status, start reading setup */
-                            aic_ep0_start_read_setup((uint8_t *)&g_aic_udc.setup);
+                        } else {
+                            g_aic_udc.in_ep[ep_idx].actual_xfer_len = g_aic_udc.in_ep[ep_idx].xfer_len - ((AIC_UDC_REG->ineptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
+                            g_aic_udc.in_ep[ep_idx].xfer_len = 0;
+                            usbd_event_ep_in_complete_handler(0x80, g_aic_udc.in_ep[ep_idx].actual_xfer_len);
                         }
                     } else {
                         g_aic_udc.in_ep[ep_idx].actual_xfer_len = g_aic_udc.in_ep[ep_idx].xfer_len - ((AIC_UDC_REG->ineptsfsiz[ep_idx]) & DXEPTSIZ_XFER_SIZE_MASK);
@@ -1158,11 +1366,7 @@ void USBD_IRQHandler(void)
         AIC_UDC_REG->usbintsts |= INT_RESET;
         AIC_UDC_REG->usbdevfunc &= ~USBDEVFUNC_RMTWKUPSIG;
 
-        if (!rst_allow) {
-            rst_allow = 1;
-        } else {
-            usb_dc_rst();
-        }
+        usb_dc_rst();
     }
 
     if (gint_status & INT_ENUMDONE) {
@@ -1220,6 +1424,7 @@ void USBD_IRQHandler(void)
     }
     if (gint_status & INT_SUSPEND) {
         AIC_UDC_REG->usbintsts |= INT_SUSPEND;
+        usbd_event_suspend_handler();
     }
     if (gint_status & INT_RESUME) {
         AIC_UDC_REG->usbintsts |= INT_RESUME;

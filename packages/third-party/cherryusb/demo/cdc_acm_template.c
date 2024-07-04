@@ -6,8 +6,8 @@
 #define CDC_OUT_EP 0x02
 #define CDC_INT_EP 0x83
 
-#define USBD_VID           0xFFFF
-#define USBD_PID           0xFFFF
+#define USBD_VID           0x33C3
+#define USBD_PID           0x7788
 #define USBD_MAX_POWER     100
 #define USBD_LANGID_STRING 1033
 
@@ -139,18 +139,20 @@ void usbd_event_handler(uint8_t event)
 
 void usbd_cdc_acm_bulk_out(uint8_t ep, uint32_t nbytes)
 {
-    USB_LOG_RAW("actual out len:%d\r\n", nbytes);
-    // for (int i = 0; i < 100; i++) {
-    //     printf("%02x ", read_buffer[i]);
-    // }
-    // printf("\r\n");
+    USB_LOG_RAW("Out len: %ld\n\t", nbytes);
+
+    for (int i = 0; i < nbytes; i++) {
+        printf("[%c]0x%02x ", read_buffer[i], read_buffer[i]);
+    }
+    printf("\n");
+
     /* setup next out ep read transfer */
     usbd_ep_start_read(CDC_OUT_EP, read_buffer, 2048);
 }
 
 void usbd_cdc_acm_bulk_in(uint8_t ep, uint32_t nbytes)
 {
-    USB_LOG_RAW("actual in len:%d\r\n", nbytes);
+    USB_LOG_RAW("In len: %ld\n", nbytes);
 
     if ((nbytes % CDC_MAX_MPS) == 0 && nbytes) {
         /* send zlp */
@@ -171,10 +173,11 @@ struct usbd_endpoint cdc_in_ep = {
     .ep_cb = usbd_cdc_acm_bulk_in
 };
 
-struct usbd_interface intf0;
-struct usbd_interface intf1;
+static struct usbd_interface intf0;
+static struct usbd_interface intf1;
+volatile uint8_t dtr_enable = 0;
 
-void cdc_acm_init(void)
+int cdc_acm_init(void)
 {
     const uint8_t data[10] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30 };
 
@@ -187,9 +190,11 @@ void cdc_acm_init(void)
     usbd_add_endpoint(&cdc_out_ep);
     usbd_add_endpoint(&cdc_in_ep);
     usbd_initialize();
-}
 
-volatile uint8_t dtr_enable = 0;
+    return 0;
+}
+INIT_DEVICE_EXPORT(cdc_acm_init);
+
 
 void usbd_cdc_acm_set_dtr(uint8_t intf, bool dtr)
 {
@@ -200,7 +205,7 @@ void usbd_cdc_acm_set_dtr(uint8_t intf, bool dtr)
     }
 }
 
-void cdc_acm_data_send_with_dtr_test(void)
+int cdc_acm_data_send_with_dtr_test(void)
 {
     if (dtr_enable) {
         ep_tx_busy_flag = true;
@@ -208,4 +213,6 @@ void cdc_acm_data_send_with_dtr_test(void)
         while (ep_tx_busy_flag) {
         }
     }
+    return 0;
 }
+MSH_CMD_EXPORT(cdc_acm_data_send_with_dtr_test, usb cdc)

@@ -14,11 +14,12 @@ static const uint16_t SuppOP[] = { MTP_OP_GET_DEVICE_INFO, MTP_OP_OPEN_SESSION, 
                                    MTP_OP_GET_STORAGE_IDS, MTP_OP_GET_STORAGE_INFO, MTP_OP_GET_NUM_OBJECTS,
                                    MTP_OP_GET_OBJECT_HANDLES, MTP_OP_GET_OBJECT_INFO, MTP_OP_GET_OBJECT,
                                    MTP_OP_DELETE_OBJECT, MTP_OP_SEND_OBJECT_INFO, MTP_OP_SEND_OBJECT,
-                                   MTP_OP_GET_DEVICE_PROP_DESC, MTP_OP_GET_DEVICE_PROP_VALUE,
-                                   MTP_OP_SET_OBJECT_PROP_VALUE, MTP_OP_GET_OBJECT_PROP_VALUE,
-                                   MTP_OP_GET_OBJECT_PROPS_SUPPORTED, MTP_OP_GET_OBJECT_PROPLIST,
-                                   MTP_OP_GET_OBJECT_PROP_DESC, MTP_OP_GET_OBJECT_PROP_REFERENCES };
-
+                                   MTP_OP_GET_DEVICE_PROP_DESC, MTP_OP_GET_OBJECT_PROPS_SUPPORTED
+                                   };
+                                   /* MTP_OP_GET_OBJECT_PROPLIST，MTP_OP_GET_OBJECT_PROP_DESC,
+                                    MTP_OP_GET_DEVICE_PROP_VALUE，
+                                    MTP_OP_SET_OBJECT_PROP_VALUE，MTP_OP_GET_OBJECT_PROP_VALUE
+                                    MTP_OP_GET_OBJECT_PROP_REFERENCES，*/
 static const uint16_t SuppEvents[] = { MTP_EVENT_OBJECTADDED };
 
 static const uint16_t DevicePropSupp[] = { MTP_DEV_PROP_DEVICE_FRIENDLY_NAME, MTP_DEV_PROP_BATTERY_LEVEL };
@@ -48,7 +49,8 @@ static const uint16_t DevicePropCurDefVal[] = { 'C', 'h', 'e', 'r', 'r', 'y', 'U
 persistent unique object identifier, name*/
 static const uint16_t ObjectPropCode[] = { MTP_OB_PROP_STORAGE_ID, MTP_OB_PROP_OBJECT_FORMAT, MTP_OB_PROP_OBJECT_SIZE,
                                            MTP_OB_PROP_OBJ_FILE_NAME, MTP_OB_PROP_PARENT_OBJECT, MTP_OB_PROP_NAME,
-                                           MTP_OB_PROP_PERS_UNIQ_OBJ_IDEN, MTP_OB_PROP_PROTECTION_STATUS };
+                                           MTP_OB_PROP_PERS_UNIQ_OBJ_IDEN, MTP_OB_PROP_PROTECTION_STATUS,
+                                           MTP_OB_PROP_DISPLAY_NAME};
 
 #define MTP_STORAGE_ID 0x00010001U /* SD card is inserted*/
 
@@ -65,8 +67,10 @@ static const uint16_t ObjectPropCode[] = { MTP_OB_PROP_STORAGE_ID, MTP_OB_PROP_O
 #define CONFIG_MTP_SUPP_OBJ_PROP_LEN        (sizeof(ObjectPropCode) / 2U)
 #define CONFIG_MTP_DEVICE_PROP_DESC_DEF_LEN (sizeof(DevicePropDefVal) / 2U)
 #define CONFIG_MTP_DEVICE_PROP_DESC_CUR_LEN (sizeof(DevicePropCurDefVal) / 2U)
+#define CONFIG_MTP_FILE_NAME_LEN            (sizeof(DefaultFileName) / 2U)
 #define CONFIG_MTP_STORAGE_ID_LEN           1
-#define CONFIG_MTP_OBJECT_HANDLE_LEN        100
+#define CONFIG_MTP_OBJECT_HANDLE_LEN        124
+#define CONFIG_MTP_COMMAND_LEN              12
 
 struct mtp_device_info {
     uint16_t StandardVersion;
@@ -129,7 +133,7 @@ struct mtp_storage_info {
 
 struct mtp_object_handle {
     uint32_t ObjectHandle_len;
-    uint32_t ObjectHandle[CONFIG_MTP_OBJECT_HANDLE_LEN];
+    uint32_t ObjectHandle[CONFIG_USBDEV_MTP_GET_MAX_HANDLES];
 } __PACKED;
 
 struct mtp_object_info {
@@ -164,16 +168,88 @@ struct mtp_object_prop_desc {
     uint8_t FormFlag;
 } __PACKED;
 
+struct mtp_string {
+    uint8_t len;
+    uint16_t string[255];
+};
+
+union _property_value {
+    uint8_t *str;
+    uint8_t u8;
+    int8_t i8;
+    uint16_t u16;
+    int16_t i16;
+    uint32_t u32;
+    int32_t i32;
+    uint64_t u64;
+    int64_t i64;
+
+    struct array {
+        uint32_t count;
+        union _property_value *v;
+    }a;
+};
+typedef union _property_value property_value;
+
 struct mtp_object_prop_element {
     uint32_t ObjectHandle;
     uint16_t PropertyCode;
     uint16_t Datatype;
-    uint8_t *propval;
+    // uint8_t *propval;
+    property_value propval;
 } __PACKED;
 
 struct mtp_object_prop_list {
     uint32_t Properties_len;
     struct mtp_object_prop_element Properties[CONFIG_MTP_SUPP_OBJ_PROP_LEN];
 } __PACKED;
+
+#define MTP_MAX_LONG_NAME_LEN 256
+typedef struct object_prop_value_dataset
+{
+  uint32_t  storage_id;
+  uint16_t  format;
+  uint16_t  protection_status;
+  uint32_t  size;
+  uint32_t  file_name_length;
+  uint8_t   file_name[MTP_MAX_LONG_NAME_LEN];
+  uint32_t  file_full_name_length;
+  uint8_t   file_full_name[MTP_MAX_LONG_NAME_LEN];
+  uint32_t  parent_object;
+  uint16_t  identifier[4];
+}object_property_data_set_typedef;
+
+struct mtp_object {
+    uint32_t handle;
+    object_property_data_set_typedef property;
+};
+
+struct mtp_file {
+    uint32_t handle;
+    int fd;
+    int offset;
+    int32_t data_length;
+};
+
+int usbd_mtp_get_cap(uint64_t *max_capability, uint64_t *free_space);
+int usbd_mtp_make_dir(const char *path);
+int usbd_mtp_remove_dir(const char *path);
+int usbd_mtp_creat_file(const char *path);
+int usbd_mtp_unlink_file(const char *pathname);
+int usbd_mtp_open_file_rdonly(const char *file);
+int usbd_mtp_open_file_wronly(const char *file);
+int usbd_mtp_close_file(int fd);
+int usbd_mtp_read_file(int fd, void *buf, size_t len);
+int usbd_mtp_write_file(int fd, void *buf, size_t len);
+void *usbd_mtp_open_dir(const char *path);
+void *usbd_mtp_close_dir(const char *path);
+int usbd_mtp_get_file_info(void *d,
+                            char *file_name,
+                            uint8_t *file_name_len,
+                            uint32_t *protection_status);
+uint32_t usbd_mtp_get_file_size(const char *file);
+int usbd_mtp_get_fullpath(char *buf, const char *directory,
+                            const char *filename);
+
 
 #endif /* USB_MTP_CONFIG_H */

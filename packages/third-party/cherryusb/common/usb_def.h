@@ -249,7 +249,6 @@
 #define USB_GET_MAXPACKETSIZE(x)                       ((x & USB_MAXPACKETSIZE_MASK) >> USB_MAXPACKETSIZE_SHIFT)
 #define USB_GET_MULT(x)                                ((x & USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_MASK) >> USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_SHIFT)
 
-
 /* bDevCapabilityType in Device Capability Descriptor */
 #define USB_DEVICE_CAPABILITY_WIRELESS_USB                1
 #define USB_DEVICE_CAPABILITY_USB_2_0_EXTENSION           2

@@ -610,9 +610,11 @@ at_client_t at_client_get(const char *dev_name)
 
     for (idx = 0; idx < AT_CLIENT_NUM_MAX; idx++)
     {
-        if (rt_strcmp(at_client_table[idx].device->parent.name, dev_name) == 0)
+        if (at_client_table[idx].device != NULL && rt_strcmp(at_client_table[idx].device->parent.name, dev_name) == 0)    //修改
         {
             return &at_client_table[idx];
+        }else{
+            return RT_NULL;    //修改
         }
     }
 
@@ -868,7 +870,7 @@ static int at_client_para_init(at_client_t client)
     client->parser = rt_thread_create(name,
                                      (void (*)(void *parameter))client_parser,
                                      client,
-                                     1024 + 512,
+                                     1024 * 8,
                                      RT_THREAD_PRIORITY_MAX / 3 - 1,
                                      5);
     if (client->parser == RT_NULL)
