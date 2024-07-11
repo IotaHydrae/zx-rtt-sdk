@@ -47,4 +47,19 @@ config AIC_AB_SYSTEM_INTERFACE
     default y
 endif
 
+if LPKG_USING_YMODEM_OTA
+config AIC_AB_SYSTEM_INTERFACE
+    bool "Enable A/B system support"
+    depends on AIC_ENV_INTERFACE
+    default y
+endif
+
+if LPKG_USING_UART_OTA
+config AIC_AB_SYSTEM_INTERFACE
+    bool "Enable A/B system support"
+    depends on AIC_ENV_INTERFACE
+    default y
+endif
+
+
 endif

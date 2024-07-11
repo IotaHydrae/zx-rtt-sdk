@@ -18,7 +18,7 @@
 
 - Nuvoton all series
 
-### Artinchip
+### ZX
 
 - d13x, d21x
 

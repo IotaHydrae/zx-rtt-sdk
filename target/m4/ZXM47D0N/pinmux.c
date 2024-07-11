@@ -332,7 +332,9 @@ void aic_board_pinmux_init(void)
 
     hal_gpio_set_func(g, p, 1);
     hal_gpio_direction_output(g, p);
-    hal_gpio_clr_output(g, p);
-    aic_mdelay(50);
+#ifndef AIC_BOOTLOADER
     hal_gpio_set_output(g, p);
+#else
+    hal_gpio_clr_output(g, p);
+#endif
 }

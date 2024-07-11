@@ -361,10 +361,41 @@ config AIC_CE_DRV_TEST
     default n
     depends on AIC_CE_DRV
 
+config AIC_SOFT_AES_TEST
+    bool "Enable Soft AES ECB test command"
+    default n
+
 config AIC_SID_BARE_TEST
     bool "Enable SID driver test command"
     default n
     depends on AIC_SID_DRV
+
+    config AIC_DM_LIB_TEST
+    bool "Enable DM Lib test command"
+    default n
+    depends on RT_USING_MODULE
+
+config AIC_USERID_BARE_TEST
+    bool "Enable userid test command"
+    default n
+    depends on LPKG_USING_USERID
+
+config AIC_MEM_API_TEST
+    bool "Enable memory API test command"
+    default n
+
+config AIC_SE_PM_DRV_TEST
+    bool "Enable SE PM driver test command"
+    default n
+    depends on AIC_PM_DRV
+
+config AIC_FILE_SYSTEM_TEST
+    bool "Enable filesystem test command"
+    default n
+
+config AIC_PM_DRV_TEST
+    bool "Enable PM stability test command"
+    depends on AIC_PM_DRV
 
 endmenu
 endmenu

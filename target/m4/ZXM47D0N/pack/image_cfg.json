@@ -10,10 +10,17 @@
             "rodata":  { "size": "8m" },
             "rodata_r":  { "size": "8m" },
             "data": {
-                "size": "30m",
+                "size": "15m",
                 "nftl": { // Volume in NFTL device
                     "data": { "size": "-" },
                 },
+            },
+
+            "data_r": {
+                "size": "15m",
+                "nftl": { // Volume in NFTL device
+                    "data": { "size": "-" },
+                }
             },
         },
     },

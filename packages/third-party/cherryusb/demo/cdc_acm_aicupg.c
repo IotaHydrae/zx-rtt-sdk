@@ -1,9 +1,7 @@
 /*
- * Copyright (c) 2024, ArtInChip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Authors: duanmt@artinchip.com
  */
 
 #include <rtdevice.h>

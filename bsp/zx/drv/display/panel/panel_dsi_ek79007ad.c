@@ -15,6 +15,14 @@ static int panel_enable(struct aic_panel *panel)
     panel_di_enable(panel, 0);
     panel_dsi_send_perpare(panel);
 
+    panel_dsi_dcs_send_seq(panel, 0x80, 0xAB);
+    panel_dsi_dcs_send_seq(panel, 0x81, 0x4B);
+    panel_dsi_dcs_send_seq(panel, 0x82, 0x84);
+    panel_dsi_dcs_send_seq(panel, 0x83, 0x88);
+    panel_dsi_dcs_send_seq(panel, 0x84, 0xA8);
+    panel_dsi_dcs_send_seq(panel, 0x85, 0xE3);
+    panel_dsi_dcs_send_seq(panel, 0x86, 0xBB);
+
     ret = panel_dsi_dcs_exit_sleep_mode(panel);
     if (ret < 0) {
         pr_err("Failed to exit sleep mode: %d\n", ret);

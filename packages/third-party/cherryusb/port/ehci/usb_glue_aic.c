@@ -1,5 +1,4 @@
 ﻿/*
- * Copyright (c) 2022, Artinchip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -83,7 +82,7 @@ void usb_hc_low_level_init(struct usbh_bus *bus)
 
     /* set phy type: UTMI/ULPI */
     val = readl((volatile void *)(unsigned long)(config[i].base_addr+0x800));
-#ifdef FPGA_BOARD_ARTINCHIP
+#ifdef FPGA_BOARD_ZX
     /* fpga phy type = ULPI */
     writel((val  & ~0x1U), (volatile void *)(unsigned long)(config[i].base_addr+0x800));
 #else

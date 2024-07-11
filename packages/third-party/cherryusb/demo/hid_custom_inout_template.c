@@ -1,5 +1,4 @@
 /*
- * Copyright (c) 2023, ArtInChip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,7 +9,7 @@
 #include "usbd_core.h"
 #include "usbd_hid.h"
 #ifdef LPKG_MPP
-#include "artinchip_fb.h"
+#include "zx_fb.h"
 #endif
 #ifdef AIC_MPP_VIN
 #include "mpp_vin_vb.h"

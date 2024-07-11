@@ -1,5 +1,4 @@
 /*
- * Copyright (c) 2023, Artinchip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -206,7 +205,7 @@ static inline int aic_core_init(void)
         | 0x5 << 10 /* USB Turnaround time (0x5 for HS phy) */
         | 0 << 7    /* ULPI DDR sel 0:single 8bit, 1:double 4bit */
         /*| 0 << 6   0: high speed utmi+, 1: full speed serial*/
-#ifdef FPGA_BOARD_ARTINCHIP
+#ifdef FPGA_BOARD_ZX
         | 1 << 4    /* 0: utmi+, 1:ulpi*/
 #else
         | 0 << 4    /* 0: utmi+, 1:ulpi*/
