@@ -153,6 +153,11 @@ config AIC_SPINOR_SFUD_DEBUG
     default n
     depends on LPKG_USING_SFUD
 
+config AIC_SPINOR_SFUD_WP_DEBUG
+    bool "Enable SPINOR write protection debug"
+    default y
+    depends on LPKG_USING_SFUD
+
 config AIC_FB_DRV_DEBUG
     bool "Enable Display driver debug"
     default n

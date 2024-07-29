@@ -29,6 +29,8 @@ static int spi_nor_write_16bit_cr_and_check(sfud_flash *flash, uint8_t cr)
     ret = sfud_read_status(flash, sr_cr);
     if (ret)
         return ret;
+    if (sr_cr[0] & SFUD_WRITE_PROTECTION_MASK)
+            SFUD_WP_INFO("Flash is in write protection state: 0x%x.\n", sr_cr[0]);
 
     sr_cr[1] = cr;
 
@@ -41,6 +43,8 @@ static int spi_nor_write_16bit_cr_and_check(sfud_flash *flash, uint8_t cr)
     ret = sfud_read_status(flash, sr_cr);
     if (ret)
         return ret;
+    if (sr_cr[0] & SFUD_WRITE_PROTECTION_MASK)
+            SFUD_WP_INFO("Flash is in write protection state: 0x%x.\n", sr_cr[0]);
 
     /* Only check the writable bits */
     if (sr_written != (sr_cr[0] & SR1_RW_MSK)) {
@@ -82,6 +86,8 @@ static int spi_nor_write_sr1_and_check(sfud_flash *flash, uint8_t sr1)
     ret = sfud_read_status(flash, &status);
     if (ret)
         return ret;
+    if (status & SFUD_WRITE_PROTECTION_MASK)
+            SFUD_WP_INFO("Flash is in write protection state: 0x%x.\n", status);
 
     if (status!= sr1) {
         SFUD_INFO("SR1: read back test failed\n");
