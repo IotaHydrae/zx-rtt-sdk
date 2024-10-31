@@ -98,6 +98,12 @@
 #define LV_ATTRIBUTE_FAST_MEM   __attribute__((section(".ram.code")))
 #endif
 
+#define LV_ATTRIBUTE_TICK_INC           __attribute__((section(".ram.code")))
+#define LV_ATTRIBUTE_TIMER_HANDLER      __attribute__((section(".ram.code")))
+#define LV_ATTRIBUTE_FLUSH_READY        __attribute__((section(".ram.code")))
+#define LV_ATTRIBUTE_LARGE_RAM_ARRAY    __attribute__((section(".ram.code")))
+#define LV_ATTRIBUTE_FAST_MEM           __attribute__((section(".ram.code")))
+
 #define LV_COLOR_SCREEN_TRANSP 0
 
 #endif
