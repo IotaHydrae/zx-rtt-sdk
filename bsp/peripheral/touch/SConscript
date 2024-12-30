@@ -34,6 +34,10 @@ if GetDepend('ZX_TOUCH_GSL2036'):
     CPPPATH.append(cwd + '/gsl2036/inc')
     src += Glob('gsl2036/src/*.c')
 
+if GetDepend('ZX_TOUCH_CST3240'):
+    CPPPATH.append(cwd + '/cst3240/inc')
+    src += Glob('cst3240/src/*.c')
+
 group = DefineGroup('touch', src, depend = [''], CPPPATH = CPPPATH)
 
 Return('group')

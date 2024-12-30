@@ -19,6 +19,10 @@ config ZX_TOUCH_CST226SE
     bool "cst226se touch"
     select AIC_I2C_DRV
 
+config ZX_TOUCH_CST3240
+    bool "cst3240 touch"
+    select AIC_I2C_DRV
+
 config ZX_TOUCH_FT5X06
     bool "ft5x06 touch"
     select AIC_I2C_DRV
@@ -48,6 +52,10 @@ endif
 if ZX_TOUCH_CST226SE
 source "bsp/peripheral/touch/cst226se/Kconfig"
 endif
+
+if ZX_TOUCH_CST3240
+    source "bsp/peripheral/touch/cst3240/Kconfig"
+    endif
 
 if ZX_TOUCH_FT5X06
 source "bsp/peripheral/touch/ft5x06/Kconfig"
