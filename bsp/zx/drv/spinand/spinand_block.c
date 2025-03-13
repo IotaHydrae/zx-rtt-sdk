@@ -232,6 +232,8 @@ rt_err_t rt_spinand_init_nonftl(rt_device_t dev)
             /* Find next good block. */
             do {
                 bad_block_pos++;
+                if (block + bad_block_pos >= device->block_end)
+                    break;
             } while (device->ops->check_block(device, block + bad_block_pos));
             device->ops->set_block_status(device, block, bad_block_pos, BBT_BLOCK_FACTORY_BAD);
         } else {

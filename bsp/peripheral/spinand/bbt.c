@@ -1,9 +1,3 @@
-/*
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -38,11 +32,16 @@ int nand_bbt_get_block_status(struct aic_spinand *flash, u32 block)
 {
     u8 *pos = flash->bbt.cache + block;
 
+    u8 pos0 = pos[0];
+    pos = flash->bbt.cache + block + pos0;
+    if (pos0 != pos[0])
+        return nand_bbt_get_block_status(flash, block + pos0);
+
     return (pos[0] & 0x3f);
 }
 
 void nand_bbt_set_block_status(struct aic_spinand *flash, u32 block, u32 pos_block,
-                               u32 status)
+                            u32 status)
 {
     u8 *before_pos = 0;
     u8 *pos = flash->bbt.cache + block;
