@@ -458,7 +458,7 @@ s32 nand_fwc_nftl_write(struct fwc_info *fwc, u8 *buf, s32 len)
     struct aicupg_nand_priv *priv;
     struct nftl_api_handler_t *nftl_handler;
     struct mtd_dev *mtd;
-    unsigned long offset, erase_offset;
+    unsigned long offset;
     int i, ret = 0;
 
     priv = (struct aicupg_nand_priv *)fwc->priv;
@@ -478,15 +478,6 @@ s32 nand_fwc_nftl_write(struct fwc_info *fwc, u8 *buf, s32 len)
             return 0;
         }
 
-        /* erase 1 sector when offset+len more than erased address */
-        erase_offset = priv->erase_offset[i];
-
-        if (mtd_block_isbad(mtd, erase_offset)) {
-            pr_err(" Write block is bad, skip it.\n");
-            priv->start_offset[i] = offset + mtd->erasesize;
-            offset = priv->start_offset[i];
-        }
-
         start_offset = offset;
         start_page = start_offset / mtd->writesize;
         start_sector = start_page * 4;
@@ -494,8 +485,6 @@ s32 nand_fwc_nftl_write(struct fwc_info *fwc, u8 *buf, s32 len)
 
         nftl_api_write(nftl_handler, start_sector, sector_total, buf);
         nftl_api_write_cache(nftl_handler, 0xffff);
-        //nftl_handler->write_data(nftl_handler, start_sector, sector_total, buf);
-        //nftl_handler->flush_write_cache(nftl_handler, 0xffff);
         priv->start_offset[i] = offset + len;
     }
 
