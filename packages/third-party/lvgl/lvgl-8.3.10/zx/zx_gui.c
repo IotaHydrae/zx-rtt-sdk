@@ -162,7 +162,15 @@ static void __zx_gui_entry(void *parameter)
 #ifdef RT_USING_PM
         rt_uint32_t status = rt_pm_module_get_status();
         if (!(status & (1 << PM_POWER_ID)))
+        {
+            /* 没有模块请求保持唤醒，可以延迟让系统进入低功耗 */
             rt_thread_mdelay(sleep_timeout);
+        }
+        else
+        {
+            if (sleep_timeout > 0)
+                rt_thread_mdelay(1);  /* 至少延迟1ms让idle线程有机会执行 */
+        }
 #else
         rt_thread_mdelay(sleep_timeout);
 #endif

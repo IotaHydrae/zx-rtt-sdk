@@ -1135,7 +1135,7 @@ static void rt_module_release_mode(int argc, char **argv)
         mode = atoi(argv[2]);
     }
     rt_pm_module_release(module, mode);
-#if AIC_PM_DRV
+#ifdef AIC_PM_DRV
     wakeup_triggered = 0;
 #endif
 }
@@ -1168,7 +1168,7 @@ static void rt_module_request_mode(int argc, char **argv)
     }
 
     rt_pm_module_request(module, mode);
-#if AIC_PM_DRV
+#ifdef AIC_PM_DRV
     wakeup_triggered = 1;
 #endif
 }
