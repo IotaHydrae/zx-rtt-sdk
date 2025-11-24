@@ -89,7 +89,7 @@ int aic_spinand_transfer_message(struct aic_spinand *flash,
     }
 
     /* transmit each SPI message */
-    if (device->parent.bus->ops->xfer(&device->parent, &qspi_messages.parent) <
+    if (device->parent.bus->ops->xfer(&device->parent, &qspi_messages.parent) <=
         0) {
         pr_err("Xfer SPI bus failed\n");
         result = -SPINAND_ERR;
