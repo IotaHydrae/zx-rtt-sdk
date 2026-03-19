@@ -46,7 +46,7 @@ extern "C" {
 
 #define DATA_WRITE_ONCE_MAX_SIZE (1024 * 1024)
 #define DATA_WRITE_ONCE_MID_SIZE (64 * 1024)
-#define DATA_WRITE_ONCE_MIN_SIZE (20 * 1024)
+#define DATA_WRITE_ONCE_MIN_SIZE (16 * 1024)
 
 struct cmd_header {
     u32 magic; /* "UPGC" */
@@ -113,13 +113,20 @@ s32 aicupg_set_upg_cfg(struct upg_cfg *cfg);
 s32 aicupg_get_upg_mode(void);
 s32 aicupg_data_packet_write(u8 *data, s32 len);
 s32 aicupg_data_packet_read(u8 *data, s32 len);
+void aicupg_show_upg_cfg_mode(int mode);
+void aicupg_show_init_cfg_mode(int mode_bits);
 
 /*fat upgrade function*/
 s32 aicupg_fat_write(char *image_name, char *protection,
-				struct image_header_upgrade *header);
+                     struct image_header_upgrade *header);
 
 int aicupg_fat_direct_write(char *dst_type, u32 intf_id, char *fpath,
                             u32 dst_offset, u32 boot_flag, char *attr);
+typedef void (*progress_cb)(u32 percent);
+void aicupg_fat_set_process_cb(progress_cb cb);
+
+void *aicupg_malloc_align(u32 size, size_t align);
+void aicupg_free_align(void *ptr);
 #ifdef __cplusplus
 }
 #endif

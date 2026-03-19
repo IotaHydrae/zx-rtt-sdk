@@ -9,13 +9,13 @@
 #include <rtdevice.h>
 #include <finsh.h>
 #include <drv_qspi.h>
-#include <drv_spienc.h>
 #include <partition_table.h>
 #include <boot_param.h>
 #include <private_param.h>
 #include "spinand.h"
 #include "spinand_parts.h"
 #include "spinand_block.h"
+#include <spienc.h>
 
 static struct rt_mtd_nand_device *g_mtd_partitions;
 static int g_mtd_partitions_cnt;
@@ -89,9 +89,9 @@ int aic_spinand_transfer_message(struct aic_spinand *flash,
     }
 
     /* transmit each SPI message */
-    if (device->parent.bus->ops->xfer(&device->parent, &qspi_messages.parent) <=
-        0) {
-        pr_err("Xfer SPI bus failed\n");
+    int xfer_len = device->parent.bus->ops->xfer(&device->parent, &qspi_messages.parent);
+    if (xfer_len < 0 || (datacount > 0 && xfer_len != (int)datacount)) {
+        pr_err("Xfer SPI bus failed, len=%d expect=%u\n", xfer_len, datacount);
         result = -SPINAND_ERR;
         rt_set_errno(-SPINAND_ERR);
         goto __exit;
@@ -169,6 +169,12 @@ static rt_err_t spinand_mtd_read(struct rt_mtd_nand_device *device,
     RT_ASSERT(result == RT_EOK);
 
     result = spinand_read_page(flash, page, data, data_len, spare, spare_len);
+
+    // /* On ECC/read error, mark block bad so next boot will exclude it from good-block list */
+    // if (result != RT_EOK) {
+    //     rt_uint32_t blk = (rt_uint32_t)(page / device->pages_per_block);
+    //     device->ops->set_block_status(device, blk, BBT_BLOCK_FACTORY_BAD);
+    // }
 
     rt_mutex_release(flash->lock);
 
@@ -330,7 +336,7 @@ static rt_uint32_t spinand_get_block_status(struct rt_mtd_nand_device *device,
     result = rt_mutex_take(flash->lock, RT_WAITING_FOREVER);
     RT_ASSERT(result == RT_EOK);
 
-    result = spinand_block_status(flash, block);
+    result = spinand_get_status(flash, block);
 
     rt_mutex_release(flash->lock);
 
@@ -338,8 +344,7 @@ static rt_uint32_t spinand_get_block_status(struct rt_mtd_nand_device *device,
 }
 
 static rt_err_t spinand_set_block_status(struct rt_mtd_nand_device *device,
-                                          rt_uint32_t block, rt_uint32_t block_pos,
-                                          rt_uint32_t status)
+                                          rt_uint32_t block, rt_uint32_t status)
 {
     rt_err_t result = RT_EOK;
     struct aic_spinand *flash = (struct aic_spinand *)device->priv;
@@ -354,15 +359,43 @@ static rt_err_t spinand_set_block_status(struct rt_mtd_nand_device *device,
     result = rt_mutex_take(flash->lock, RT_WAITING_FOREVER);
     RT_ASSERT(result == RT_EOK);
 
-    result = spinand_set_block(flash, block, block_pos, status);
+    result = spinand_set_status(flash, block, status);
 
     rt_mutex_release(flash->lock);
 
     return result;
 }
 
+static rt_err_t spinand_map_user(struct rt_mtd_nand_device *device,
+                                          rt_uint8_t *oobbuf, rt_uint8_t *buf,
+                                          rt_base_t start, rt_base_t nbytes)
+{
+    rt_err_t result = RT_EOK;
+    struct aic_spinand *flash = (struct aic_spinand *)device->priv;
+
+    RT_ASSERT(device != RT_NULL);
+
+    result = spinand_ooblayout_map_user(flash, oobbuf, buf, start, nbytes);
+
+    return result;
+}
+
+static rt_err_t spinand_unmap_user(struct rt_mtd_nand_device *device,
+                                          rt_uint8_t *dst, rt_uint8_t *src,
+                                          rt_base_t start, rt_base_t nbytes)
+{
+    rt_err_t result = RT_EOK;
+    struct aic_spinand *flash = (struct aic_spinand *)device->priv;
+
+    RT_ASSERT(device != RT_NULL);
+
+    result = spinand_ooblayout_unmap_user(flash, dst, src, start, nbytes);
+
+    return result;
+}
+
 static int nand_read_data(void *dev, unsigned long offset, void *buf,
-                          unsigned long len)
+                          unsigned long len, int spienc_bypass)
 {
     struct aic_spinand *flash = dev;
     rt_err_t result;
@@ -372,7 +405,17 @@ static int nand_read_data(void *dev, unsigned long offset, void *buf,
     RT_ASSERT(result == RT_EOK);
 
     page = offset / flash->info->page_size;
+    if (spienc_bypass) {
+#ifdef AIC_USING_SPIENC
+        spienc_set_bypass(AIC_SPIENC_BYPASS_ENABLE);
+#endif
+    }
     result = spinand_read_page(flash, page, buf, len, NULL, 0);
+    if (spienc_bypass) {
+#ifdef AIC_USING_SPIENC
+        spienc_set_bypass(AIC_SPIENC_BYPASS_DISABLE);
+#endif
+    }
 
     rt_mutex_release(flash->lock);
 
@@ -384,6 +427,10 @@ static char *aic_spinand_get_partition_string(struct aic_spinand *flash)
     char *parts = NULL;
     void *res_addr = NULL;
 
+#ifdef AIC_SECONED_FLASH_NAND
+    parts = rt_strdup(IMAGE_CFG_JSON_PARTS_MTD);
+    return parts;
+#endif
     res_addr = aic_get_boot_resource_from_nand(flash, flash->info->page_size,
                                                nand_read_data);
     parts = private_get_partition_string(res_addr);
@@ -402,17 +449,31 @@ static struct rt_mtd_nand_driver_ops spinand_ops = {
     spinand_mtd_write,         NULL,
     spinand_mtd_erase,         spinand_mtd_block_isbad,
     spinand_mtd_block_markbad, spinand_mtd_continuous_read,
-    spinand_set_block_status, spinand_get_block_status
+    spinand_set_block_status, spinand_get_block_status,
+    spinand_map_user, spinand_unmap_user
 };
+
+static uint32_t get_spinand_bus_id(void)
+{
+#if defined(AIC_SECONED_FLASH_NAND)
+#if defined(AIC_QSPI1_DEVICE_SPINAND)
+    return 1;
+#elif defined(AIC_QSPI2_DEVICE_SPINAND)
+    return 2;
+#endif
+#endif
+    return 0;
+}
 
 rt_err_t rt_hw_mtd_spinand_init(struct aic_spinand *flash)
 {
+    struct nftl_mtd *nftl_parts = NULL;
     struct mtd_partition *parts, *p;
     rt_uint32_t blocksize;
-    int i = 0, cnt;
-    rt_err_t result;
     char *partstr = NULL;
-    struct nftl_mtd *nftl_parts = NULL;
+    uint32_t spi_bus = 0;
+    rt_err_t result;
+    int i = 0, cnt;
 
     if (flash->IsInited)
         return RT_EOK;
@@ -433,7 +494,8 @@ rt_err_t rt_hw_mtd_spinand_init(struct aic_spinand *flash)
     nftl_parts = build_nftl_list(IMAGE_CFG_JSON_PARTS_NFTL);
 #endif
 
-    parts = mtd_parts_parse(partstr);
+    spi_bus = get_spinand_bus_id();
+    parts = mtd_parts_parse(partstr, spi_bus);
     if (partstr)
         free(partstr);
     p = parts;
@@ -522,8 +584,9 @@ rt_err_t rt_hw_mtd_spinand_register(const char *device_name, u32 bus_hz)
 
     device = (struct rt_qspi_device *)pDev;
     spinand->user_data = device;
+    spinand->bus = atoi(device_name);
 
-    device->config.parent.mode = RT_SPI_MODE_0;
+    device->config.parent.mode = RT_SPI_MODE_0 | RT_SPI_MSB;
     device->config.parent.data_width = 8;
     device->config.parent.max_hz = bus_hz;
     device->config.ddr_mode = 0;
@@ -887,6 +950,17 @@ static int rt_hw_spinand_register(void)
                                RT_NULL, RT_NULL);
     rt_hw_mtd_spinand_register("spinand0", AIC_QSPI0_DEVICE_SPINAND_FREQ);
 #endif
+#if defined(AIC_SECONED_FLASH_NAND)
+#if defined(AIC_QSPI2_DEVICE_SPINAND)
+    aic_qspi_bus_attach_device("qspi2", "spinand1", 0, AIC_QSPI2_BUS_WIDTH,
+                               RT_NULL, RT_NULL);
+    rt_hw_mtd_spinand_register("spinand1", AIC_QSPI2_DEVICE_SPINAND_FREQ);
+#elif defined(AIC_QSPI1_DEVICE_SPINAND)
+    aic_qspi_bus_attach_device("qspi1", "spinand1", 0, AIC_QSPI1_BUS_WIDTH,
+                               RT_NULL, RT_NULL);
+    rt_hw_mtd_spinand_register("spinand1", AIC_QSPI1_DEVICE_SPINAND_FREQ);
+#endif
+#endif // AIC_SECONED_FLASH_NAND
     return RT_EOK;
 }
 

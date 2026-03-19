@@ -35,7 +35,7 @@
 #define AIC_VOLTAGE_ACCURACY            10000
 #define ADCIM_CALCSR_NUM                6
 
-#ifdef AIC_CHIP_M3C || AIC_CHIP_M3A
+#if defined(AIC_CHIP_M3C) || defined(AIC_CHIP_M3A)
 #define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x8
 #elif defined(AIC_CHIP_M3)
 #define ADCIM_CAL_ADC_OFFSET_MISMATCH   0x28

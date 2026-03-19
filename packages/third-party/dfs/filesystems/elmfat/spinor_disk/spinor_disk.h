@@ -10,6 +10,9 @@
 #include <rtconfig.h>
 #include "diskio.h"
 #include "mtd.h"
+#ifdef LPKG_USING_LEVELX
+#include "lx_api.h"
+#endif
 
 #if defined(__cplusplus)
 extern "C" {
@@ -21,6 +24,9 @@ struct spinor_blk_device {
 #ifdef AIC_FATFS_ENABLE_WRITE_IN_SPINOR
     uint32_t length;
     uint8_t *buf;
+#ifdef LPKG_USING_LEVELX
+    LX_NOR_FLASH    *lx_nor_flash;
+#endif
 #endif
 };
 
@@ -56,7 +62,7 @@ DSTATUS spinor_disk_status(void *hdisk);
  * @retval RES_PARERR Failed.
  * @retval RES_OK Success.
  */
-DRESULT spinor_disk_read(void *hdisk, uint8_t *buf, uint32_t sector, uint8_t cnt);
+DRESULT spinor_disk_read(void *hdisk, uint8_t *buf, uint32_t sector, rt_size_t cnt);
 
 /*!
  * @brief Writes SPINOR disk.
@@ -68,7 +74,7 @@ DRESULT spinor_disk_read(void *hdisk, uint8_t *buf, uint32_t sector, uint8_t cnt
  * @retval RES_PARERR Failed.
  * @retval RES_OK Success.
  */
-DRESULT spinor_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector, uint8_t cnt);
+DRESULT spinor_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector, rt_size_t cnt);
 
 /*!
  * @brief SPINOR disk IO operation.

@@ -9,9 +9,12 @@
 #include <spinand_port.h>
 #include <mtd.h>
 #include <aic_common.h>
+#include <aic_utils.h>
+#include <aic_crc32.h>
 #include "upg_internal.h"
 #include "nand_fwc_spl.h"
 #include <spienc.h>
+//#include <firmware_security.h>
 
 #ifdef AIC_NFTL_SUPPORT
 #include <nftl_api.h>
@@ -78,7 +81,8 @@ static s32 nand_fwc_get_mtd_partitions(struct fwc_info *fwc,
                     priv->nftl_handler[idx]->nandt->block_end =  (priv->mtd[idx]->start + priv->mtd[idx]->size) / priv->mtd[idx]->erasesize;
 
                     for (int offset_e = 0; offset_e < priv->mtd[idx]->size;) {
-                        mtd_erase(priv->mtd[idx], offset_e, priv->mtd[idx]->erasesize);
+                        if (!mtd_block_isbad(priv->mtd[idx], offset_e))
+                            mtd_erase(priv->mtd[idx], offset_e, priv->mtd[idx]->erasesize);
                         offset_e += priv->mtd[idx]->erasesize;
                     }
 
@@ -153,6 +157,10 @@ void nand_fwc_start(struct fwc_info *fwc)
     } else {
         fwc->block_size = priv->mtd[0]->writesize;
     }
+
+#ifdef AICUPG_FIRMWARE_SECURITY
+    firmware_security_init();
+#endif
     if (strstr(fwc->meta.name, "target.spl")) {
         ret = nand_fwc_spl_reserve_blocks(fwc->priv);
         if (ret) {
@@ -167,9 +175,6 @@ void nand_fwc_start(struct fwc_info *fwc)
         }
         priv->spl_flag = 1;
     }
-
-    fwc->burn_result = 0;
-    fwc->run_result = 0;
 
     return;
 out:
@@ -203,7 +208,11 @@ s32 nand_fwc_uffs_write(struct fwc_info *fwc, u8 *buf, s32 len)
     int total_len = 0, remain_offset = 0;
     u8 *wbuf = NULL, *pbuf = NULL;
 
-    wbuf = aicos_malloc_align(0, ROUNDUP(len, fwc->block_size), CACHE_LINE_SIZE);
+#ifdef AICUPG_FIRMWARE_SECURITY
+    firmware_security_decrypt(buf, len);
+#endif
+
+    wbuf = aicupg_malloc_align(ROUNDUP(len, fwc->block_size), CACHE_LINE_SIZE);
     if (!wbuf) {
         pr_err("malloc failed.\n");
         return 0;
@@ -290,23 +299,108 @@ s32 nand_fwc_uffs_write(struct fwc_info *fwc, u8 *buf, s32 len)
 
     pr_debug("%s, data len %d, trans len %d\n", __func__, len, fwc->trans_size);
 
-    aicos_free_align(0, wbuf);
+    fwc->calc_partition_crc = fwc->meta.crc;
+    aicupg_free_align(wbuf);
 
     return len;
 
 out:
     if (wbuf)
-        aicos_free_align(0, wbuf);
+        aicupg_free_align(wbuf);
 
     return ret;
+}
+
+s32 nand_fwc_mtd_erase_write(u32 dolen, struct mtd_dev *mtd, struct aicupg_nand_priv *priv, int i, u8 *buf)
+{
+    int ret = 0;
+    u32 write_len = 0;
+
+    if (!IS_ALIGNED(mtd->erasesize, dolen)) {
+        pr_err("The parameter dolen[%u:%lu] not support, please check!\n", dolen, mtd->erasesize);
+        return -1;
+    }
+
+    if (((priv->start_offset[i] + dolen) > priv->erase_offset[i])) {
+erase_err:
+        if ((priv->erase_offset[i] + mtd->erasesize) > mtd->size) {
+            pr_err("Error! The block to erase is out of range.\n");
+            return -1;
+        }
+        /* Check bad block, before erase it. */
+        if (mtd_block_isbad(mtd, priv->erase_offset[i])) {
+            pr_err("The block to erase is bad, skip it.\n");
+            priv->erase_offset[i] += mtd->erasesize;
+            priv->start_offset[i] += mtd->erasesize;
+            goto erase_err;
+        }
+
+        /* Erase one block at a time. */
+        ret = mtd_erase(mtd, priv->erase_offset[i], mtd->erasesize);
+        if (ret) {
+            pr_err("Erase block is bad, mark it.offset: %lu\n", priv->erase_offset[i]);
+            ret = mtd_block_markbad(mtd, priv->erase_offset[i]);
+            if (ret)
+                pr_err("Mark block is bad.\n");
+            priv->erase_offset[i] += mtd->erasesize;
+            priv->start_offset[i] += mtd->erasesize;
+            goto erase_err;
+        }
+
+        /* Check the block before write it. */
+        if (mtd_block_isbad(mtd, priv->erase_offset[i])) {
+            pr_err("Check block is bad.\n");
+            priv->erase_offset[i] += mtd->erasesize;
+            priv->start_offset[i] += mtd->erasesize;
+            goto erase_err;
+        }
+        priv->erase_offset[i] += mtd->erasesize;
+    }
+    if (IS_ALIGNED(priv->start_offset[i], mtd->erasesize) && mtd_block_isbad(mtd, priv->start_offset[i])) {
+            priv->start_offset[i] += mtd->erasesize;
+    }
+
+    pr_debug("priv->erase_offset: %lu, priv->start_offset: %lu, dolen: %u\n", priv->erase_offset[i], priv->start_offset[i], dolen);
+    while (write_len < dolen) {
+        ret = mtd_write_oob(mtd, priv->start_offset[i] + write_len, buf + write_len, mtd->writesize, NULL, 0);
+        if (ret) {
+            pr_err("Write mtd at offset 0x%lx error, mark it.\n", priv->start_offset[i] + write_len);
+            ret = mtd_block_markbad(mtd, ALIGN_DOWN(priv->start_offset[i] + write_len, mtd->erasesize));
+            if (ret)
+                pr_err("Mark block bad error.\n");
+            return -1;
+        }
+        write_len += mtd->writesize;
+    }
+    return 0;
 }
 
 s32 nand_fwc_mtd_write(struct fwc_info *fwc, u8 *buf, s32 len)
 {
     struct aicupg_nand_priv *priv;
     struct mtd_dev *mtd;
-    unsigned long offset, erase_offset;
-    int i, ret = 0;
+    int i, calc_len = 0;
+    u8 __attribute__((unused)) *rdbuf = NULL, *buf_to_write = NULL, *buf_to_read = NULL;
+    s32 ret = 0;
+
+    if ((fwc->meta.size - fwc->trans_size) < len)
+        calc_len = fwc->meta.size - fwc->trans_size;
+    else
+        calc_len = len;
+
+    fwc->calc_partition_crc = crc32(fwc->calc_partition_crc, buf, calc_len);
+
+#ifdef AICUPG_FIRMWARE_SECURITY
+    firmware_security_decrypt(buf, len);
+#endif
+
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+    rdbuf = aicupg_malloc_align(len, CACHE_LINE_SIZE);
+    if (!rdbuf) {
+        pr_err("Error: malloc buffer failed.\n");
+        return 0;
+    }
+#endif
 
     priv = (struct aicupg_nand_priv *)fwc->priv;
     for (i = 0; i < MAX_DUPLICATED_PART; i++) {
@@ -314,142 +408,68 @@ s32 nand_fwc_mtd_write(struct fwc_info *fwc, u8 *buf, s32 len)
         if (!mtd)
             continue;
 
-        offset = priv->start_offset[i];
-        if ((offset + len) > (mtd->size)) {
+        if ((priv->start_offset[i] + len) > (mtd->size)) {
             pr_err("Not enough space to write mtd %s\n", mtd->name);
-            return 0;
+            goto out;
         }
-        pr_debug("\n ===%s, %d, mtd: %s, len:%u, remain_len: %u\n", __func__, __LINE__, mtd->name, len, priv->remain_len);
+        pr_debug("mtd: %s, len:%u, remain_len: %u\n", mtd->name, len, priv->remain_len);
+
+        buf_to_write = buf;
+        buf_to_read = rdbuf;
         u32 dolen = mtd->erasesize;
         u32 count = len / mtd->erasesize;
         int j = 0;
         /* Len is lager than block size, handle the aligned part. */
-        erase_offset = priv->erase_offset[i];
-        if (len > mtd->erasesize) {
-        for (j = 0; j < count; j++) {
-erase_err:
-            ret = mtd_erase(mtd, erase_offset, ROUNDUP(dolen, mtd->erasesize));
-            if (ret) {
-                pr_err("Erase block is bad, mark it.\n");
-                ret = mtd_block_markbad(mtd, erase_offset);
+        if (len >= mtd->erasesize) {
+            pr_debug("priv->erase_offset[i]: %lu, priv->start_offset[i]: %lu\n", priv->erase_offset[i], priv->start_offset[i]);
+            for (j = 0; j < count; j++) {
+                ret = nand_fwc_mtd_erase_write(dolen, mtd, priv, i, buf_to_write);
                 if (ret)
-                    pr_err("Mark block is bad.\n");
-                priv->erase_offset[i] += mtd->erasesize;
-                erase_offset += mtd->erasesize;
-                goto erase_err;
+                    goto out;
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+                mtd_read(mtd, priv->start_offset[i], buf_to_read, dolen);
+                buf_to_read += dolen;
+#endif
+                buf_to_write += dolen;
+                priv->start_offset[i] += dolen;
+                priv->remain_len -= dolen;
             }
-
-            /* Check block before write. */
-            if (mtd_block_isbad(mtd, erase_offset)) {
-                pr_err("Check block is bad, !!! unexecpt happened. !!!\n");
-                priv->erase_offset[i] += mtd->erasesize;
-                erase_offset += mtd->erasesize;
-                goto erase_err;
-            }
-            offset = erase_offset;
-            ret = mtd_write(mtd, offset, buf, dolen);
-            if (ret) {
-                pr_err("Write mtd %s block error, mark it.\n", mtd->name);
-                ret = mtd_block_markbad(mtd, offset);
-                if (ret)
-                    pr_err("Mark block is bad.\n");
-            }
-            buf += dolen;
-            priv->erase_offset[i] += mtd->erasesize;
-            erase_offset += mtd->erasesize;
-            priv->start_offset[i] = offset + dolen;
-            priv->remain_len -= dolen;
-        }
         }
 
         /* Handle the part out of aligned. */
-        if (len % mtd->erasesize && (priv->remain_len == len)) {
-            pr_debug("%d== priv->erase_offset[i]: %lu, priv->start_offset[i]: %lu\n",__LINE__ , priv->erase_offset[i], priv->start_offset[i]);
+        if (len % mtd->erasesize) {
+            pr_debug("priv->erase_offset[i]: %lu, priv->start_offset[i]: %lu\n", priv->erase_offset[i], priv->start_offset[i]);
             dolen = len - (count * mtd->erasesize);
-            if (priv->start_offset[i] % mtd->erasesize == 0) {
-                /* Erase the block, before write it. */
-erase_err1:
-                ret = mtd_erase(mtd, erase_offset, ROUNDUP(dolen, mtd->erasesize));
-                if (ret) {
-                    pr_err("Erase block is bad, mark it.\n");
-                    ret = mtd_block_markbad(mtd, erase_offset);
-                    if (ret)
-                        pr_err("Mark block is bad.\n");
-                    priv->erase_offset[i] += mtd->erasesize;
-                    erase_offset += mtd->erasesize;
-                    goto erase_err1;
-                }
-
-                /* Check the block before write it. */
-                if (mtd_block_isbad(mtd, erase_offset)) {
-                    pr_err("Check block is bad, !!! unexecpt happened. !!!\n");
-                    priv->erase_offset[i] += mtd->erasesize;
-                    erase_offset += mtd->erasesize;
-                    goto erase_err1;
-                }
-            }
-            offset = priv->start_offset[i];
-            ret = mtd_write(mtd, offset, buf, dolen);
-            if (ret) {
-                pr_err("Write mtd %s block error, mark it.\n", mtd->name);
-                ret = mtd_block_markbad(mtd, offset);
-                if (ret)
-                    pr_err("Mark block is bad.\n");
-            }
-            buf += dolen;
-            priv->erase_offset[i] += mtd->erasesize;
-            erase_offset += mtd->erasesize;
-            priv->start_offset[i] = offset + dolen;
+            ret = nand_fwc_mtd_erase_write(dolen, mtd, priv, i, buf_to_write);
+            if(ret)
+                goto out;
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+            mtd_read(mtd, priv->start_offset[i], buf_to_read, dolen);
+            buf_to_read += dolen;
+#endif
+            buf_to_write += dolen;
+            priv->start_offset[i] += dolen;
             priv->remain_len -= dolen;
-        } else if (len % mtd->erasesize && (priv->remain_len != len)) {
-            /* data len is not enough a blocksize */
-            dolen = len;
-            pr_debug("priv->erase_offset: %lu, priv->start_offset: %lu\n", priv->erase_offset[i], priv->start_offset[i]);
-            if (priv->start_offset[i] % mtd->erasesize == 0) {
-                /* Erase the block, before write it. */
-erase_err2:
-                ret = mtd_erase(mtd, erase_offset, mtd->erasesize);
-                if (ret) {
-                    pr_err("Erase block is bad, mark it.\n");
-                    ret = mtd_block_markbad(mtd, erase_offset);
-                    if (ret)
-                        pr_err("Mark block is bad.\n");
-                    priv->erase_offset[i] += mtd->erasesize;
-                    erase_offset += mtd->erasesize;
-                    priv->start_offset[i] += mtd->erasesize;
-                    goto erase_err2;
-                }
-
-                /* Check the block before write it. */
-                if (mtd_block_isbad(mtd, erase_offset)) {
-                    pr_err("Check block is bad, !!! Unexecpt happened. !!!\n");
-                    priv->erase_offset[i] += mtd->erasesize;
-                    erase_offset += mtd->erasesize;
-                    priv->start_offset[i] += mtd->erasesize;
-                    goto erase_err2;
-                }
-                erase_offset += mtd->erasesize;
-                priv->erase_offset[i] += mtd->erasesize;
-            }
-            offset = priv->start_offset[i];
-            ret = mtd_write(mtd, offset, buf, dolen);
-            if (ret) {
-                pr_err("Write mtd %s block error, mark it.\n", mtd->name);
-                ret = mtd_block_markbad(mtd, offset);
-                if (ret)
-                    pr_err("Mark block is bad.\n");
-            }
-            buf += dolen;
-            priv->start_offset[i] = offset + dolen;
-            priv->remain_len -= dolen;
-        } else {
-            pr_err("!!! Unexpect happen! No handle.\n");
         }
     }
 
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+    if (crc32(0, buf, calc_len) != crc32(0, rdbuf, calc_len)) {
+        pr_err("calc_len:%d\n", calc_len);
+        pr_err("crc err at trans len %u\n", fwc->trans_size);
+        goto out;
+    }
+#endif
+
     pr_debug("%s, data len %d, trans len %d\n", __func__, len, fwc->trans_size);
 
+    if (rdbuf)
+        aicupg_free_align(rdbuf);
     return len;
+out:
+    if (rdbuf)
+        aicupg_free_align(rdbuf);
+    return ret;
 }
 
 #ifdef AIC_NFTL_SUPPORT
@@ -459,7 +479,27 @@ s32 nand_fwc_nftl_write(struct fwc_info *fwc, u8 *buf, s32 len)
     struct nftl_api_handler_t *nftl_handler;
     struct mtd_dev *mtd;
     unsigned long offset;
-    int i, ret = 0;
+    int i, calc_len = 0;
+    u8 __attribute__((unused)) *rdbuf = NULL;
+
+    if ((fwc->meta.size - fwc->trans_size) < len)
+        calc_len = fwc->meta.size - fwc->trans_size;
+    else
+        calc_len = len;
+
+    fwc->calc_partition_crc = crc32(fwc->calc_partition_crc, buf, calc_len);
+
+#ifdef AICUPG_FIRMWARE_SECURITY
+    firmware_security_decrypt(buf, len);
+#endif
+
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+    rdbuf = aicupg_malloc_align(len, CACHE_LINE_SIZE);
+    if (!rdbuf) {
+        pr_err("Error: malloc buffer failed.\n");
+        return 0;
+    }
+#endif
 
     priv = (struct aicupg_nand_priv *)fwc->priv;
     int32_t start_offset, start_page, start_sector, sector_total;
@@ -475,7 +515,7 @@ s32 nand_fwc_nftl_write(struct fwc_info *fwc, u8 *buf, s32 len)
         offset = priv->start_offset[i];
         if ((offset + len) > (mtd->size)) {
             pr_err("Not enough space to write mtd %s\n", mtd->name);
-            return 0;
+            goto out;
         }
 
         start_offset = offset;
@@ -485,12 +525,30 @@ s32 nand_fwc_nftl_write(struct fwc_info *fwc, u8 *buf, s32 len)
 
         nftl_api_write(nftl_handler, start_sector, sector_total, buf);
         nftl_api_write_cache(nftl_handler, 0xffff);
+
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+        /* Read data to calc crc. */
+        nftl_api_read(nftl_handler, start_sector, sector_total, rdbuf);
+#endif
         priv->start_offset[i] = offset + len;
     }
 
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+    if (crc32(0, buf, calc_len) != crc32(0, rdbuf, calc_len)) {
+        pr_err("calc_len:%d\n", calc_len);
+        pr_err("crc err at trans len %u\n", fwc->trans_size);
+    }
+#endif
+
     pr_debug("%s, data len %d, trans len %d\n", __func__, len, fwc->trans_size);
-    (void)ret;
+
+    if (rdbuf)
+        aicupg_free_align(rdbuf);
     return len;
+out:
+    if (rdbuf)
+        aicupg_free_align(rdbuf);
+    return 0;
 }
 #endif
 
@@ -503,11 +561,14 @@ s32 nand_fwc_data_write(struct fwc_info *fwc, u8 *buf, s32 len)
     } else if (aicupg_get_fwc_attr(fwc) & FWC_ATTR_DEV_BLOCK) {
 #ifdef AIC_NFTL_SUPPORT
         nand_fwc_nftl_write(fwc, buf, len);
+#else
+        priv = (struct aicupg_nand_priv *)fwc->priv;
+        len = nand_fwc_mtd_write(fwc, buf, len);
 #endif
     } else if (aicupg_get_fwc_attr(fwc) & FWC_ATTR_DEV_MTD) {
         priv = (struct aicupg_nand_priv *)fwc->priv;
         if (priv->spl_flag)
-            len = nand_fwc_spl_write(fwc->meta.size, buf, len);
+            len = nand_fwc_spl_write(fwc, buf, len);
         else
             len = nand_fwc_mtd_write(fwc, buf, len);
     } else {
@@ -517,11 +578,8 @@ s32 nand_fwc_data_write(struct fwc_info *fwc, u8 *buf, s32 len)
     if (len < 0) {
         return -1;
     } else {
-        fwc->burn_result = 0;
-        fwc->run_result = 0;
         fwc->trans_size += len;
     }
-    fwc->calc_partition_crc = fwc->meta.crc;
 
     pr_debug("%s, data len %d, trans len %d\n", __func__, len, fwc->trans_size);
 
@@ -540,6 +598,9 @@ void nand_fwc_data_end(struct fwc_info *fwc)
     priv = (struct aicupg_nand_priv *)fwc->priv;
     if (!priv)
         return;
+
+    if (priv->spl_flag)
+        nand_fwc_spl_end(priv);
 
 #ifdef AIC_NFTL_SUPPORT
     struct nftl_api_handler_t *nftl_handler;

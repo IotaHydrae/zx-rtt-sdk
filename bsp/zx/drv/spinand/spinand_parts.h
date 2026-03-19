@@ -36,7 +36,7 @@ struct mtd_partition {
     enum part_attr attr;
 };
 
-struct mtd_partition *mtd_parts_parse(char *parts);
+struct mtd_partition *mtd_parts_parse(char *parts, uint32_t spi_bus);
 void mtd_parts_free(struct mtd_partition *head);
 
 struct nftl_mtd *build_nftl_list(char *nftlvols);

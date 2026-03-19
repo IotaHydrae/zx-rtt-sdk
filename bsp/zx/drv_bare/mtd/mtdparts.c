@@ -227,13 +227,20 @@ err:
     return NULL;
 }
 
-struct mtd_partition *mtd_parts_parse(char *parts)
+struct mtd_partition *mtd_parts_parse(char *parts, u32 spi_bus)
 {
     char *p;
     p = parts;
 
     if (!p)
         return NULL;
+    if (spi_bus == 1) {
+        while (*p != '1')
+            p++;
+    } else if (spi_bus == 2) {
+        while (*p != '2')
+            p++;
+    }
 
     while ((*p != '\0') && (*p != ':'))
         p++;

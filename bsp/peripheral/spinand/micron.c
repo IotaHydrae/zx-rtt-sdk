@@ -7,22 +7,43 @@
 
 #define SPINAND_MFR_MICRON 0x2c
 
+#define MICRON_STATUS_ECC_MASK             GENMASK(6, 4)
+#define MICRON_STATUS_ECC_NO_BITFLIPS      (0)
+#define MICRON_STATUS_ECC_HAS_1_3_BITFLIPS BIT(4)
+#define MICRON_STATUS_ECC_UNCOR_ERROR      BIT(5)
+#define MICRON_STATUS_ECC_HAS_4_6_BITFLIPS GENMASK(5, 4)
+#define MICRON_STATUS_ECC_HAS_7_8_BITFLIPS (BIT(4) | BIT(6))
+
 static int mt29f1g01_ecc_get_status(struct aic_spinand *flash, u8 status)
 {
-    switch (status & STATUS_ECC_MASK) {
-        case STATUS_ECC_NO_BITFLIPS:
+    switch (status & MICRON_STATUS_ECC_MASK) {
+        case MICRON_STATUS_ECC_NO_BITFLIPS:
             return 0;
-        case STATUS_ECC_HAS_1_4_BITFLIPS:
-            return 4;
-        case STATUS_ECC_UNCOR_ERROR:
+        case MICRON_STATUS_ECC_HAS_1_3_BITFLIPS:
+            return 3;
+        case MICRON_STATUS_ECC_UNCOR_ERROR:
             return -SPINAND_ERR_ECC;
-        case STATUS_ECC_MASK:
-            return 4;
+        case MICRON_STATUS_ECC_HAS_4_6_BITFLIPS:
+            return 6;
+        case MICRON_STATUS_ECC_HAS_7_8_BITFLIPS:
+            return 8;
         default:
             break;
     }
 
     return -SPINAND_ERR;
+}
+
+static int mt29f1g_ooblayout_user(struct aic_spinand *flash, int section,
+                            struct aic_oob_region *region)
+{
+    if (section > 1)
+      return -SPINAND_ERR;
+
+    region->offset = 32;
+    region->length = 32;
+
+    return 0;
 }
 
 const struct aic_spinand_info micron_spinand_table[] = {
@@ -31,22 +52,23 @@ const struct aic_spinand_info micron_spinand_table[] = {
     /*MT29F1G01ABAFD*/
     { DEVID(0x14), PAGESIZE(2048), OOBSIZE(128), BPL(1024), PPB(64),
       PLANENUM(1), DIE(0), "micron 128MB: 2048+128@64@1024", cmd_cfg_table,
-      mt29f1g01_ecc_get_status},
+      mt29f1g01_ecc_get_status, mt29f1g_ooblayout_user},
     /*MT29F2G01ABAGD*/
     /*ZD35Q2GC-IB*/
     /*XT26G02E*/
     { DEVID(0x24), PAGESIZE(2048), OOBSIZE(128), BPL(2048), PPB(64),
-      PLANENUM(2), DIE(0), "micron 256MB: 2048+128@64@2048", cmd_cfg_table },
+      PLANENUM(2), DIE(0), "micron 256MB: 2048+128@64@2048", cmd_cfg_table,
+      mt29f1g01_ecc_get_status, mt29f1g_ooblayout_user },
 };
 
 const struct aic_spinand_info *micron_spinand_detect(struct aic_spinand *flash)
 {
-    u8 *Id = flash->id.data;
+    u8 *id = flash->id.data;
 
-    if (Id[0] != SPINAND_MFR_MICRON)
+    if (id[0] != SPINAND_MFR_MICRON)
         return NULL;
 
-    return spinand_match_and_init(Id[1], micron_spinand_table,
+    return spinand_match_and_init(&id[1], micron_spinand_table,
                                   ARRAY_SIZE(micron_spinand_table));
 };
 

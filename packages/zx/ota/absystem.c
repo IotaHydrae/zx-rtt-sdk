@@ -12,6 +12,7 @@
 #include <aic_core.h>
 #include <env.h>
 #include <absystem.h>
+#include <dfs_fs.h>
 
 #define OTA_FILE_CNT           3
 #define OTA_FILE_REDUNDAND_CNT OTA_FILE_CNT * 2
@@ -232,3 +233,57 @@ int aic_get_data_to_mount(char *target_data)
 
     return ret;
 }
+
+#ifdef RT_USING_DFS_MNTTABLE
+int aic_absystem_mount_fs(unsigned int prio)
+{
+    char target[32] = {0};
+    enum boot_device boot_dev = aic_get_boot_device();
+
+    if (boot_dev != BD_SDMC0 && boot_dev != BD_SDMC1) {
+        aic_ota_status_update();
+
+        if (prio == 0) {
+            aic_get_rodata_to_mount(target);
+            printf("Mount APP in blk %s\n", target);
+
+            int ret = 0;
+            ret = dfs_mount(target, "/rodata", "elm", 0, 0);
+            if (ret < 0)
+                printf("Failed to mount elm:%d\n", ret);
+            else {
+                printf("mount fs[elm] device[%s] to /rodata ok.\n", target);
+            }
+
+        } else {
+            aic_get_data_to_mount(target);
+            printf("Mount APP in blk %s\n", target);
+            int ret = 0;
+            ret = dfs_mount(target, "/data", "elm", 0, 0);
+            if (ret < 0) {
+                printf("dfs_mount() return [%ld] %s\n", rt_get_errno(), rt_strerror(rt_get_errno()));
+                printf("Failed to mount elm:%d\n", ret);
+            } else {
+                printf("mount fs[elm] device[%s] to /data ok.\n", target);
+            }
+        }
+    }
+
+    return 0;
+}
+
+int aic_absystem_mount_fs_prio0(void)
+{
+    LOG_I("aic_absystem_mount_fs_prio0");
+    return aic_absystem_mount_fs(0);
+}
+
+int aic_absystem_mount_fs_prio1(void)
+{
+    LOG_I("aic_absystem_mount_fs_prio1");
+    return aic_absystem_mount_fs(1);
+}
+
+INIT_ENV_EXPORT(aic_absystem_mount_fs_prio0);
+INIT_LATE_APP_EXPORT(aic_absystem_mount_fs_prio1);
+#endif

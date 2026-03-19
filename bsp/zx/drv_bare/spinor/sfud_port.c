@@ -489,7 +489,7 @@ sfud_flash *sfud_probe(u32 spi_bus)
     mtd_add_device(mtd);
 
     partstr = aic_spinor_get_partition_string(mtd);
-    part = mtd_parts_parse(partstr);
+    part = mtd_parts_parse(partstr, spi_bus);
     free(partstr);
     p = part;
     while (p) {

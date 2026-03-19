@@ -13,7 +13,7 @@
 
 static DRESULT spinand_disk_nonftl_read(struct spinand_blk_device *blk_device,
                                         uint8_t *buf, uint32_t sector,
-                                        uint8_t cnt)
+                                        rt_size_t cnt)
 {
     rt_size_t sectors_per_page;
     rt_size_t start_page, block, offset;
@@ -150,7 +150,7 @@ exit_spinand_disk_read_malloc:
 
 #ifdef AIC_NFTL_SUPPORT
 DRESULT spinand_disk_nftl_read(struct spinand_blk_device *blk_device,
-                               uint8_t *buf, uint32_t sector, uint8_t cnt)
+                               uint8_t *buf, uint32_t sector, rt_size_t cnt)
 {
     if (!blk_device->nftl_handler)
         return RES_NOTRDY;
@@ -162,7 +162,7 @@ DRESULT spinand_disk_nftl_read(struct spinand_blk_device *blk_device,
 
 static DRESULT spinand_disk_nftl_write(struct spinand_blk_device *blk_device,
                                        const uint8_t *buf, uint32_t sector,
-                                       uint8_t cnt)
+                                       rt_size_t cnt)
 {
     if (!blk_device->nftl_handler)
         return RES_NOTRDY;
@@ -173,7 +173,7 @@ static DRESULT spinand_disk_nftl_write(struct spinand_blk_device *blk_device,
 #endif
 
 DRESULT spinand_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector,
-                           uint8_t cnt)
+                            rt_size_t cnt)
 {
     struct spinand_blk_device *dev;
 
@@ -191,7 +191,7 @@ DRESULT spinand_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector,
 }
 
 DRESULT spinand_disk_read(void *hdisk, uint8_t *buf, uint32_t sector,
-                          uint8_t cnt)
+                            rt_size_t cnt)
 {
     struct spinand_blk_device *dev;
 
@@ -235,9 +235,9 @@ DRESULT spinand_disk_ioctl(void *hdisk, uint8_t command, void *buf)
 
             break;
 
-        case GET_BLOCK_SIZE:
+        case GET_BLOCK_SIZE: /* Get erase block size in unit of sectors (DWORD) */
             if (buf) {
-                *(uint32_t *)buf = dev->info.block_size;
+                *(uint32_t *)buf = dev->info.block_size / dev->info.bytes_per_sector;
             } else {
                 result = RES_PARERR;
             }
@@ -286,9 +286,23 @@ void *spinand_disk_initialize(const char *device_name)
     }
 
     blk_device->mtd_device = mtd;
+    blk_device->attr = mtd->attr;
+    blk_device->pagebuf =
+        aicos_malloc_align(0, mtd->writesize, CACHE_LINE_SIZE);
+    if (!blk_device->pagebuf) {
+        pr_err("Malloc buf failed\n");
+        goto err;
+    }
+
+    blk_device->info.bytes_per_sector = 512;
+    blk_device->info.block_size = blk_device->info.bytes_per_sector;
+    blk_device->info.sector_count =
+        mtd->size / blk_device->info.bytes_per_sector;
+
 #ifdef AIC_NFTL_SUPPORT
     if (blk_device->mtd_device->attr == PART_ATTR_NFTL) {
         struct nftl_api_handler_t *nftl_hdl;
+        u32 nftl_bbm_reserver_sectors = 0;
 
         nftl_hdl = malloc(sizeof(struct nftl_api_handler_t));
         if (!nftl_hdl) {
@@ -311,21 +325,17 @@ void *spinand_disk_initialize(const char *device_name)
             pr_err("[NE]nftl_initialize failed\n");
             goto err;
         }
+
+        /* Reserve 51 blocks for bad block management in NFTL blk device. */
+        nftl_bbm_reserver_sectors = 51 * mtd->erasesize / blk_device->info.bytes_per_sector;
+        if (blk_device->info.sector_count < nftl_bbm_reserver_sectors) {
+            pr_err("total sectors is not enough for NFTL bad block management\n");
+            goto err;
+        }
+
+        blk_device->info.sector_count -= nftl_bbm_reserver_sectors;
     }
 #endif
-
-    blk_device->attr = mtd->attr;
-    blk_device->pagebuf =
-        aicos_malloc_align(0, mtd->writesize, CACHE_LINE_SIZE);
-    if (!blk_device->pagebuf) {
-        pr_err("Malloc buf failed\n");
-        goto err;
-    }
-
-    blk_device->info.bytes_per_sector = 512;
-    blk_device->info.block_size = blk_device->info.bytes_per_sector;
-    blk_device->info.sector_count =
-        mtd->size / blk_device->info.bytes_per_sector;
 
     return blk_device;
 err:

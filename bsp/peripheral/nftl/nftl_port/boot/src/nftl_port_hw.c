@@ -16,6 +16,7 @@
 #define PORT_HW_LOG(...)
 #endif
 
+#define PORT_HW_ERR printf
 
 void *nftl_memcpy(void *str1, const void *str2, int size)
 {
@@ -50,20 +51,41 @@ int _nftl_port_hw_erase_block(void *device, struct physical_op_info *p)
     return 0;
 }
 
+static int nftl_check_need_unmap(u8 *spare)
+{
+
+    if (spare[12] == 0xa5 && spare[13] == 0xa5 && spare[0] == 0xff && spare[1] == 0xff)
+        return 1;
+
+    return 0;
+}
+
 int _nftl_port_hw_read_page(void *device, struct physical_op_info *p)
 {
     struct mtd_dev *nand = (struct mtd_dev *)device;
+    u8 src_buf[64];
     int ret;
     int this_pages_per_block = nand->erasesize / nand->writesize;
     int page =
         p->physical_page.block_num * this_pages_per_block + p->physical_page.page_num;
     //NFTL_INFO("%s:%d ...p->physical_page.block_num=%d, p->physical_page.page_num=%d page=%d\n", __FUNCTION__, __LINE__, p->physical_page.block_num, p->physical_page.page_num, page);
     int offset = page * nand->writesize;
-    ret = mtd_read_oob(nand, offset, p->user_data_addr, nand->writesize,
-                           p->spare_data_addr, 64);
-    memcpy(p->spare_data_addr + 8, p->spare_data_addr + 16, 8);
-    memset(p->spare_data_addr + 16, 0xFF, 8);
+    ret = mtd_read_oob(nand, offset, p->user_data_addr, nand->writesize, p->spare_data_addr, 64);
+    if (ret < 0) {
+        PORT_HW_ERR("[NE] read page error. ret = %d!\n", ret);
+        return ret;
+    }
+    memcpy(src_buf, p->spare_data_addr, 64);
+    ret = mtd_unmap_oob_user_region(nand, p->spare_data_addr, src_buf, 0, 16);
+    if (ret) {
+        PORT_HW_ERR("[NE] failed to unmap data from oob user regions. ret = %d!\n", ret);
+        return ret;
+    }
 
+    if (!nftl_check_need_unmap(p->spare_data_addr))
+        memcpy(p->spare_data_addr, src_buf, 64);
+
+    memset(p->spare_data_addr + 16, 0xFF, 8);
 
     PORT_HW_LOG("%s:%d ...\n", __FUNCTION__, __LINE__);
     return ret;
@@ -72,20 +94,26 @@ int _nftl_port_hw_read_page(void *device, struct physical_op_info *p)
 int _nftl_port_hw_write_page(void *device, struct physical_op_info *p)
 {
     struct mtd_dev *nand = (struct mtd_dev *)device;
-    int ret;
+    u8 src_buf[16];
+    int ret = 0;
     int this_pages_per_block = nand->erasesize / nand->writesize;
     int page =
         p->physical_page.block_num * this_pages_per_block + p->physical_page.page_num;
     int offset = page * nand->writesize;
     PORT_HW_LOG("%s:%d ...\n", __FUNCTION__, __LINE__);
 
-    memcpy(p->spare_data_addr + 16, p->spare_data_addr + 8, 8);
-    memset(p->spare_data_addr + 8, 0xFF, 8);
+    memcpy(src_buf, p->spare_data_addr, 16);
+    ret = mtd_map_oob_user_region(nand, p->spare_data_addr, src_buf, 0, 16);
+    if (ret) {
+        PORT_HW_ERR("[NE] failed to map data to oob user regions. ret = %d!\n", ret);
+        return ret;
+    }
 
-
-    ret = mtd_write_oob(nand, offset, p->user_data_addr, nand->writesize,
-                        p->spare_data_addr, 64);
-
+    ret = mtd_write_oob(nand, offset, p->user_data_addr, nand->writesize, p->spare_data_addr, 64);
+    if (ret < 0) {
+        PORT_HW_ERR("[NE] read page error. ret = %d!\n", ret);
+        return ret;
+    }
     return ret;
 }
 

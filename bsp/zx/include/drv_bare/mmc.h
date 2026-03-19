@@ -15,6 +15,7 @@ struct aic_sdmc_pdata {
     ulong base;
     int irq;
     int clk;
+    int clk_freq;
     u32 is_sdio;
     u8 id;
     u8 buswidth;

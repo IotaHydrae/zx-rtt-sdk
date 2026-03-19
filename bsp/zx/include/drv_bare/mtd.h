@@ -54,6 +54,8 @@ struct mtd_drv_ops {
     int (*block_isbad)(struct mtd_dev *mtd, u32 offset);
     int (*block_markbad)(struct mtd_dev *mtd, u32 offset);
     int (*cont_read)(struct mtd_dev *mtd, u32 offset, u8 *data, u32 size);
+    int (*map_user)(struct mtd_dev *mtd, u8 *oobbuf, u8 *buf, int start, int nbytes);
+    int (*unmap_user)(struct mtd_dev *mtd, u8 *dst, u8* src, int start, int nbytes);
 };
 
 struct mtd_dev {
@@ -84,13 +86,16 @@ int mtd_write_oob(struct mtd_dev *mtd, u32 offset, u8 *data, u32 len,
                   u8 *spare_data, u32 spare_len);
 int mtd_block_isbad(struct mtd_dev *mtd, u32 offset);
 int mtd_block_markbad(struct mtd_dev *mtd, u32 offset);
-struct mtd_partition *mtd_parts_parse(char *parts);
+struct mtd_partition *mtd_parts_parse(char *parts, u32 spi_bus);
 void mtd_parts_free(struct mtd_partition *head);
 int mtd_contread(struct mtd_dev *mtd, u32 offset, u8 *data, u32 len);
+int mtd_unmap_oob_user_region(struct mtd_dev *mtd, u8 *dst, u8* src, int start, int nbytes);
+int mtd_map_oob_user_region(struct mtd_dev *mtd, u8 *oobbuf, u8 *buf, int start, int nbytes);
 
 struct nftl_mtd *build_nftl_list(char *nftlvols);
 void free_nftl_list(struct nftl_mtd *nftl);
 u8 partition_nftl_is_exist(char *mtd_name, struct nftl_mtd *nftl_list);
+u8 partition_levelx_is_exist(char *mtd_name, char *levelx_partstr);
 
 #ifdef __cplusplus
 }

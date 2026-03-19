@@ -55,6 +55,9 @@ static const struct spinand_manufacturer *spinand_manufacturers[] = {
 #ifdef SPI_NAND_XINCUN
     &xincun_spinand_manufacturer,
 #endif
+#ifdef SPI_NAND_FUDANMICRO
+    &fudanmicro_spinand_manufacturer,
+#endif
 };
 
 #define SPINAND_LIST_NUM \
@@ -184,12 +187,12 @@ int spinand_die_select(struct aic_spinand *flash, u8 select_die)
     return 0;
 }
 
-int spinand_read_status(struct aic_spinand *flash, u8 *status)
+static int spinand_read_status(struct aic_spinand *flash, u8 *status)
 {
     return spinand_read_reg_op(flash, REG_STATUS, status);
 }
 
-int spinand_read_cfg(struct aic_spinand *flash, u8 *cfg)
+static int spinand_read_cfg(struct aic_spinand *flash, u8 *cfg)
 {
     return spinand_read_reg_op(flash, REG_CFG, cfg);
 }
@@ -339,6 +342,28 @@ int spinand_config_set(struct aic_spinand *flash, u8 mask, u8 val)
     return spinand_set_cfg(flash, status);
 }
 
+static bool spinand_support_regs(u8 reg) {
+    if (reg == REG_BLOCK_LOCK || reg == REG_CFG || reg == REG_STATUS)
+        return true;
+
+    return false;
+}
+
+int spinand_get_feature(struct aic_spinand *flash, u8 reg_addr)
+{
+    u8 status = 0;
+    int result;
+
+    if (!spinand_support_regs(reg_addr))
+        return -SPINAND_ERR;
+
+    result = spinand_read_reg_op(flash, reg_addr, &status);
+    if (result != SPINAND_SUCCESS)
+        return result;
+
+    return status;
+}
+
 int spinand_erase_op(struct aic_spinand *flash, u32 page)
 {
     struct spi_nand_cmd_cfg cfg = SPINAND_CMD_BLK_ERASE_CFG;
@@ -432,16 +457,16 @@ static int spinand_reset(struct aic_spinand *flash)
 }
 
 const struct aic_spinand_info *
-spinand_match_and_init(u8 ID, const struct aic_spinand_info *table,
+spinand_match_and_init(u8 *devid, const struct aic_spinand_info *table,
                        u32 table_size)
 {
     u32 i;
 
     for (i = 0; i < table_size; i++) {
-        if (ID == table[i].devid) /* Match devid? */
-        {
-            return &table[i];
-        }
+        const struct aic_spinand_info *info = &table[i];
+        if (memcmp(devid, info->devid.id, info->devid.len))
+            continue;
+        return &table[i];
     }
     return NULL;
 }
@@ -515,7 +540,7 @@ int spinand_flash_init(struct aic_spinand *flash)
     pr_info("Enabled BUF, HWECC. Unprotected.\n");
 #if defined(AIC_SPIENC_DRV)
     /* Enable SPIENC */
-    printf("init %d spienc...\n", flash->info->devid);
+    printf("init %d spienc...\n", flash->bus);
     if ((result = spienc_init()) != 0) {
         pr_err("spienc init failed.\n");
         goto exit_spinand_init;
@@ -546,6 +571,9 @@ int spinand_check_if_do_memcpy(struct aic_spinand *flash, u8 *data,
 {
     int flag = SPINAND_TRUE;
 
+    if (data == NULL) {
+        return flag;
+    }
     /*
      * When the user address is aligned to CACHE_LINE_SIZE,
      * if the user address and oob address are consecutive or the oob address is empty,
@@ -594,7 +622,7 @@ int spinand_read_page(struct aic_spinand *flash, u32 page, u8 *data,
 
     result = spinand_check_ecc_status(flash, status);
     if (result < 0) {
-        pr_err("Error ECC status error[0x%x].\n", status);
+        pr_err("Error ECC status error[0x%x], page: %u.\n", status, page);
         goto exit_spinand_read_page;
     } else if (result > 0) {
         pr_debug("with %d bit/page ECC corrections, status : [0x%x].\n", result,
@@ -613,7 +641,12 @@ int spinand_read_page(struct aic_spinand *flash, u32 page, u8 *data,
     }
 
     if (spare && spare_len) {
-        nbytes += flash->info->oob_size;
+        /* if use extra buf, read oob data size used spare_len */
+        if (data_copy_mode == SPINAND_FALSE)
+            nbytes += spare_len;
+        else
+            nbytes += flash->info->oob_size;
+
         if (!buf) {
             buf = flash->oobbuf;
             spare_only = SPINAND_TRUE;
@@ -628,7 +661,11 @@ int spinand_read_page(struct aic_spinand *flash, u32 page, u8 *data,
     }
 
 #if defined(AIC_SPIENC_DRV)
-    spienc_set_cfg(flash->info->devid, page * flash->info->page_size, cpos, data_len);
+    if (data && data_len) {
+        spienc_set_cfg(flash->bus, page * flash->info->page_size, cpos, data_len);
+    } else {
+        spienc_set_cfg(flash->bus, page * flash->info->page_size, cpos, 0);
+    }
     spienc_start();
 #endif
     blk = page / flash->info->pages_per_eraseblock;
@@ -651,6 +688,10 @@ int spinand_read_page(struct aic_spinand *flash, u32 page, u8 *data,
     }
 
     if (spare && spare_len) {
+        if (data_copy_mode) {
+            memcpy(spare, flash->oobbuf, spare_len);
+        }
+
         if (spare_only) {
             memcpy(spare, flash->oobbuf, spare_len);
         }
@@ -668,12 +709,15 @@ bool spinand_isbad(struct aic_spinand *flash, u16 blk)
 
     page = blk * flash->info->pages_per_eraseblock;
 
-    result = spinand_read_page(flash, page, NULL, 0, &marker, 1);
-    if (result != SPINAND_SUCCESS)
-        return result;
+    // result = spinand_read_page(flash, page, NULL, 0, &marker, 1);
+    // if (result != SPINAND_SUCCESS) {
+    //     pr_err("bad block page = %d (block %d), read error (result=%d)\n", page, blk, result);
+    //     return result;
+    // }
+    spinand_read_page(flash, page, NULL, 0, &marker, 1);
 
     if (marker != 0xFF) {
-        pr_info("bad block page = %d, marker = 0x%x.\n", page, marker);
+        pr_err("bad block page = %d, marker = 0x%x.\n", page, marker);
         return true;
     }
 
@@ -690,7 +734,7 @@ int spinand_block_isbad(struct aic_spinand *flash, u16 blk)
     return spinand_isbad(flash, blk);
 }
 
-int spinand_block_status(struct aic_spinand *flash, u16 blk)
+int spinand_get_status(struct aic_spinand *flash, u16 blk)
 {
     if (!flash) {
         pr_err("flash is NULL\r\n");
@@ -700,14 +744,14 @@ int spinand_block_status(struct aic_spinand *flash, u16 blk)
     return nand_bbt_get_block_status(flash, blk);
 }
 
-int spinand_set_block(struct aic_spinand *flash, u16 blk, u16 pos, u16 status)
+int spinand_set_status(struct aic_spinand *flash, u16 blk, u16 status)
 {
     if (!flash) {
         pr_err("flash is NULL\r\n");
         return -SPINAND_ERR;
     }
 
-    nand_bbt_set_block_status(flash, blk, pos, status);
+    nand_bbt_set_block_status(flash, blk, status);
     return 0;
 }
 
@@ -721,7 +765,7 @@ int spinand_continuous_read(struct aic_spinand *flash, u32 page, u8 *data,
     u16 blk;
 
     if (size <= flash->info->page_size) {
-        pr_err("[Error] continuous read size:%d less then page size:%d\n", page,
+        pr_err("[Error] continuous read size:%d less then page size:%d\n", size,
                flash->info->page_size);
         return -SPINAND_ERR;
     }
@@ -824,7 +868,6 @@ int spinand_write_page(struct aic_spinand *flash, u32 page, const u8 *data,
     }
 
     if (data && data_len) {
-
         if (!spinand_check_if_do_memcpy(flash, (u8 *)data, data_len,
                                         (u8 *)spare, spare_len)) {
             buf = (u8 *)data;
@@ -839,7 +882,15 @@ int spinand_write_page(struct aic_spinand *flash, u32 page, const u8 *data,
     }
 
     if (spare && spare_len) {
-        nbytes += flash->info->oob_size;
+        /* if use extra buf, write oob data size used spare_len */
+        if (!spinand_check_if_do_memcpy(flash, (u8 *)data, data_len,
+                                        (u8 *)spare, spare_len)) {
+            nbytes += spare_len;
+        } else {
+            nbytes += flash->info->oob_size;
+            memcpy(flash->oobbuf, spare, spare_len);
+        }
+
         if (!buf) {
             memcpy(flash->oobbuf, spare, spare_len);
             buf = flash->oobbuf;
@@ -858,8 +909,11 @@ int spinand_write_page(struct aic_spinand *flash, u32 page, const u8 *data,
     }
 
 #if defined(AIC_SPIENC_DRV)
-    spienc_set_cfg(flash->info->devid, page * flash->info->page_size, cpos,
-                   data_len);
+    if (data && data_len) {
+        spienc_set_cfg(flash->bus, page * flash->info->page_size, cpos, data_len);
+    } else {
+        spienc_set_cfg(flash->bus, page * flash->info->page_size, cpos, 0);
+    }
     spienc_start();
 #endif
     blk = page / flash->info->pages_per_eraseblock;
@@ -908,7 +962,7 @@ exit_spinand_write_page:
 int spinand_block_markbad(struct aic_spinand *flash, u16 blk)
 {
     u8 badblockmarker = 0xF0;
-    int result = SPINAND_SUCCESS;
+    // int result = SPINAND_SUCCESS;
     u32 page;
 
     if (!flash) {
@@ -916,9 +970,9 @@ int spinand_block_markbad(struct aic_spinand *flash, u16 blk)
         return -SPINAND_ERR;
     }
 
-    result = spinand_block_isbad(flash, blk);
-    if (result)
-        return 0;
+    // result = spinand_block_isbad(flash, blk);
+    // if (result)
+    //     return 0;
 
     page = blk * flash->info->pages_per_eraseblock;
 
@@ -958,7 +1012,7 @@ int spinand_read(struct aic_spinand *flash, u8 *addr, u32 offset, u32 size)
 
     /* Search for the first good block after the given offset */
     while (spinand_block_isbad(flash, blk)) {
-        pr_warn("find a bad block, off adjust to the next block\n");
+        pr_warn("find a bad block %d, off adjust to the next block\n", blk);
         off += blk_size;
         blk = off / blk_size;
     }
@@ -982,8 +1036,10 @@ int spinand_read(struct aic_spinand *flash, u8 *addr, u32 offset, u32 size)
 
         err =
             spinand_read_page(flash, page, p, flash->info->page_size, NULL, 0);
-        if (err != 0)
+        if (err != 0){
+            pr_err("read page %u (block %u) failed (err=%d)\n", page, blk, err);
             goto exit_spinand_read;
+        }
 
         cplen = flash->info->page_size;
 
@@ -1089,7 +1145,7 @@ int spinand_write(struct aic_spinand *flash, u8 *addr, u32 offset, u32 size)
 
     /* Search for the first good block after the given offset */
     while (spinand_block_isbad(flash, blk)) {
-        pr_warn("find a bad block, off adjust to the next block\n");
+        pr_warn("find a bad block %u, off adjust to the next block\n", blk);
         off += blk_size;
         blk = off / blk_size;
     }

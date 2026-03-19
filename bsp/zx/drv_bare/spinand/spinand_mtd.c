@@ -15,10 +15,11 @@
 #include "spinand_port.h"
 #include <mtd.h>
 #include <partition_table.h>
+#include <spienc.h>
 
 static int mtd_spinand_read(struct mtd_dev *mtd, u32 offset, u8 *data, u32 len)
 {
-    u8 err;
+    int err;
     u32 start, dolen;
     struct aic_spinand *flash;
 
@@ -70,7 +71,7 @@ static int mtd_spinand_read_oob(struct mtd_dev *mtd, u32 offset, u8 *data,
 
 static int mtd_spinand_erase(struct mtd_dev *mtd, u32 offset, u32 len)
 {
-    u8 err;
+    int err;
     u32 start, dolen;
     struct aic_spinand *flash;
     u32 flash_size = 0;
@@ -100,7 +101,7 @@ static int mtd_spinand_erase(struct mtd_dev *mtd, u32 offset, u32 len)
 
 static int mtd_spinand_block_isbad(struct mtd_dev *mtd, u32 offset)
 {
-    u8 err;
+    int err;
     u32 start;
     u32 blk;
     struct aic_spinand *flash;
@@ -135,7 +136,7 @@ static int mtd_spinand_block_isbad(struct mtd_dev *mtd, u32 offset)
 
 static int mtd_spinand_block_markbad(struct mtd_dev *mtd, u32 offset)
 {
-    u8 err;
+    int err;
     u32 start;
     u16 blk;
     struct aic_spinand *flash;
@@ -172,7 +173,7 @@ static int mtd_spinand_block_markbad(struct mtd_dev *mtd, u32 offset)
 
 static int mtd_spinand_write(struct mtd_dev *mtd, u32 offset, u8 *data, u32 len)
 {
-    u8 err;
+    int err;
     u32 start, dolen;
     struct aic_spinand *flash;
 
@@ -194,7 +195,7 @@ static int mtd_spinand_write(struct mtd_dev *mtd, u32 offset, u8 *data, u32 len)
 static int mtd_spinand_write_oob(struct mtd_dev *mtd, u32 offset, u8 *data,
                                  u32 len, u8 *spare_data, u32 spare_len)
 {
-    u8 err;
+    int err;
     u32 start;
     u32 page;
     struct aic_spinand *flash;
@@ -249,10 +250,49 @@ static int mtd_spinand_continuous_read(struct mtd_dev *mtd, u32 offset,
 }
 #endif
 
-int nand_read_data(void *dev, unsigned long offset, void *buf,
-                   unsigned long len)
+static int mtd_spinand_map_oob_user(struct mtd_dev *mtd, u8 *oobbuf, u8 *buf, int start, int nbytes)
 {
-    return mtd_read(dev, offset, buf, len);
+    struct aic_spinand *flash;
+
+    if (!mtd)
+        return -1;
+
+    flash = (struct aic_spinand *)mtd->priv;
+
+    return spinand_ooblayout_map_user(flash, oobbuf, buf, start, nbytes);
+}
+
+static int mtd_spinand_unmap_oob_user(struct mtd_dev *mtd, u8 *dst, u8* src, int start, int nbytes)
+{
+    struct aic_spinand *flash;
+
+    if (!mtd)
+        return -1;
+
+    flash = (struct aic_spinand *)mtd->priv;
+
+    return spinand_ooblayout_unmap_user(flash, dst, src, start, nbytes);
+}
+
+int nand_read_data(void *dev, unsigned long offset, void *buf,
+                   unsigned long len, int spienc_bypass)
+{
+    int ret = 0;
+
+    if (spienc_bypass) {
+#ifdef AIC_USING_SPIENC
+        spienc_set_bypass(AIC_SPIENC_BYPASS_ENABLE);
+#endif
+    }
+    ret = mtd_read(dev, offset, buf, len);
+    if (spienc_bypass) {
+#ifdef AIC_USING_SPIENC
+        spienc_set_bypass(AIC_SPIENC_BYPASS_DISABLE);
+#endif
+    }
+
+    return ret;
+
 }
 
 static char *aic_spinand_get_partition_string(struct mtd_dev *mtd)
@@ -284,7 +324,7 @@ static char *aic_spinand_get_partition_string(struct mtd_dev *mtd)
 
 struct aic_spinand *spinand_probe(u32 spi_bus)
 {
-    u8 err = 0;
+    int err = 0;
     struct mtd_dev *mtd;
     struct mtd_partition *part, *p;
     struct aic_spinand *flash = NULL;
@@ -308,6 +348,7 @@ struct aic_spinand *spinand_probe(u32 spi_bus)
     }
 
     flash->user_data = qspi;
+    flash->bus = spi_bus;
     flash->qspi_dl_width = qspi->dl_width;
 
     qspi_configure(qspi, NULL);
@@ -335,6 +376,8 @@ struct aic_spinand *spinand_probe(u32 spi_bus)
     mtd->ops.read_oob = mtd_spinand_read_oob;
     mtd->ops.write_oob = mtd_spinand_write_oob;
     mtd->ops.cont_read = mtd_spinand_continuous_read;
+    mtd->ops.map_user = mtd_spinand_map_oob_user;
+    mtd->ops.unmap_user = mtd_spinand_unmap_oob_user;
     mtd->priv = (void *)flash;
     mtd_add_device(mtd);
 
@@ -344,7 +387,7 @@ struct aic_spinand *spinand_probe(u32 spi_bus)
     nftl_parts = build_nftl_list(IMAGE_CFG_JSON_PARTS_NFTL);
 #endif
 
-    part = mtd_parts_parse(partstr);
+    part = mtd_parts_parse(partstr, spi_bus);
     if (partstr)
         free(partstr);
     p = part;
@@ -375,6 +418,8 @@ struct aic_spinand *spinand_probe(u32 spi_bus)
         mtd->ops.read_oob = mtd_spinand_read_oob;
         mtd->ops.write_oob = mtd_spinand_write_oob;
         mtd->ops.cont_read = mtd_spinand_continuous_read;
+        mtd->ops.map_user = mtd_spinand_map_oob_user;
+        mtd->ops.unmap_user = mtd_spinand_unmap_oob_user;
         mtd->priv = (void *)flash;
         mtd->attr = p->attr;
         mtd_add_device(mtd);

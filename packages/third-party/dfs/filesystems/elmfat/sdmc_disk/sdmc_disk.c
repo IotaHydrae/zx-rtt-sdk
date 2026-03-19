@@ -14,7 +14,7 @@
 #include "aic_utils.h"
 #include "mmc.h"
 
-DRESULT sdmc_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector, uint8_t cnt)
+DRESULT sdmc_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector, rt_size_t cnt)
 {
     struct block_dev *dev = hdisk;
     rt_size_t size = 0;
@@ -31,7 +31,7 @@ DRESULT sdmc_disk_write(void *hdisk, const uint8_t *buf, uint32_t sector, uint8_
     return RES_OK;
 }
 
-DRESULT sdmc_disk_read(void *hdisk, uint8_t *buf, uint32_t sector, uint8_t cnt)
+DRESULT sdmc_disk_read(void *hdisk, uint8_t *buf, uint32_t sector, rt_size_t cnt)
 {
     struct block_dev *dev = hdisk;
     rt_size_t size = 0;
@@ -75,9 +75,9 @@ DRESULT sdmc_disk_ioctl(void *hdisk, uint8_t command, void *buf)
 
         break;
 
-    case GET_BLOCK_SIZE:
+    case GET_BLOCK_SIZE: /* Get erase block size in unit of sectors (DWORD) */
         if (buf) {
-            *(uint32_t *)buf = dev->blk_size;
+            *(uint32_t *)buf = dev->blk_size / dev->blk_size;
         } else {
             result = RES_PARERR;
         }

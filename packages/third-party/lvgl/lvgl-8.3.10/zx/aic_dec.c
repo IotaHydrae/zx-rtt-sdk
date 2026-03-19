@@ -489,6 +489,13 @@ static lv_res_t aic_decoder_open(lv_img_decoder_t *decoder, lv_img_decoder_dsc_t
         buf_size[0] = alloc_frame->buf.stride[0] * height;
     }
 
+    // int total_buf = buf_size[0] + buf_size[1] + buf_size[2];
+
+    // printf("[AIC_DEC] img %dx%d fmt=%d, frame buf total=%d bytes "
+    //        "(plane0=%d, plane1=%d, plane2=%d)\n",
+    //        width, height, config.pix_fmt,
+    //        total_buf, buf_size[0], buf_size[1], buf_size[2]);
+
     if (frame_buf_alloc(alloc_frame, buf_size) < 0) {
         res = LV_RES_INV;
         goto out;

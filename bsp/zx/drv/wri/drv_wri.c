@@ -5,6 +5,7 @@
 
 #include "aic_core.h"
 #include "aic_reboot_reason.h"
+#include <string.h>
 
 int drv_wri_init(void)
 {

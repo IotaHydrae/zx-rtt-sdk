@@ -12,9 +12,12 @@ struct usbh_msc *active_msc_class;
 struct dfs_partition part0;
 
 #define USING_AIC_GET_PART
+#define MBR_MAX_DPT_NUM 4
 
 #ifdef USING_AIC_GET_PART
 #include <disk_part.h>
+#include <ff.h>
+#define HAVE_DIR_STRUCTURE
 #include <dfs_fs.h>
 static unsigned long usb_msc_read(struct blk_desc *blk_dev, u64 start, u64 blkcnt,
                                 const void *buffer)
@@ -22,9 +25,26 @@ static unsigned long usb_msc_read(struct blk_desc *blk_dev, u64 start, u64 blkcn
     int err;
 
     err = usbh_msc_scsi_read10(active_msc_class, start, buffer, blkcnt);
-    if (err == RT_EOK)
+    if (err == EOK)
         return blkcnt;
     return 0;
+}
+
+static void print_part_info(struct dfs_partition *part)
+{
+    if (part == NULL)
+        return;
+
+    if ((part->size >> 11) == 0) {
+        printf("%d%s", (u32)part->size >> 1, "KB\n"); /* KB */
+    } else {
+        unsigned int part_size;
+        part_size = part->size >> 11;                /* MB */
+        if ((part_size >> 10) == 0)
+            printf("%d.%d%s", part_size, (u32)(part->size >> 1) & 0x3FF, "MB\n");
+        else
+            printf("%d.%d%s", part_size >> 10, part_size & 0x3FF, "GB\n");
+    }
 }
 
 static int aic_get_part(struct dfs_partition *part)
@@ -43,8 +63,24 @@ static int aic_get_part(struct dfs_partition *part)
         part->type = 0;
         part->offset = parts->start / dev_desc.blksz;
         part->size = parts->size / dev_desc.blksz;
+        printf("found part, begin: %d, size: ", (u32)part->offset * 512);
+        print_part_info(part);
         aic_part_free(parts);
+        return 0;
     }
+    return -1;
+}
+
+static int aic_no_part_handle(struct dfs_partition *part)
+{
+    part->type = 0;
+    part->offset = 0x0;
+    part->size = (unsigned int)active_msc_class->blocknum;
+
+    pr_warn("No partition info. Using capacity info size: ");
+
+    print_part_info(part);
+
     return 0;
 }
 #endif
@@ -72,7 +108,6 @@ static rt_size_t rt_udisk_read(rt_device_t dev, rt_off_t pos, void* buffer,
     rt_err_t ret;
 
     ret = usbh_msc_scsi_read10(active_msc_class, part0.offset + pos, buffer, size);
-
     if (ret != RT_EOK)
     {
         rt_kprintf("usb mass_storage read failed\n");
@@ -150,25 +185,33 @@ int udisk_init(void)
     ret = usbh_msc_scsi_read10(active_msc_class, 0, sector, 1);
     if (ret != RT_EOK) {
         rt_kprintf("usb mass_storage read failed\n");
+        USB_LOG_WRN("FAT-fs (sda1): Volume was not properly unmounted. Some data may be corrupt. Please run fsck.\n");
         goto free_res;
     }
 
     memset(&part0, 0, sizeof(part0));
 
-    for (i=0; i<16; i++) {
+#ifdef USING_AIC_GET_PART
+    ret = aic_get_part(&part0);
+    if (ret == 0)
+        goto _finish;
+#endif
+
+    for (i = 0; i < MBR_MAX_DPT_NUM; i++) {
         /* Get the first partition (MBR)*/
         ret = dfs_filesystem_get_partition(&part0, sector, i);
         if (ret == RT_EOK) {
-            pr_info("Found partition %d: type = %d, offet=0x%lx, size=0x%x\n",
-                     i, part0.type, part0.offset, part0.size);
-            break;
+            if (part0.type == 0xee) /* GPT */
+                break;
+            goto _finish;
         }
     }
 
-#ifdef USING_AIC_GET_PART
-    aic_get_part(&part0);
-#endif
+    /* No partition */
+    if (ret != 0)
+        aic_no_part_handle(&part0);
 
+_finish:
     udisk_dev.type    = RT_Device_Class_Block;
 #ifdef RT_USING_DEVICE_OPS
     udisk_dev.ops     = &udisk_device_ops;
@@ -211,13 +254,13 @@ int udisk_exit(void)
 }
 
 #else
-#include <ff.h>
-#include <diskio.h>
 #ifdef LPKG_USING_DFS
 #define HAVE_DIR_STRUCTURE
 #include <dfs.h>
 #include <dfs_fs.h>
 #ifdef LPKG_USING_DFS_ELMFAT
+#include <ff.h>
+#include <diskio.h>
 #include <dfs_elm.h>
 #endif
 #endif
@@ -326,20 +369,29 @@ int udisk_init(void)
 
     memset(&part0, 0, sizeof(part0));
 
-    for (i=0; i<16; i++) {
+#ifdef USING_AIC_GET_PART
+    ret = aic_get_part(&part0);
+    if (ret == 0)
+        goto finish;
+#endif
+
+    for (i = 0; i < MBR_MAX_DPT_NUM; i++) {
         /* Get the first partition */
         ret = dfs_filesystem_get_partition(&part0, sector, i);
         if (ret == EOK) {
-            pr_info("Found partition %d: type = %d, offet=0x%lx, size=0x%lx\n",
-                     i, part0.type, part0.offset, (unsigned long)part0.size);
-            break;
+            if (part0.type == 0xee) /* GPT */
+                break;
+            goto finish;
         }
     }
 
-#ifdef USING_AIC_GET_PART
-    aic_get_part(&part0);
-#endif
+    /* No partition */
+    if (ret != 0)
+        aic_no_part_handle(&part0);
 
+finish:
+
+#ifndef AIC_BOOTLOADER
     if (dfs_mount("udisk", "/udisk", "elm", 0, DEVICE_TYPE_USB_DISK) < 0) {
         pr_err("Failed to mount udisk with FatFS\n");
     } else {
@@ -348,6 +400,7 @@ int udisk_init(void)
         udisk_test();
         #endif
     }
+#endif
 
 free_res:
     if (sector)

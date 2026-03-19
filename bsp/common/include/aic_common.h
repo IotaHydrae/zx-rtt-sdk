@@ -367,10 +367,17 @@ typedef enum {
 #ifdef AIC_DRAM_CMA_EN
     MEM_DRAM_CMA,
 #endif
+#ifdef AIC_BOOTLOADER
+    MEM_RESERVED,
+#endif
     MAX_MEM_REGION,
 } aic_mem_region_t;
 
 /* cma */
+#ifdef AIC_BOOTLOADER
+#define MEM_CMA MEM_RESERVED
+#define CMA_DATA_DEFINE
+#else
 #if defined(AIC_DRAM_CMA_EN)
 #define MEM_CMA MEM_DRAM_CMA
 #define CMA_DATA_DEFINE DRAM_CMA_DATA_DEFINE
@@ -383,6 +390,7 @@ typedef enum {
 #else
 #define MEM_CMA MEM_DEFAULT
 #define CMA_DATA_DEFINE
+#endif
 #endif
 
 /* heap size define is ld.s */

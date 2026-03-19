@@ -34,9 +34,30 @@ struct nand_bbt {
 
 struct aic_spinand;
 
+/*
+ * struct spinand_devid - SPI NAND device id structure
+ * @id: device id of current chip
+ * @len: number of bytes in device id
+*/
+struct spinand_devid {
+    const u8 *id;
+    const u8 len;
+};
+
+#define DEVID(...)                              \
+    {                                           \
+        .id = (const u8[]){ __VA_ARGS__ },      \
+        .len = sizeof((u8[]){ __VA_ARGS__ }),   \
+    }
+
+struct aic_oob_region {
+    u32 offset;
+    u32 length;
+};
+
 /* SPI NAND flash information */
 struct aic_spinand_info {
-    u16 devid;
+    struct spinand_devid devid;
     u16 page_size;
     u16 oob_size;
     u16 block_per_lun;
@@ -46,10 +67,11 @@ struct aic_spinand_info {
     const char *sz_description;
     struct spi_nand_cmd_cfg *cmd;
     int (*get_status)(struct aic_spinand *flash, u8 status);
+    int (*oob_get_user)(struct aic_spinand *flash, int section,
+                            struct aic_oob_region *oobuser);
 };
 typedef struct aic_spinand_info *aic_spinand_info_t;
 
-#define DEVID(x)    (u16)(x)
 #define PAGESIZE(x) (u16)(x)
 #define OOBSIZE(x)  (u16)(x)
 #define BPL(x) (u16)(x)
@@ -68,6 +90,7 @@ struct aic_spinand {
     struct spinand_id id;
     void *user_data;
     void *lock;
+    u8 bus;
     u8 use_continuous_read;
     u8 qspi_dl_width;
     u8 IsInited;
@@ -83,8 +106,8 @@ int spinand_flash_init(struct aic_spinand *flash);
 int spinand_read_page(struct aic_spinand *flash, u32 page, u8 *data,
                       u32 data_len, u8 *spare, u32 spare_len);
 int spinand_block_isbad(struct aic_spinand *flash, u16 blk);
-int spinand_block_status(struct aic_spinand *flash, u16 blk);
-int spinand_set_block(struct aic_spinand *flash, u16 blk, u16 pos, u16 status);
+int spinand_get_status(struct aic_spinand *flash, u16 blk);
+int spinand_set_status(struct aic_spinand *flash, u16 blk, u16 status);
 int spinand_continuous_read(struct aic_spinand *flash, u32 page, u8 *data,
                             u32 size);
 int spinand_write_page(struct aic_spinand *flash, u32 page, const u8 *data,
@@ -94,6 +117,7 @@ int spinand_config_set(struct aic_spinand *flash, u8 mask, u8 val);
 int spinand_erase(struct aic_spinand *flash, u32 offset, u32 size);
 int spinand_read(struct aic_spinand *flash, u8 *addr, u32 offset, u32 size);
 int spinand_write(struct aic_spinand *flash, u8 *addr, u32 offset, u32 size);
+int spinand_get_feature(struct aic_spinand *flash, u8 reg_addr);
 
 #ifdef AIC_SPINAND_CONT_READ
 
@@ -196,6 +220,7 @@ struct spi_nand_cmd_cfg {
 #define STATUS_ECC_NO_BITFLIPS      (0 << 4)
 #define STATUS_ECC_HAS_1_4_BITFLIPS (1 << 4)
 #define STATUS_ECC_UNCOR_ERROR      (2 << 4)
+#define STATUS_ECC_HAS_5_8_BITFLIPS (3 << 4)
 
 #ifdef SPI_NAND_WINBOND
 extern const struct spinand_manufacturer winbond_spinand_manufacturer;
@@ -242,14 +267,24 @@ extern const struct spinand_manufacturer quanxing_spinand_manufacturer;
 #ifdef SPI_NAND_XINCUN
 extern const struct spinand_manufacturer xincun_spinand_manufacturer;
 #endif
+#ifdef SPI_NAND_FUDANMICRO
+extern const struct spinand_manufacturer fudanmicro_spinand_manufacturer;
+#endif
 
 extern struct spi_nand_cmd_cfg cmd_cfg_table[];
 
 const struct aic_spinand_info *
-spinand_match_and_init(u8 devid, const struct aic_spinand_info *table,
+spinand_match_and_init(u8 *devid, const struct aic_spinand_info *table,
                        u32 table_size);
 int aic_spinand_transfer_message(struct aic_spinand *flash,
                                  struct spi_nand_cmd_cfg *cfg, u32 addr,
                                  u8 *sendBuff, u8 *recvBuff, u32 DataCount);
+/* ooblayout
+ * distinguish the ECC protected bytes on the oob region
+ */
+int spinand_ooblayout_map_user(struct aic_spinand *flash, u8 *oobbuf,
+                       const u8 *spare, int start, int nbytes);
+int spinand_ooblayout_unmap_user(struct aic_spinand *flash, u8 *dst,
+                       u8 *src, int start, int nbytes);
 
 #endif /* __SPINAND_H__ */

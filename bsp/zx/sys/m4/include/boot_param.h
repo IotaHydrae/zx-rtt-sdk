@@ -68,7 +68,7 @@ enum boot_controller {
 #define BD_BOOTROM BD_USB
 
 typedef int (*nand_read)(void *dev, unsigned long offset, void *buf,
-                         unsigned long len);
+                         unsigned long len, int spienc_bypass);
 enum boot_reason aic_get_boot_reason(void);
 enum boot_device aic_get_boot_device(void);
 enum boot_controller aic_get_boot_controller(void);

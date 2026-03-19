@@ -4,17 +4,12 @@
  *
  */
 
-#ifndef _ZX_HAL_SDMC_H_
-#define _ZX_HAL_SDMC_H_
+#ifndef _ARTINCHIP_HAL_SDMC_H_
+#define _ARTINCHIP_HAL_SDMC_H_
 
 #include <bouncebuf.h>
 
 #define SDMC_CLOCK_MIN       400000      /* 400KHz */
-#ifdef FPGA_BOARD_ZX
-#define SDMC_CLOCK_MAX       48000000    /* 48MHz */
-#else
-#define SDMC_CLOCK_MAX       100000000   /* 100MHz */
-#endif
 
 #define FIFO_MIN            8
 #define FIFO_MAX            4096
@@ -106,6 +101,10 @@
 #define SDMC_CTYPE_4BIT         (0x1)
 #define SDMC_CTYPE_8BIT         (0x2)
 #define SDMC_CTYPE_RESERVED     (0x3)
+
+/* Data-rate */
+#define SDMC_SDR_MODE           (0)
+#define SDMC_DDR_MODE           (0x1)
 
 /* Interrupt status & enable register defines */
 #define SDMC_INT_ALL            0xffffffff
@@ -236,6 +235,7 @@ void hal_sdmc_get_rsp(struct aic_sdmc_host *host, u32 *buf, u32 all);
 
 void aic_sdmc_set_ext_clk_mux(struct aic_sdmc_host *host, u32 mux);
 void hal_sdmc_set_phase(struct aic_sdmc_host *host, u32 drv, u32 smp);
+void hal_sdmc_set_delay(struct aic_sdmc_host *host, u32 drv, u32 smp);
 void hal_sdmc_set_buswidth(struct aic_sdmc_host *host, u32 buswidth);
 void hal_sdmc_set_ddrmode(struct aic_sdmc_host *host, u32 ddr);
 void hal_sdmc_clk_disable(struct aic_sdmc_host *host);
@@ -244,6 +244,7 @@ void hal_sdmc_sdio_irq_enable(struct aic_sdmc_host *host, u32 en);
 void hal_sdmc_set_div(struct aic_sdmc_host *host, u32 div);
 
 void hal_sdmc_fifo_init(struct aic_sdmc_host *host, u32 *thd);
+void hal_sdmc_soft_reset(struct aic_sdmc_host *host);
 int hal_sdmc_reset(struct aic_sdmc_host *host, u32 value);
 void hal_sdmc_init(struct aic_sdmc_host *host);
 

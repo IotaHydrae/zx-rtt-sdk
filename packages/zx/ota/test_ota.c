@@ -15,14 +15,17 @@
 
 char buffer[BUFFER_SIZE];
 
-int test_ota()
+int test_ota(int argc, char *argv[])
 {
     FILE *file;
     int size;
     int ret;
-
+    if (argc < 2) {
+        printf("using: test_ota <file>\n");
+        return -1;
+    }
     //update file ota.cpio is placed in the sdcard
-    file = fopen("/sdcard/ota.cpio", "rb");
+    file = fopen(argv[1], "rb");
     if (file == NULL) {
         printf("Failed to open the file.\n");
         return -1;
@@ -42,7 +45,7 @@ int test_ota()
         goto __exit;
     }
 
-    //3.Read BUFFER_SIZE each time and update it into flash
+    //2.Read BUFFER_SIZE each time and update it into flash
     while (!feof(file)) {
         size = fread(buffer, 1, BUFFER_SIZE, file);
 
@@ -54,13 +57,13 @@ int test_ota()
         }
     }
 
-    //4.Update the environment variables
+    //3.Update the environment variables
     ret = aic_upgrade_end();
     if (ret) {
         printf("Aic upgrade end");
     }
 
-    //5. Reset the device, Start new firmware
+    //4. Reset the device, Start new firmware
     extern void rt_hw_cpu_reset(void);
     rt_hw_cpu_reset();
 

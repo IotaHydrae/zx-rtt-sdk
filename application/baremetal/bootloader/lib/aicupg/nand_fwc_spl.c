@@ -2,10 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <aicupg.h>
+#include <aic_utils.h>
+#include <aic_crc32.h>
 #include <spinand.h>
+#include <spienc.h>
 #include <mtd.h>
 #include "upg_internal.h"
 #include "nand_fwc_spl.h"
+//#include <firmware_security.h>
 
 struct aicupg_nand_spl {
     struct mtd_dev *mtd;
@@ -75,14 +79,14 @@ static s32 get_good_blocks_for_spl(struct mtd_dev *mtd, u32 *spl_blocks,
             continue;
 
         offset = mtd->erasesize * blkidx;
-        if (mtd_block_isbad(mtd, offset)) {
-            pr_err("Block %d is bad.\n", blkidx);
-            continue;
-        }
-
         ret = mtd_read_oob(mtd, offset, NULL, 0, buf, 2);
         if (ret) {
             pr_err("Read OOB from block %d failed. ret = %d\n", blkidx, ret);
+            continue;
+        }
+
+        if (IS_BADBLOCK(buf[0], buf[1])) {
+            pr_err("Block %d is bad.\n", blkidx);
             continue;
         }
 
@@ -310,7 +314,7 @@ static s32 spl_build_page_table(struct aicupg_nand_spl *spl,
             ret = -1;
             goto out;
         }
-        pa = (blkidx << 6) + page_in_blk;
+        pa = (blkidx * page_per_blk) + page_in_blk;
         if (pgidx < PAGE_TABLE_MAX_ENTRY) {
             pt->entry[pgidx].pageaddr[0] = pa;
             pt->entry[pgidx].checksum = ~sumval;
@@ -323,7 +327,7 @@ static s32 spl_build_page_table(struct aicupg_nand_spl *spl,
 
     pgidx = 0;
     blkidx = spl->spl_blocks[0];
-    pa = (blkidx << 6) + pgidx;
+    pa = (blkidx * page_per_blk) + pgidx;
     pt->entry[0].pageaddr[0] = pa;
     pt->entry[0].checksum = 0;
     memset(page_data, 0xFF, PAGE_TABLE_USE_SIZE);
@@ -341,15 +345,20 @@ out:
 /*
  * Write SPL image to flash blocks
  */
-static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
+static s32 nand_fwc_spl_program(struct fwc_info *fwc, struct aicupg_nand_spl *spl)
 {
-    u8 *page_data = NULL, *p, *end;
+    u8 *page_data = NULL, *rd_page_data = NULL, *p, *end;
     struct nand_page_table *pt = NULL;
     ulong offset;
-    u32 data_size, blkidx, blkcnt, pa, pgidx, slice_size;
-    u32 trans_size;
+    u32 data_size, blkidx, pa, pgidx, slice_size;
     u32 page_per_blk;
     s32 ret, i;
+
+    fwc->calc_partition_crc = crc32(fwc->calc_partition_crc, spl->image_buf, fwc->meta.size);
+
+#ifdef AICUPG_FIRMWARE_SECURITY
+    firmware_security_decrypt(spl->image_buf, spl->rx_size);
+#endif
 
     pt = malloc(PAGE_TABLE_USE_SIZE);
     page_data = malloc(PAGE_MAX_SIZE);
@@ -358,6 +367,15 @@ static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
         ret = -ENOMEM;
         goto out;
     }
+
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+    rd_page_data = malloc(PAGE_MAX_SIZE);
+    if (!rd_page_data) {
+        pr_err("malloc rd_page_data failed.\n");
+        ret = -ENOMEM;
+        goto out;
+    }
+#endif
 
     ret = spl_build_page_table(spl, pt);
     if (ret) {
@@ -369,16 +387,6 @@ static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
     slice_size = spl->mtd->writesize;
     page_per_blk = spl->mtd->erasesize / spl->mtd->writesize;
 
-    /* How many blocks will be used */
-    blkcnt = (pt->head.entry_cnt + page_per_blk - 1) / page_per_blk;
-    for (i = 0; i < blkcnt; i++) {
-        blkidx = spl->spl_blocks[i];
-        if (blkidx < 4) {
-            /* First 4 blocks don't mark */
-            continue;
-        }
-        mark_image_block_as_reserved(spl->mtd, blkidx);
-    }
     /* Program page table and image data to blocks */
     blkidx = spl->spl_blocks[0];
     if (blkidx == SPL_INVALID_BLOCK_IDX) {
@@ -391,10 +399,14 @@ static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
 
     pa = pt->entry[0].pageaddr[0];
     offset = pa * spl->mtd->writesize;
-    pr_debug("Write page table to blk %d pa 0x%x., off 0x%x\n", blkidx, pa,
-             (u32)offset);
-
-    ret = mtd_write(spl->mtd, offset, page_data, PAGE_TABLE_USE_SIZE);
+    pr_debug("Write page table to blk %d pa 0x%x., off 0x%x\n", blkidx, pa, (u32)offset);
+#ifdef AIC_USING_SPIENC
+    spienc_set_bypass(AIC_SPIENC_BYPASS_ENABLE);
+#endif
+    ret = mtd_write_oob(spl->mtd, offset, page_data, PAGE_TABLE_USE_SIZE, NULL, 0);
+#ifdef AIC_USING_SPIENC
+    spienc_set_bypass(AIC_SPIENC_BYPASS_DISABLE);
+#endif
     if (ret) {
         pr_err("Write SPL page %d failed.\n", 0);
         ret = -1;
@@ -402,9 +414,6 @@ static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
     }
 
     /* Write image data to page */
-
-    /* Write image data to page */
-    trans_size = 0;
     p = spl->image_buf;
     end = p + spl->buf_size;
     for (pgidx = 1; pgidx < pt->head.entry_cnt; pgidx++) {
@@ -424,16 +433,30 @@ static s32 nand_fwc_spl_program(struct aicupg_nand_spl *spl)
             pa = pt->entry[pgidx % PAGE_TABLE_MAX_ENTRY].pageaddr[1];
 
         offset = pa * spl->mtd->writesize;
-        pr_debug("Write data to blk %d pa 0x%x, offset 0x%x\n", blkidx, pa,
-                 (u32)offset);
-        ret = mtd_write(spl->mtd, offset, page_data, spl->mtd->writesize);
+        pr_debug("Write data to blk %d pa 0x%x, offset 0x%x\n", blkidx, pa, (u32)offset);
+        ret = mtd_write_oob(spl->mtd, offset, page_data, spl->mtd->writesize, NULL, 0);
         if (ret) {
             pr_err("Write SPL page %d failed.\n", pgidx);
             ret = -1;
             goto out;
         }
 
-        trans_size += data_size;
+#ifdef AICUPG_SINGLE_TRANS_BURN_CRC32_VERIFY
+        // Read data to calc crc
+        ret = mtd_read(spl->mtd, offset, rd_page_data, slice_size);
+        if (ret) {
+            pr_err("Read SPL page %d failed.\n", pgidx);
+            ret = -1;
+            goto out;
+        }
+
+        if (crc32(0, page_data, slice_size) != crc32(0, rd_page_data, slice_size)) {
+            pr_err("slice size:%d\n", slice_size);
+            pr_err("crc err at offset %lu\n", offset);
+            ret = -1;
+            goto out;
+        }
+#endif
     }
 
 out:
@@ -441,6 +464,8 @@ out:
         free(page_data);
     if (pt)
         free(pt);
+    if (rd_page_data)
+        free(rd_page_data);
     return ret;
 }
 
@@ -453,7 +478,13 @@ static s32 verify_page_table(struct aicupg_nand_spl *spl, u32 blkidx,
     s32 ret;
 
     offset = spl->mtd->erasesize * blkidx;
+#ifdef AIC_USING_SPIENC
+    spienc_set_bypass(AIC_SPIENC_BYPASS_ENABLE);
+#endif
     ret = mtd_read(spl->mtd, offset, page_data, PAGE_TABLE_USE_SIZE);
+#ifdef AIC_USING_SPIENC
+    spienc_set_bypass(AIC_SPIENC_BYPASS_DISABLE);
+#endif
     if (ret) {
         pr_err("Read page_data failed.\n");
         return -1;
@@ -549,6 +580,9 @@ static s32 nand_fwc_spl_image_verify(struct aicupg_nand_spl *spl)
     ret = verify_image_page(spl, pt);
 
 out:
+#ifdef AIC_USING_SPIENC
+    spienc_select_tweak(AIC_SPIENC_USER_TWEAK);
+#endif
     if (pt)
         free(pt);
     return ret;
@@ -598,6 +632,9 @@ s32 nand_fwc_spl_prepare(struct aicupg_nand_priv *priv, u32 datasiz, u32 blksiz)
         pr_err("spl erase image block failed.\n");
         return -1;
     }
+#ifdef AIC_USING_SPIENC
+    spienc_select_tweak(AIC_SPIENC_HW_TWEAK);
+#endif
 
     return 0;
 }
@@ -606,7 +643,7 @@ s32 nand_fwc_spl_prepare(struct aicupg_nand_priv *priv, u32 datasiz, u32 blksiz)
  * Only write to RAM buffer, and begin to program NAND blocks when rx is
  * finished.
  */
-s32 nand_fwc_spl_write(u32 totalsiz, u8 *buf, s32 len)
+s32 nand_fwc_spl_write(struct fwc_info *fwc, u8 *buf, s32 len)
 {
     struct aicupg_nand_spl *spl = &g_nand_spl;
     s32 ret;
@@ -619,9 +656,9 @@ s32 nand_fwc_spl_write(u32 totalsiz, u8 *buf, s32 len)
     memcpy(dst, buf, len);
     spl->rx_size += len;
 
-    if (spl->rx_size >= totalsiz) {
+    if (spl->rx_size >= fwc->meta.size) {
         /* SPL image rx is finished, start to program */
-        ret = nand_fwc_spl_program(spl);
+        ret = nand_fwc_spl_program(fwc, spl);
         if (ret)
             return 0;
         ret = nand_fwc_spl_image_verify(spl);
@@ -630,6 +667,28 @@ s32 nand_fwc_spl_write(u32 totalsiz, u8 *buf, s32 len)
     }
 
     return len;
+}
+
+s32 nand_fwc_spl_end(struct aicupg_nand_priv *priv)
+{
+    struct aicupg_nand_spl *spl;
+    u32 blkidx;
+    int i;
+
+    spl = &g_nand_spl;
+    /* mark blocks as spl reserved */
+    for (i = 0; i < 4; i++) {
+        blkidx = spl->spl_blocks[i];
+        if (blkidx < 4) {
+            /* First 4 blocks don't mark */
+            continue;
+        }
+        mark_image_block_as_reserved(spl->mtd, blkidx);
+    }
+    if (spl->image_buf)
+        free(spl->image_buf);
+
+    return 0;
 }
 
 int nand_spl_get_candidate_blocks(u32 *blks, u32 size)

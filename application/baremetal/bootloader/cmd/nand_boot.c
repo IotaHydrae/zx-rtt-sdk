@@ -36,14 +36,15 @@ static int do_nand_boot(int argc, char *argv[])
     struct spl_load_info info;
 
     mtd_probe();
-
+    printf("mtd_probe success\n");
 #ifdef AIC_AB_SYSTEM_INTERFACE
     ret = aic_ota_check();
     if (ret) {
         printf("Aic ota check error.\n");
     }
-
+    printf("aic_ota_check success\n");
     ret = aic_get_os_to_startup(target);
+    printf("aic_get_os_to_startup success\n");
     if (ret) {
         printf("Aic get os fail, startup from %s default.\n", APPLICATION_PART);
         mtd = mtd_get_device(APPLICATION_PART);

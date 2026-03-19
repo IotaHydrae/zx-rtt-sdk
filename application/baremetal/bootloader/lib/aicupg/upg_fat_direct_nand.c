@@ -39,6 +39,7 @@ static struct mtd_dev *fat_direct_spinand_probe(u32 spi_id)
 static int fat_direct_spinand_write_boot(char *fpath, struct mtd_dev *mtd)
 {
     struct aicupg_nand_priv priv;
+    struct fwc_info fwc = { 0 };
     u32 soffset;
     ulong dolen, actread;
     int ret = 0, endflag = 0;
@@ -72,10 +73,12 @@ static int fat_direct_spinand_write_boot(char *fpath, struct mtd_dev *mtd)
             endflag = 1;
         soffset += actread;
         if (!endflag) {
-            nand_fwc_spl_write(MAX_SPL_SIZE, buf, actread);
+            fwc.meta.size = MAX_SPL_SIZE;
+            nand_fwc_spl_write(&fwc, buf, actread);
         } else {
             /* Set flag to tell writer, the data is end. */
-            nand_fwc_spl_write(0, buf, actread);
+            fwc.meta.size = 0;
+            nand_fwc_spl_write(&fwc, buf, actread);
             break;
         }
     }
@@ -123,7 +126,7 @@ static int fat_direct_spinand_write_data(char *fpath, struct mtd_dev *mtd,
                 }
                 mtd_erase(mtd, doffset, mtd->erasesize);
             }
-            ret = mtd_write(mtd, doffset, p, dolen);
+            ret = mtd_write_oob(mtd, doffset, p, dolen, NULL, 0);
             writecnt += dolen;
             printf("\r\t wrote count 0x%lx", writecnt);
             if (ret) {

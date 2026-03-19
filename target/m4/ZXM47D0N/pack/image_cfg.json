@@ -3,6 +3,7 @@
         "size": "128m", // Size of SPI NAND
         "partitions": {
             "spl": { "size": "1m" },
+            "refresh": { "size": "1m" },
             "env":      { "size": "256k" },
             "env_r":    { "size": "256k" },
             "os":  { "size": "4m" },

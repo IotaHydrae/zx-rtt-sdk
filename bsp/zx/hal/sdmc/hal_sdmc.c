@@ -108,6 +108,7 @@ void hal_sdmc_idma_prepare(struct aic_sdmc_host *host,
     unsigned long ctrl;
     unsigned int i = 0, flags, cnt, blk_cnt = blks;
     ulong data_start, data_end;
+    unsigned int blk_cnt_in_page = PAGE_SIZE / blksize;
 
     data_start = (ulong)cur_idma;
     sdmc_writel(host, SDMC_IDMASADDR, (ulong)cur_idma);
@@ -115,11 +116,11 @@ void hal_sdmc_idma_prepare(struct aic_sdmc_host *host,
     do {
         flags = SDMC_IDMAC_OWN | SDMC_IDMAC_CH;
         flags |= (i == 0) ? SDMC_IDMAC_FS : 0;
-        if (blk_cnt <= 8) {
+        if (blk_cnt <= blk_cnt_in_page) {
             flags |= SDMC_IDMAC_LD;
             cnt = blksize * blk_cnt;
         } else {
-            cnt = blksize * 8;
+            cnt = blksize * blk_cnt_in_page;
         }
 
         hal_sdmc_idma_prepare_desc(cur_idma, flags, cnt,
@@ -127,9 +128,9 @@ void hal_sdmc_idma_prepare(struct aic_sdmc_host *host,
                                    (i * PAGE_SIZE));
 
         cur_idma++;
-        if (blk_cnt <= 8)
+        if (blk_cnt <= blk_cnt_in_page)
             break;
-        blk_cnt -= 8;
+        blk_cnt -= blk_cnt_in_page;
         i++;
     } while (1);
 
@@ -317,6 +318,18 @@ void hal_sdmc_set_phase(struct aic_sdmc_host *host, u32 drv, u32 smp)
     sdmc_writel(host, SDMC_DLYCTRL, temp);
 }
 
+void hal_sdmc_set_delay(struct aic_sdmc_host *host, u32 drv, u32 smp)
+{
+    u32 temp = 0;
+
+    temp = sdmc_readl(host, SDMC_DLYCTRL);
+    temp &= ~SDMC_DLYCTRL_CLK_DRV_DLY_MASK;
+    temp &= ~SDMC_DLYCTRL_CLK_SMP_DLY_MASK;
+    temp |= drv << SDMC_DLYCTRL_CLK_DRV_DLY_SHIFT |
+            smp << SDMC_DLYCTRL_CLK_SMP_DLY_SHIFT;
+    sdmc_writel(host, SDMC_DLYCTRL, temp);
+}
+
 void hal_sdmc_set_buswidth(struct aic_sdmc_host *host, u32 buswidth)
 {
     u32 val = 0;
@@ -397,6 +410,33 @@ void hal_sdmc_fifo_init(struct aic_sdmc_host *host, u32 *thd)
     sdmc_writel(host, SDMC_FIFOCFG, *thd);
     sdmc_writel(host, SDMC_CTC,
                 (512 << SDMC_CTC_CARDTHR_SHIFT) | SDMC_CTC_CARDRDTHR_EN);
+}
+
+void hal_sdmc_soft_reset(struct aic_sdmc_host *host)
+{
+    u32 temp = 0;
+
+    temp = sdmc_readl(host, SDMC_INTEN);
+    sdmc_writel(host, SDMC_INTEN, 0);
+
+    sdmc_writel(host, SDMC_IDMAINTEN, 0);
+
+    if (hal_sdmc_reset(host, SDMC_HCTRL1_RESET_ALL)) {
+        pr_err("Failed to reset!\n");
+        return;
+    }
+
+    sdmc_writel(host, SDMC_INTEN, temp);
+
+    hal_sdmc_set_cmd(host, SDMC_CMD_PRV_DAT_WAIT | SDMC_CMD_UPD_CLK | SDMC_CMD_START);
+
+    if (hal_sdmc_wait_cmd_started(host)) {
+        pr_err("Failed to wait cmd started!\n");
+        return;
+    }
+
+    temp = sdmc_readl(host, SDMC_OINTST);
+    sdmc_writel(host, SDMC_OINTST, temp);
 }
 
 void hal_sdmc_init(struct aic_sdmc_host *host)

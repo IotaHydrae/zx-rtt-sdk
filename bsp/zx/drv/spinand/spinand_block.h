@@ -11,6 +11,23 @@
 #include <rtdevice.h>
 #include "spinand_parts.h"
 
+#ifndef AIC_SPINAND_BLOCK_CACHE_SIZE
+#define BLOCK_CACHE_SIZE    512
+#else
+#define BLOCK_CACHE_SIZE    AIC_SPINAND_BLOCK_CACHE_SIZE
+#endif
+
+#ifndef AIC_SPINAND_BLOCK_CACHE_NUM
+#define BLOCK_CACHE_NUM     4
+#else
+#define BLOCK_CACHE_NUM     AIC_SPINAND_BLOCK_CACHE_NUM
+#endif
+
+struct blk_cache {
+    u32 pos;
+    char buf[BLOCK_CACHE_SIZE];
+};
+
 struct spinand_blk_device {
     struct rt_device parent;
     struct rt_device_blk_geometry geometry;
@@ -21,6 +38,9 @@ struct spinand_blk_device {
     char name[32];
     enum part_attr attr;
     u8 *pagebuf;
+    struct blk_cache *blk_cache;
+    struct rt_mutex blk_cache_lock;
+    u32 *block_num_cache;
 };
 
 int rt_blk_nand_register_device(const char *name, struct rt_mtd_nand_device *mtd_device);

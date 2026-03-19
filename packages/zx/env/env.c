@@ -1,7 +1,9 @@
 /*
+ * Copyright (c) 2023-2025, ArtInChip Technology Co., Ltd
  *
  * SPDX-License-Identifier: Apache-2.0
  *
+ * Authors: xuan.wen <xuan.wen@artinchip.com>
  */
 
 #include <rtconfig.h>
@@ -12,10 +14,10 @@
 #include <aic_core.h>
 #include <env.h>
 #include <aic_crc32.h>
-
-#ifdef KERNEL_BAREMETAL
 #include <aic_partition.h>
 #include <disk_part.h>
+
+#ifdef KERNEL_BAREMETAL
 #include <mmc.h>
 #endif
 
@@ -220,13 +222,13 @@ int fw_env_write(char *name, char *value)
     overwriting = (oldval && (value && strlen(value)));
 
     if (deleting) {
-        printf("Env: delting\n");
+        pr_info("Env: delting\n");
     } else if (overwriting) {
-        pr_debug("Env: overwriting\n");
+        pr_info("Env: overwriting\n");
     } else if (creating) {
-        printf("Env: creating\n");
+        pr_info("Env: creating\n");
     } else {
-        printf("Env: nothing\n");
+        pr_info("Env: nothing\n");
         return 0;
     }
 
@@ -283,10 +285,17 @@ int fw_env_write(char *name, char *value)
 
 int fw_env_flush(void)
 {
+    uint32_t crc32;
+
     /*
 	 * Update CRC
 	 */
-    *environment.crc = env_crc32(0, (uint8_t *)environment.data, usable_envsize);
+
+    crc32 = env_crc32(0, (uint8_t *)environment.data, usable_envsize);
+
+    if (crc32 == *environment.crc)
+        return 0;
+    *environment.crc = crc32;
 
     /* write environment back to flash */
     if (flash_io(O_RDWR)) {
@@ -469,7 +478,7 @@ static int rtt_spinand_load_env_simple(void *buf, size_t size)
 
         if (mtd_is_block_aligned(page_id, mtd->pages_per_block) &&
             rt_mtd_nand_check_block(mtd, blk) != RT_EOK) {
-            pr_err("Block is bad, skip it.\n");
+            pr_err("Block %u is bad, skip it.\n", blk);
             offset += mtd->pages_per_block * mtd->page_size;
             continue;
         }
@@ -500,8 +509,9 @@ static int rtt_spinand_save_env_simple(void *buf, size_t size)
     struct rt_mtd_nand_device *mtd;
     rt_device_t dev;
     rt_err_t ret = 0;
-    rt_off_t offset = 0;
-    rt_uint32_t page_id = 0, blk = 0, remain = 0, goodblk = 0;
+    rt_off_t offset = 0, bad_blk_offset = 0;
+    rt_uint32_t page_id = 0, blk = 0, remain = 0, good_blk = 0;
+    rt_uint8_t *buf_ptr = NULL;
 
     if (dev_current == 0) {
         dev = rt_device_find(AIC_ENV_REDUNDAND_PART_NAME);
@@ -524,9 +534,13 @@ static int rtt_spinand_save_env_simple(void *buf, size_t size)
     }
 
     mtd = (struct rt_mtd_nand_device *)dev;
-    remain = size;
 
-    while (!goodblk) {
+write_start:
+    offset = 0;
+    remain = size;
+    buf_ptr = buf;
+
+    while (!good_blk) {
         page_id = offset / mtd->page_size;
 
         if (page_id > (mtd->block_total * mtd->pages_per_block)) {
@@ -539,25 +553,42 @@ static int rtt_spinand_save_env_simple(void *buf, size_t size)
 
         if (rt_mtd_nand_check_block(mtd, blk) != RT_EOK) {
             pr_err("Block is bad, skip it.\n");
+            bad_blk_offset += mtd->pages_per_block * mtd->page_size;
             offset += mtd->pages_per_block * mtd->page_size;
             continue;
         } else {
-            rt_mtd_nand_erase_block(mtd, blk);
-            goodblk = true;
+            if (rt_mtd_nand_erase_block(mtd, blk)) {
+                /* write to next good block */
+                ret = rt_mtd_nand_mark_badblock(mtd, blk);
+                if (ret) {
+                    pr_err("Failed to mark block %u bad.\n", blk);
+                    ret = -RT_ERROR;
+                    goto rtt_spinand_save_env_simple;
+                }
+                good_blk = false;
+                goto write_start;
+            }
+            good_blk = true;
         }
     }
 
     while (remain) {
         page_id = offset / mtd->page_size;
 
-        ret = rt_mtd_nand_write(mtd, page_id, buf, mtd->page_size, RT_NULL, 0);
+        ret = rt_mtd_nand_write(mtd, page_id, buf_ptr, mtd->page_size, RT_NULL, 0);
         if (ret) {
-            pr_err("Failed to write page data to NAND.\n");
-            ret = -RT_ERROR;
-            goto rtt_spinand_save_env_simple;
+            /* write to next good block */
+            ret = rt_mtd_nand_mark_badblock(mtd, blk);
+            if (ret) {
+                pr_err("Failed to mark block %u bad.\n", blk);
+                ret = -RT_ERROR;
+                goto rtt_spinand_save_env_simple;
+            }
+            good_blk = false;
+            goto write_start;
         }
 
-        buf += mtd->page_size;
+        buf_ptr += mtd->page_size;
         offset += mtd->page_size;
         if (remain >= mtd->page_size)
             remain -= mtd->page_size;
@@ -605,6 +636,8 @@ static int bar_spinand_save_env_simple(void *buf, size_t size)
 {
     struct mtd_dev *env_current;
     unsigned long offset = 0;
+    unsigned write_len = 0;
+    int err = 0;
 
     if (dev_current == 0) {
         env_current = mtd_get_device(AIC_ENV_REDUNDAND_PART_NAME);
@@ -629,9 +662,17 @@ static int bar_spinand_save_env_simple(void *buf, size_t size)
         return -1;
     }
 
-    if (mtd_write(env_current, offset, buf, size)) {
-        pr_err("Mtd write env fail\n");
-        return -1;
+    while (write_len < size) {
+        err = mtd_write_oob(env_current, offset + write_len, buf + write_len, env_current->writesize, NULL, 0);
+        if (err) {
+            printf("Write mtd at offset 0x%lx error, mark it.\n", offset + write_len);
+            err = mtd_block_markbad(env_current, ALIGN_DOWN(offset + write_len, env_current->erasesize));
+            if (err)
+                printf("Mark block bad error.\n");
+        
+            return -1;
+        }
+        write_len += env_current->writesize;
     }
 
     return 0;
@@ -639,24 +680,89 @@ static int bar_spinand_save_env_simple(void *buf, size_t size)
 #endif
 #endif
 
+#ifdef AIC_SDMC_DRV
 #ifndef KERNEL_BAREMETAL
-static int rtt_mmc_load_env_simple(void *buf, size_t size)
+static unsigned long mmc_write(struct blk_desc *block_dev, u64 start,
+                               u64 blkcnt, void *buffer)
 {
-    rt_device_t env_current;
-    struct rt_device_blk_geometry get_data;
-    size_t blkcnt = 0;
+    return rt_device_write(block_dev->priv, start, (void *)buffer, blkcnt);
+}
 
-    if (dev_current == 0) {
-        env_current = rt_device_find("mmc0p1");
-    } else if (dev_current == 1) {
-        env_current = rt_device_find("mmc0p2");
-    } else {
-        pr_err("Invalid dev_current:%d\n", dev_current);
+static unsigned long mmc_read(struct blk_desc *block_dev, u64 start, u64 blkcnt,
+                              const void *buffer)
+{
+    return rt_device_read(block_dev->priv, start, (void *)buffer, blkcnt);
+}
+
+static int get_mmc_devname_by_partname(const char *partname, char *devname, int len)
+{
+    rt_device_t dev;
+    rt_int32_t id = 0;
+    struct aic_partition *parts, *part;
+    struct disk_blk_ops ops;
+    struct blk_desc dev_desc;
+    char dname[8] = { 0 };
+
+    id = (bd == BD_SDMC0) ? 0 : 1;
+
+    ops.blk_write = mmc_write;
+    ops.blk_read = mmc_read;
+    aic_disk_part_set_ops(&ops);
+
+    rt_snprintf(dname, sizeof(dname), "mmc%d", id);
+    dev = rt_device_find(dname);
+    if (dev == RT_NULL) {
+        memset(dname, 0, sizeof(dname));
+        rt_snprintf(dname, sizeof(dname), "sd%d", id);
+        dev = rt_device_find(dname);
+        if (dev == RT_NULL) {
+            pr_err("Not found %s dev.\n", dname);
+            return -1;
+        }
+    }
+
+    rt_device_open(dev, RT_DEVICE_FLAG_RDWR);
+    dev_desc.blksz = 512;
+    dev_desc.lba_count = 0;
+    dev_desc.priv = dev;
+    parts = aic_disk_get_parts(&dev_desc);
+    if (parts == RT_NULL) {
+        pr_err("Not found dev %s partition info.\n", dname);
         return -1;
     }
 
+    part = aic_part_get_byname(parts, partname);
+    if (part == RT_NULL) {
+        pr_err("Not found dev %s %s partition info.\n", dname, partname);
+        aic_part_free(parts);
+        rt_device_close(dev);
+        return -1;
+    }
+    rt_snprintf(devname, len, "%sp%d", dname, part->index);
+
+    aic_part_free(parts);
+    rt_device_close(dev);
+
+    return 0;
+}
+
+static int rtt_mmc_load_env_simple(void *buf, size_t size)
+{
+    rt_device_t env_current = RT_NULL;
+    struct rt_device_blk_geometry get_data;
+    size_t blkcnt = 0;
+    char devname[8] = { 0 };
+
+    if (dev_current == 0) {
+        if (!get_mmc_devname_by_partname(AIC_ENV_PART_NAME, devname, 8))
+            env_current = rt_device_find(devname);
+    } else if (dev_current == 1) {
+        if (!get_mmc_devname_by_partname(AIC_ENV_REDUNDAND_PART_NAME, devname, 8))
+            env_current = rt_device_find(devname);
+    }
+
     if (env_current == RT_NULL) {
-        pr_err("Not found dev_current:%d\n", dev_current);
+        pr_err("Not found %s dev_current:%d\n", devname, dev_current);
         return -1;
     }
 
@@ -679,22 +785,22 @@ rtt_mmc_load_env_simple_exit:
 
 static int rtt_mmc_save_env_simple(void *buf, size_t size)
 {
-    rt_device_t env_current;
+    rt_device_t env_current = RT_NULL;
     struct rt_device_blk_geometry get_data;
     unsigned long long p[2] = {0};
     size_t blkcnt = 0;
+    char devname[8] = { 0 };
 
     if (dev_current == 0) {
-        env_current = rt_device_find("mmc0p2");
+        if (!get_mmc_devname_by_partname(AIC_ENV_REDUNDAND_PART_NAME, devname, 8))
+            env_current = rt_device_find(devname);
     } else if (dev_current == 1) {
-        env_current = rt_device_find("mmc0p1");
-    } else {
-        pr_err("Invalid dev_current:%d\n", dev_current);
-        return -1;
+        if (!get_mmc_devname_by_partname(AIC_ENV_PART_NAME, devname, 8))
+            env_current = rt_device_find(devname);
     }
 
     if (env_current == RT_NULL) {
-        pr_err("Not found dev_current:%d\n", dev_current);
+        pr_err("Not found %s dev_current:%d\n", devname, dev_current);
         return -1;
     }
 
@@ -728,8 +834,11 @@ static int bar_mmc_load_env_simple(void *buf, size_t size)
     struct aic_sdmc *host = NULL;
     struct aic_partition *parts = NULL, *part = NULL;
     struct blk_desc dev_desc = {0};
+    int id = 0;
 
-    host = find_mmc_dev_by_index(0);
+    id = (bd == BD_SDMC0) ? 0 : 1;
+
+    host = find_mmc_dev_by_index(id);
     if (host== NULL) {
         pr_err("can't find mmc device!");
         return -1;
@@ -762,8 +871,11 @@ static int bar_mmc_save_env_simple(void *buf, size_t size)
     struct aic_sdmc *host = NULL;
     struct aic_partition *parts = NULL, *part = NULL;
     struct blk_desc dev_desc = {0};
+    int id = 0;
 
-    host = find_mmc_dev_by_index(0);
+    id = (bd == BD_SDMC0) ? 0 : 1;
+
+    host = find_mmc_dev_by_index(id);
     if (host== NULL) {
         pr_err("can't find mmc device!");
         return -1;
@@ -793,6 +905,7 @@ static int bar_mmc_save_env_simple(void *buf, size_t size)
     return 0;
 }
 #endif
+#endif
 
 static int flash_env_read(void *buf, size_t size)
 {
@@ -817,13 +930,16 @@ static int flash_env_read(void *buf, size_t size)
 #endif
             break;
 #endif
+#ifdef AIC_SDMC_DRV
         case BD_SDMC0:
+        case BD_SDMC1:
 #ifndef KERNEL_BAREMETAL
             ret = rtt_mmc_load_env_simple(buf, size);
 #else
             ret = bar_mmc_load_env_simple(buf, size);
 #endif
             break;
+#endif
 
         default:
             break;
@@ -888,13 +1004,16 @@ static int flash_env_write(void *buf, size_t size)
 #endif
             break;
 #endif
+#ifdef AIC_SDMC_DRV
         case BD_SDMC0:
+        case BD_SDMC1:
 #ifndef KERNEL_BAREMETAL
             ret = rtt_mmc_save_env_simple(buf, size);
 #else
             ret = bar_mmc_save_env_simple(buf, size);
 #endif
             break;
+#endif
 
         default:
             break;

@@ -30,27 +30,15 @@ void nand_bbt_cleanup(struct aic_spinand *flash)
 
 int nand_bbt_get_block_status(struct aic_spinand *flash, u32 block)
 {
-    u8 *pos = flash->bbt.cache + block;
+    u8 *cache = flash->bbt.cache + block;
 
-    u8 pos0 = pos[0];
-    pos = flash->bbt.cache + block + pos0;
-    if (pos0 != pos[0])
-        return nand_bbt_get_block_status(flash, block + pos0);
-
-    return (pos[0] & 0x3f);
+    return (cache[0] & BBT_BLOCK_STATUS_MSK);
 }
 
-void nand_bbt_set_block_status(struct aic_spinand *flash, u32 block, u32 pos_block,
-                            u32 status)
+void nand_bbt_set_block_status(struct aic_spinand *flash, u32 block, u32 status)
 {
-    u8 *before_pos = 0;
-    u8 *pos = flash->bbt.cache + block;
+    u8 *cache = flash->bbt.cache + block;
 
-    if (block > 0)
-        before_pos = flash->bbt.cache + block - 1;
-
-    pos[0] = (pos_block & 0x3f);
-    if (pos_block != (before_pos[0] & 0x3f)) {
-        printf("Set block status, block: %u, pos: 0x%x.\n", block, pos[0]);
-    }
+    cache[0] &= ~BBT_BLOCK_STATUS_MSK;
+    cache[0] |= (status & BBT_BLOCK_STATUS_MSK);
 }

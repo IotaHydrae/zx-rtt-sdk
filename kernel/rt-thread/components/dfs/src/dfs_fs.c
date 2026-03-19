@@ -513,7 +513,10 @@ int dfs_mount_table(unsigned int prio)
                       mount_table[index].rwflag,
                       mount_table[index].data) != 0)
         {
-            LOG_E("mount fs[%s] on %s failed.\n", mount_table[index].filesystemtype,
+            LOG_E("mount fs[%s] device[%s] to %s failed.\n", mount_table[index].filesystemtype, mount_table[index].device_name,
+                       mount_table[index].path);
+        } else {
+            LOG_I("mount fs[%s] device[%s] to %s ok.\n", mount_table[index].filesystemtype, mount_table[index].device_name,
                        mount_table[index].path);
         }
 
