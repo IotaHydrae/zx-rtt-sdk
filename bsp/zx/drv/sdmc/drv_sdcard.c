@@ -13,7 +13,10 @@
 
 #define SD_CHECK_PIN (rt_pin_get("PC.6"))
 
-extern void aic_mmcsd_change(void);
+
+#define HOTPLUG_SDMC 1
+
+extern void aic_mmcsd_change(u8 id);
 
 static void sd_hotplug_detection_thread(void *parameter)
 {
@@ -25,13 +28,13 @@ static void sd_hotplug_detection_thread(void *parameter)
         rt_thread_mdelay(200);
         if (re_sd_check_pin && (re_sd_check_pin = rt_pin_read(SD_CHECK_PIN)) == 0) {
             printf("card insertion detected!\n");
-            device = rt_device_find("sd0");
+            device = rt_device_find("sd1");
             if (device == NULL)
-                aic_mmcsd_change();
+                aic_mmcsd_change(HOTPLUG_SDMC);
         }
         if (!re_sd_check_pin && (re_sd_check_pin = rt_pin_read(SD_CHECK_PIN)) != 0) {
             printf("card removal detected!\n");
-            aic_mmcsd_change();
+            aic_mmcsd_change(HOTPLUG_SDMC);
         }
     }
 }

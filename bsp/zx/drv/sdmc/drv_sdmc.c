@@ -36,6 +36,7 @@ struct aic_sdmc_pdata {
 };
 
 /**
+ * struct aic_sdmc - Information about a ArtInChip SDMC host
  *
  * @quirks:     Quick flags - see SDMC_QUIRK_...
  * @caps:       Capabilities - see MMC_MODE_...
@@ -603,7 +604,7 @@ static struct aic_sdmc_pdata sdmc_pdata[] = {
 #ifdef AIC_SDMC1_IS_SDIO
         .is_sdio = 1,
 #endif
-#ifdef AIC_SDMC1_USING_HOTPLUG
+#ifdef AIC_SD_USING_HOTPLUG
         .is_hotplug = 1,
 #endif
         .drv_phase = AIC_SDMC1_DRV_PHASE,
