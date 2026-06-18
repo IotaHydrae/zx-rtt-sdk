@@ -13,9 +13,13 @@ const struct aic_spinand_info macronix_spinand_table[] = {
     /*MX35LF2G14AC-Z4I*/
     { DEVID(0x20), PAGESIZE(2048), OOBSIZE(64), BPL(2048), PPB(64), PLANENUM(2),
       DIE(0), "macronix 256MB: 2048+64@64@2048", cmd_cfg_table },
+    /*MX35LF2GE4AD-Z4I*/
+    { DEVID(0x26), PAGESIZE(2048), OOBSIZE(64), BPL(2048), PPB(64), PLANENUM(2),
+        DIE(0), "macronix 256MB: 2048+64@64@2048", cmd_cfg_table },
     /*MX35LF1G24AD-Z4I*/
     { DEVID(0x14), PAGESIZE(2048), OOBSIZE(128), BPL(1024), PPB(64),
       PLANENUM(1), DIE(0), "macronix 128MB: 2048+128@64@1024", cmd_cfg_table },
+
 };
 
 const struct aic_spinand_info *
