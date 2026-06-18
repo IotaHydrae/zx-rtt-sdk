@@ -3,6 +3,10 @@
 #include <aic_common.h>
 #include <ram_param.h>
 
+#define EFUSE_CMU_REG ((void *)0x18020904)
+#define EFUSE_218_REG ((void *)0x19010218)
+#define EFUSE_21C_REG ((void *)0x1901021c)
+
 #define PSRAM_SINGLE   0
 #define PSRAM_PARALLEL 1
 
@@ -24,25 +28,28 @@ struct _psram_info {
     struct _psram_id psram_id;
 };
 
-#define PSRAM_TABLE_INFO                                        \
-{                                                               \
-    /* default 8M */                                            \
-    {0x00, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},   \
-    /* M3C 4M */                                            \
-    {0x01, PSRAM_SINGLE, 0x400000, {APS3208K, 0x80c980c9}},     \
-    /* M3A 8M */                                            \
-    {0x02, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},   \
-    /* M3C 4M */                                            \
-    {0x03, PSRAM_SINGLE, 0x400000, {APS3208K, 0x80c980c9}},     \
-    /* M3A 8M */                                            \
-    {0x04, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},   \
+#define PSRAM_TABLE_INFO                                                        \
+{                                                                               \
+    {0x00, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},                   \
+    {0x01, PSRAM_SINGLE, 0x400000, {APS3208K, 0x80c980c9}},                     \
+    {0x02, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},                   \
+    {0x03, PSRAM_SINGLE, 0x400000, {APS3208K, 0x80c980c9}},                     \
+    {0x04, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},                   \
+    {0x05, PSRAM_PARALLEL, 0x1000000, {SCKW18_12816O, 0xc59ac59a}},             \
+    {0x05, PSRAM_PARALLEL, 0x1000000, {APS12816O, 0xdd8ddd8d}},                 \
+    {0x06, PSRAM_PARALLEL, 0x1000000, {APS12816O, 0xdd8ddd8d}},                 \
+    {0x07, PSRAM_SINGLE, 0x400000, {APS3208K, 0x80c980c9}},                     \
+    {0x08, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},                   \
+    {0x09, PSRAM_PARALLEL, 0x1000000, {APS12816O, 0xdd8ddd8d}},                 \
+    {0xA1, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},                   \
+    {0xB1, PSRAM_PARALLEL, 0x800000, {APS3208K, 0x80c980c9}},                   \
 }
 
 struct _psram_info psram_table_info[] = PSRAM_TABLE_INFO;
 
 u8 psram_get_mark_id(void)
 {
-    u32 fuse_218 = readl(0x19010218);
+    u32 fuse_218 = readl(EFUSE_218_REG);
     u8 mark_id = fuse_218 & 0xff;
 
     pr_info("fuse_218(0x19010218)=0x%x, mark_id=0x%x\n", fuse_218, mark_id);
@@ -51,7 +58,7 @@ u8 psram_get_mark_id(void)
 
 u8 psram_get_psram_id(void)
 {
-    u32 fuse_21c = readl(0x1901021c);
+    u32 fuse_21c = readl(EFUSE_21C_REG);
     u8 psram_id = (fuse_21c & 0xff) >> 4;
 
     pr_info("fuse_21c(0x1901021c)=0x%x, psram_id=0x%x\n", fuse_21c, psram_id);
@@ -77,9 +84,11 @@ u32 aic_get_ram_size(void)
     struct _psram_info *psram_info;
     u8 mark_id, psram_id;
 
+    writel(0x1100, EFUSE_CMU_REG);
     mark_id = psram_get_mark_id();
     psram_id = psram_get_psram_id();
     psram_info = psram_get_info(mark_id, psram_id);
+    writel(0x0, EFUSE_CMU_REG);
 
     return psram_info->psram_size;
 }

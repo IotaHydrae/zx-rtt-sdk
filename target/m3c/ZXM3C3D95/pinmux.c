@@ -279,8 +279,7 @@ struct aic_pinmux aic_pinmux_config[] = {
     {1, PIN_PULL_DIS, 3, "PC.3"},
 
 
-    {1, PIN_PULL_DIS, 3, "PA.2"},
-    {1, PIN_PULL_DIS, 3, "PA.3"},
+
     {1, PIN_PULL_DIS, 3, "PA.4"},
     {1, PIN_PULL_DIS, 3, "PA.5"},
     {1, PIN_PULL_DIS, 3, "PC.0"},
