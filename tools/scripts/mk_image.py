@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0+
 #
 
-import os, sys, subprocess, math, re, zlib, json, struct, argparse
+import os, sys, subprocess, math, re, zlib, json, struct, argparse, shutil
 from collections import namedtuple
 from collections import OrderedDict
 from Cryptodome.PublicKey import RSA
@@ -709,7 +709,7 @@ def aic_boot_create_ext_image(cfg, keydir, datadir):
 
 
 def itb_create_image(itsname, itbname, keydir, dtbname, script_dir):
-    mkcmd = os.path.join(script_dir, "mkimage")
+    mkcmd = os.environ.get("ZXRTT_MKIMAGE") or shutil.which("mkimage") or os.path.join(script_dir, "mkimage")
     if os.path.exists(mkcmd) is False:
         mkcmd = "mkimage"
     if sys.platform == "win32":
@@ -2154,4 +2154,3 @@ if __name__ == "__main__":
         ret = build_firmware_image(cfg, args.datadir, args.outdir)
         if ret != 0:
             sys.exit(1)
-
