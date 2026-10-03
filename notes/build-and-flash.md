@@ -78,12 +78,45 @@ REBOOT_REASON_UPGRADE = 4, /* Goto BROM upgrade mode */
 > **未验证**：`upgcmd dump` 是否自己会驱动 BROM 去加载第二阶段代理，从而让备份可行。
 > 当时没有在 BROM 模式下试 `dump`（只试了 `lspart` 并失败），BROM 阶段到底该怎么读 flash 未定论。
 
-### 烧完要让它启动
+### 厂商烧写是**临界**的：失败就重试，不要找理由
 
-`upgcmd image` 之后板子**停在 BROM 的 USB 循环里**，不会自己启动。
-`upgcmd continue`（"Boot ROM exit USB loop and try to boot again"）本该放行，但**实测报
-`Read RESP failed`** ✗。可行的是**按一下 RESET（不要按 BOOT）或断电重启** —— 实测这样之后
-新固件正常启动。
+实测同一命令**第一次失败、第二次成功**，之后连续成功 ✓。失败形态固定：
+
+```text
+[ERROR] aicupg_cmd_set_upg_end(): Send command failed
+[ERROR] image_do_upgrade_inner(): Burn ... failed!, ret -4
+```
+
+**5926912 字节的原版镜像同样失败** ✓ ⇒ 与我们的改动无关 ✓。
+**动作是重试** ✓（两次通常就够）—— 不要去找供电、Hub、协议的解释 ✗。
+
+### 读设备日志时**不要过滤**
+
+排查 OTA/烧写时，真正的原因往往由**设备自己打印** ✓。我因为只 `grep` 了自己关心的关键字 ✗，
+把 `E/NO_TAG: Queue overflow...` 过滤掉了 ✗，白绕一轮 ✓。**先抓全量，再筛** ✓。
+
+### 烧完之后怎么让它启动（可全自动，不必手按 RESET）
+
+`upgcmd image` 之后板子停在 **BROM 的 USB 循环**里，不会自己启动。
+整条链路可以全自动，**每次两步**：
+
+```bash
+upgcmd continue            # BROM → U-Boot（会报 Read RESP failed，无害）
+upgcmd shcmd "reset"       # U-Boot → 启动固件（会报 No such device，无害）
+```
+
+两条命令都会**报错但实际生效**，这是最容易误判的地方：
+
+| 命令 | 报错 | 实际 |
+| --- | --- | --- |
+| `continue` | `aicupg_trans_recv_pkt(): Read len 13/16` | 阶段已从 `Boot ROM` 变为 **`U-Boot`** ✓ |
+| `shcmd "reset"` | `CSW tag 0x2 ... No such device` | 板子正在重启、命令在途，**属预期** ✓ |
+
+**为什么单发 `continue` 不够**：它把板子交给 **U-Boot 的升级代理**（`upgcmd -l` 会显示
+`Boot stage: U-Boot`），而不是直接启动应用。要引导应用还得再发一次 `shcmd reset` ✓。
+
+**为什么早期全部失败**：我在 **BROM 阶段**发 `shcmd` ✗ —— `shcmd` 属于 U-Boot，
+BROM 不实现它 ✓。命令能否用取决于**当前阶段**，参见上面的能力表 ✓。
 
 ### `scons --aicupg` 的坑
 
@@ -118,6 +151,20 @@ dtr=True  rts=True  -> 干净且有回应    ← WCH 要这个
 ```
 
 **用 `tio` 默认设置读 WCH 那个口会全是乱码**（它的默认映射/流控与此口不合）。
+
+### 读控制台必须先发一个回车
+
+**只读不写会得到 0 字节，看起来像控制台死了，其实不是** ✗ —— RT-Thread 的 shell 不会主动打印，
+得先敲一次回车它才回提示符。可复用脚本：
+
+```python
+s = serial.Serial("/dev/ttyACM1", 115200, timeout=0.3, rtscts=False, dsrdtr=False)
+s.dtr = s.rts = True       # 这个口必须拉高
+time.sleep(0.4); s.reset_input_buffer()
+s.write(b"\r\n"); s.flush()   # ← 关键，缺了这一步永远是 0 字节
+```
+
+区分"控制台哑了"与"没发回车"的办法：**发回车后能读到 `ZXM47D0N />` 就说明通道是好的** ✓。
 
 ### 分区布局
 

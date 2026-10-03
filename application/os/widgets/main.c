@@ -21,7 +21,16 @@ int zx_gui_app_init(void)
     return 0;
 }
 
-INIT_APP_EXPORT(zx_gui_app_init);
+/*
+ * Disabled for measurement builds.
+ *
+ * This is what actually brings the widgets demo up (zx_gui_init() in the
+ * benchmark application looked like the culprit but never ran -- it is
+ * commented out there now and the thread still appeared).  The widgets
+ * thread stays runnable and competes with whatever is being benchmarked,
+ * so a measurement build wants a plain shell instead.
+ */
+/* INIT_APP_EXPORT(zx_gui_app_init); */
 
 int main(void)
 {

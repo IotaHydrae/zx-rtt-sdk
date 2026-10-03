@@ -9,6 +9,12 @@
 | --- | --- |
 | [build-and-flash.md](build-and-flash.md) | 构建与烧录的可复现流程，含"改配置要改 defconfig"和两个串口 DTR 相反这两个坑 |
 | [usb.md](usb.md) | USB 启用链、为什么板级 select 不生效、以及 High Speed 的实测结论 |
+| [boot-flow.md](boot-flow.md) | 上电到应用的启动链、存储布局、A/B 切换与升级模式；含"未知"清单 |
+| [logging.md](logging.md) | 从板子取日志：日志环 + USB 读取 + **从 USB 执行命令**；两个机制陷阱与调试方法论 |
+| [usb-flash.md](usb-flash.md) | 本地 USB 烧写通道：架构、五个坑与证据、A/B 切换实测、边界 |
+| [performance-baseline.md](performance-baseline.md) | EP1 链路基线（HS 实测 39.3 MB/s）、测量方法与 oracle/干扰项注意事项 |
+| [pud-port.md](pud-port.md) | PUD 协议移植到本板的实现结构、构建接线与分项状态（协议权威定义在另一仓库） |
+| | ↑ 其中含一条 **TODO：本工程临时的 USB 烧写通道**（不进 PUD 协议，待 RP2350 侧验证后再议） |
 
 ## 维护约定
 

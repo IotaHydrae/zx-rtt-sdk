@@ -90,6 +90,16 @@ if LPKG_USING_CHERRYUSB
             endchoice
         endif
 
+        menuconfig LPKG_CHERRYUSB_DEVICE_PUD
+            bool "PUD display protocol (vendor specific)"
+            default n
+            help
+                The device half of the Pico USB Display vendor protocol:
+                one vendor-specific interface with a bulk OUT image
+                stream and a bulk IN query channel.  It presents the
+                same ids as the RP2350 firmware so the existing host
+                driver and tools recognise it unchanged.
+
         menuconfig LPKG_CHERRYUSB_DEVICE_CDC
             bool
             prompt "Enable usb cdc acm device"

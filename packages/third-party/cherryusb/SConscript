@@ -31,6 +31,13 @@ if GetDepend(['LPKG_CHERRYUSB_DEVICE']) and GetDepend(['AIC_USB_DEVICE_DRV']):
     if GetDepend(['LPKG_CHERRYUSB_DEVICE_HS']):
         CPPDEFINES+=['CONFIG_USB_HS']
 
+    # CherryUSB compiles without rtconfig.h, so project Kconfig symbols
+    # are invisible to it -- CONFIG_USB_HS above is injected for the same
+    # reason.  GetDepend() reads rtconfig.h here in the build script, which
+    # is why it can see what the C file cannot.
+    if GetDepend(['ZX_LOCAL_USB_FLASH']):
+        CPPDEFINES += ['CONFIG_ZX_LOCAL_USB_FLASH']
+
     if GetDepend(['LPKG_CHERRYUSB_DEVICE_CDC']):
         src += Glob('class/cdc/usbd_cdc.c')
     if GetDepend(['LPKG_CHERRYUSB_DEVICE_HID']):
@@ -52,6 +59,8 @@ if GetDepend(['LPKG_CHERRYUSB_DEVICE']) and GetDepend(['AIC_USB_DEVICE_DRV']):
 
     if GetDepend(['LPKG_CHERRYUSB_DEVICE_CDC_TEMPLATE']):
         src += Glob('demo/cdc_acm_template.c')
+    if GetDepend(['LPKG_CHERRYUSB_DEVICE_PUD']):
+        src += Glob('demo/pud_vendor.c')
     if GetDepend(['LPKG_CHERRYUSB_DEVICE_CDC_AICUPG']):
         src += Glob('demo/cdc_acm_aicupg.c')
     if GetDepend(['LPKG_CHERRYUSB_DEVICE_HID_MOUSE_TEMPLATE']):

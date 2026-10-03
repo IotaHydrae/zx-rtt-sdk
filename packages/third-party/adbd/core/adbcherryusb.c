@@ -637,20 +637,40 @@ static rt_err_t rt_usb_winusb_init(winusb_device_t winusb_device)
     return ret;
 }
 
-int adb_winusb_init(void)
+/*
+ * Register the ADB interface on a device that someone else already owns.
+ *
+ * The upstream version called usbd_desc_register() + usbd_initialize() itself,
+ * which makes adbd the whole USB device.  This board's device also carries the
+ * PUD protocol interface, so only one of them can own the descriptor -- and
+ * the PUD side has to keep its own ids for the host driver to match.  So this
+ * entry point adds just the interface and its endpoints, and whoever builds
+ * the composite device calls it before usbd_initialize().
+ *
+ * The interface descriptor (class 0xff / subclass 0x42 / protocol 0x01) and
+ * its endpoints (0x81 IN, 0x02 OUT) belong to the composite descriptor now.
+ */
+int adb_winusb_register(void)
 {
-    int ret = 0;
-
-    usbd_desc_register(winusb_descriptor);
-    usbd_msosv1_desc_register(&msosv1_desc);
     usbd_add_interface(&intf0);
     usbd_add_endpoint(&winusb_out_ep1);
     usbd_add_endpoint(&winusb_in_ep1);
-    rt_usb_winusb_init(&adb_winusb_device);
+    return rt_usb_winusb_init(&adb_winusb_device);
+}
+
+#if !defined(CONFIG_ZX_ADB_COMPOSITE)
+int adb_winusb_init(void)
+{
+    int ret;
+
+    usbd_desc_register(winusb_descriptor);
+    usbd_msosv1_desc_register(&msosv1_desc);
+    ret = adb_winusb_register();
     usbd_initialize();
     return ret;
 }
 
 INIT_PREV_EXPORT(adb_winusb_init);
+#endif
 
 #endif

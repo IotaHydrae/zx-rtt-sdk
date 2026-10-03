@@ -179,7 +179,17 @@ int main(void)
     lwip_test_example_main_loop(NULL);
 #endif
 
-    zx_gui_init();
+/*
+ * Disabled for measurement builds.
+ *
+ * This call used to be unconditional, so the widgets thread stayed runnable
+ * during benchmarks and competed for CPU with whatever was being measured.
+ * CONFIG_ZX_WIDGETS_DEMO cannot be used to switch it off -- that option
+ * selects this entire application, and clearing it removes main() and the
+ * link fails with "undefined reference to `main'" (tried).  A dedicated
+ * option for just the demo would be the proper fix.
+ */
+    /* zx_gui_init(); */
 
     while(1)
     {
