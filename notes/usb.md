@@ -1,152 +1,51 @@
-# USB
+# USB 启用与端点约定
 
-> 本平台的 USB 栈是 **CherryUSB**（与 Pico-USB-Display 固件同一套），带专门的 ArtInChip 移植。
-> 启用它有一条链，而链上**有一处板级 `select` 不落地**，会让 CherryUSB 被静默跳过 ——
-> 构建成功、一个 USB 文件都不编。
+> 本板必须显式启用 USB device 驱动和 CherryUSB；请求处理器按 interface 分流，端点号必须服从控制器能力。
 
 ## TL;DR
 
-- **实测：本板 USB 是 High Speed**（`dmesg` 报 `new high-speed USB device`）
-- 启用链：`AIC_USING_USB0`(Device) → **`AIC_USB_DEVICE_DRV`（必须显式写）** → `LPKG_USING_CHERRYUSB` + `_DEVICE`
-- 只写板级那句 `select` 不够：`rtconfig.h` 里不会出现 `AIC_USB_DEVICE_DRV`，
-  `cherryusb/SConscript` 的 `GetDepend` 判假，**CherryUSB 整个被跳过**
+- 启用链：`AIC_USING_USB0` -> `AIC_USB_DEVICE_DRV` -> `LPKG_USING_CHERRYUSB` + `LPKG_CHERRYUSB_DEVICE`。
+- `target/m4/common/Kconfig.board` 的 `select AIC_USB_DEVICE_DRV` 不会落入 `rtconfig.h`；目标 defconfig 必须写 `CONFIG_AIC_USB_DEVICE_DRV=y`。
+- PUD 使用 interface 0；本地日志/OTA 使用 interface 1。两个 handler 都必须检查 `setup->wIndex`。
+- 当前 HS 端点为 PUD EP1/EP2/EP4 和本地 EP3；曾使用 EP5 导致 `SET_CONFIGURATION` stall，应避免超出控制器映射的端点。
 
-## 启用链与那处陷阱
+## 配置与构建
 
-`target/m4/common/Kconfig.board`：
+检查目标 defconfig 后运行：
 
-```kconfig
-config AIC_USING_USB0            bool "Using Usb0"        default n
-if AIC_USING_USB0
-    choice "Select Usb0 mode"
-        config AIC_USING_USB0_DEVICE  bool "Device"  select AIC_USB_DEVICE_DRV
+```bash
+export PATH="$(pwd)/toolchain/bin:$PATH"
+scons -j8
 ```
 
-看起来 `AIC_USING_USB0_DEVICE` 会自动带出 `AIC_USB_DEVICE_DRV`，但**实测它没有落到
-生成的 `rtconfig.h` 里**，于是：
+确认 `rtconfig.h` 和构建日志同时出现 USB device 与 CherryUSB 依赖；只看到 Kconfig 的 `select` 不足以证明代码已编译。
 
-```python
-# packages/third-party/cherryusb/SConscript:21
-if GetDepend(['LPKG_CHERRYUSB_DEVICE']) and GetDepend(['AIC_USB_DEVICE_DRV']):
+## 接口分流
+
+PUD 的 `pud_vendor_control_request()` 只接受 `wIndex=0`；`zx_usb_flash.c` 只接受 `wIndex=1`。请求号在两个接口中可能重叠，CherryUSB 按 handler 顺序分发；缺少分流会让 PUD handler 抢截日志请求并表现为主机超时。
+
+## 端点
+
+| 功能 | 端点 |
+| --- | --- |
+| PUD 图像 | `0x01` bulk OUT |
+| PUD 查询 | `0x82` bulk IN |
+| PUD 触摸 | `0x84` interrupt IN |
+| 本地 OTA | `0x03` bulk OUT |
+| 本地日志 | `0x83` bulk IN |
+
+HS bulk MPS 为 512，FS 为 64；具体描述符以 `pud_vendor.c` 生成结果为准。端点地址必须在控制器支持的范围内，不能因为协议上有空闲编号就直接使用。
+
+## 诊断
+
+```bash
+python3 tools/zxlogctl.py info
 ```
 
-判假 → 整个包被跳过。**症状**：`scons` 成功、镜像照旧生成，但镜像里没有任何 USB 代码
-（构建日志里 grep 不到 `cherryusb`）。
-
-**修法**：在 defconfig 里显式写
-
-```
-CONFIG_AIC_USING_USB0=y
-CONFIG_AIC_USING_USB0_DEVICE=y
-CONFIG_AIC_USB_DEVICE_DRV=y          # ← 关键，不能依赖 select
-CONFIG_AIC_USB_DEVICE_DRV_V10=y
-CONFIG_AIC_USB_DEVICE_DEV_NUM=1
-CONFIG_LPKG_USING_CHERRYUSB=y
-CONFIG_LPKG_CHERRYUSB_DEVICE=y
-CONFIG_LPKG_CHERRYUSB_DEVICE_HS=y
-CONFIG_LPKG_CHERRYUSB_DEVICE_AIC=y
-CONFIG_LPKG_CHERRYUSB_DEVICE_AIC_DMA=y
-# 再挂一个功能类，验证时用最简的 CDC
-CONFIG_LPKG_CHERRYUSB_DEVICE_CDC=y
-CONFIG_LPKG_CHERRYUSB_DEVICE_CDC_TEMPLATE=y
-```
-
-**验证两步缺一不可**（只验一步会漏）：
-
-1. `rtconfig.h` 里出现 `#define AIC_USB_DEVICE_DRV` ✓
-2. **构建日志里出现 `CC .../cherryusb/port/aic/usb_dc_aic.c`** ✓
-   —— 第 1 步过了第 2 步没过，就是 SConscript 的依赖判断出了问题
-
-## 实测结论（已验证）
-
-挂 CDC 模板构建烧录后：
-
-```
-usb 3-6: new high-speed USB device number 69 using xhci_hcd
-usb 3-6: Product: CherryUSB CDC DEMO
-cdc_acm 3-6:1.0: ttyACM3: USB ACM device
-```
-
-- **速度：High Speed** ✓ —— 与 RP2350 只有 Full-Speed 形成对比
-- 固件**自己**枚举出了 USB 设备（`Product: CherryUSB CDC DEMO`，不是 BROM 的 `33c3:6677`）✓
-- `cdc_acm` 正常绑定 ✓
-
-> CDC 模板**不回应**写入（它是 demo，行为不代表栈有问题）。要验证收发得换成自己的类。
-
-## 为什么这很重要
-
-在 Pico-USB-Display 上实测过：Full-Speed 链路 **1.148 MB/s**，已经是该速率物理天花板
-（1.216 MB/s）的 94% —— **那条路没有优化空间**。换成 HS 之后链路不再是墙，瓶颈会搬到
-解码器一侧。这正是把 PUD 移植到本平台的动机。
-
-## 陷阱：端口会报"传输完成"，而主机什么都没收到
-
-**本板（AIC UDC）在收到 NAK 时也会上报 IN 传输完成**，所以"完成回调"不能当作"主机收到了"的证据。
-
-现象链（每一环都有证据）：
-
-```text
-主机读 EP2 超时（500 ms / 2 s / 5 s 都超时）
-  ↕ 而设备侧日志:
-PUD: req 03 wLength=4           ← handler 被调用 ✓
-PUD: EP2 write n=32 ret=0       ← 武装成功 ✓
-PUD: EP2 in done ep=82 n=32     ← 完成回调，且 n 是从硬件剩余长度寄存器算出的 ✓
-```
-
-设备的 32 字节在**控制传输进行中**就被武装 ✓，此时主机**还没有** EP2 的读请求 ✓ ——
-正常 USB 行为是主机回 NAK、设备保持挂起，但这个端口**照样报完成** ✗，数据因此丢失 ✗。
-
-**主机侧的正确写法：先挂上读，再发控制传输。**
-
-```python
-t = threading.Thread(target=reader)   # reader 里阻塞读 EP2
-t.start(); time.sleep(0.3)
-dev.ctrl_transfer(0x40, 0x03, 0, 0, struct.pack("<HH", cmd, size))
-t.join()
-```
-
-这个顺序在 **RP2350 与 AIC 两端都正确** ✓（RP2350 本来就会正确保持 IN 数据，先挂读只是更严谨）；
-而"先发请求、再读"只在 RP2350 上侥幸成立 ✓。
-
-> **未验证**：这是端口实现的缺陷还是本 SoC 的硬件行为。判据是 `port/aic/usb_dc_aic.c` 里
-> `actual_xfer_len = xfer_len - (硬件剩余寄存器)` 得到 0，即端口认为已发完。
-
-## 陷阱：USB 日志宏在默认配置下是空实现
-
-```c
-// common/usb_log.h
-#if (CONFIG_USB_DBG_LEVEL >= USB_DBG_ERROR)
-#define USB_LOG_ERR(fmt, ...) usb_dbg_log_line("E", 31, fmt, ##__VA_ARGS__)
-#else
-#define USB_LOG_ERR(...) {}          /* ← 本构建走这一支 */
-#endif
-
-#define USB_LOG_RAW(...) CONFIG_USB_PRINTF(__VA_ARGS__)   /* 不受等级限制 */
-```
-
-`CONFIG_USB_DBG_LEVEL` 在本构建里**未定义** ✗ ⇒ `USB_LOG_ERR` 被编译成空语句 ✗。
-调试时用 `USB_LOG_RAW` ✓（在 `usb_config.h` 里展开为 `printf` ✓）。
-
-**代价**：我曾把"日志没打印"当成"函数返回了 0" ✗ —— 而日志根本没被编译进去 ✗。
-**诊断要看它是否真的会输出，再解读它的缺席。**
-
-## 加一个新的设备类（Kconfig + SConscript）
-
-1. `packages/third-party/cherryusb/Kconfig`：加一个 `menuconfig LPKG_CHERRYUSB_DEVICE_<名字>` ✓
-2. `packages/third-party/cherryusb/SConscript`：加
-   `if GetDepend([...]): src += Glob('demo/<文件>.c')` ✓
-   —— **缩进必须与同级 `if` 对齐（4 空格）** ✗；插成 8 空格会嵌进上一个块里，
-   外层条件不成立时**源文件根本不参与编译**，而构建依然成功 ✗
-3. `target/configs/*_defconfig`：打开新选项、**关掉会抢控制器的旧类** ✓
-
-**验证两步缺一不可**：`rtconfig.h` 里有宏 ✓ **且**构建日志里出现 `CC .../该文件.c` ✓。
-
-## 可用资源
-
-- `packages/third-party/cherryusb/` —— 栈本体 + `port/aic/` 移植 + `demo/` 示例
-- 功能类可选：`cdc` / `hid` / `msc` / `mtp` / `audio` / `video` / `midi` / `dfu` / `template`
-- PUD 的 USB 协议权威定义：`PUD-kernel-drivers/notes/usb-protocol.md`（另一仓库）
+若 `SET_CONFIGURATION` 返回 `-EPIPE`，优先检查端点地址、描述符长度和控制器端点映射。若仅日志超时，检查 interface `wIndex` 分流和 EP `0x83` 是否已配置。
 
 ## 相关
 
-- 构建与烧录流程见 [build-and-flash.md](build-and-flash.md)。
+- PUD 能力与实现：[pud-port.md](pud-port.md)
+- OTA：[usb-flash.md](usb-flash.md)
+- 配置与构建：[build-and-flash.md](build-and-flash.md)

@@ -1,126 +1,52 @@
-# 本地 USB 烧写通道
+# 运行态 USB OTA
 
-> 用**已经验证过的 PUD 高速通路**把固件写进板子，绕开厂商 `upgcmd`/BROM 路径。
-> 迭代耗时从 **5.6 s 降到 1.5 s**（把烧写移出中断后可达 ~0.3 s）。
-> 这是**本工程临时的开发工具**，**不属于 PUD 协议**。
+> `zxflashctl.py` 发送构建生成的 `ota.cpio`，设备校验传输后写入非活动 A/B 分区并自动重启。
 
 ## TL;DR
 
-- 设备侧：第二个厂商接口（`interface 1` ✓）+ **EP3 bulk OUT** ✓，收到即喂 `ota_shard_download_fun()` ✓
-- 落盘、解包、A/B 切换全部交给**SDK 自带的 OTA 层** ✓，我们不碰裸 flash ✓
-- **主机发的必须是 `images/ota.cpio`**（构建产出 ✓），**不是 `images/*.img`** ✗
-- 收尾必须自己调 **`aic_upgrade_start()`**（开始）与 **`aic_upgrade_end()` + `rt_hw_cpu_reset()`**（结束）✓
-- **块大小必须是 2048**（OTA 层内部队列 ≤ `OTA_BUFF_LEN`）✓
+- 输入必须是 `images/ota.cpio`，不能把 ArtInChip 的 `.img` 容器直接交给该工具。
+- 主机流程是 `START(size, CRC32)`、2048 字节分块、`STOP`；设备只有在大小和 CRC32 都匹配时才结束 OTA 并复位。
+- 成功标准包括 `start -> 8`、`stop -> 0`、设备重新枚举，以及启动日志中的新 A/B 分区和正常挂载。
+- 失败时工具返回非零并尝试发送 `STOP` 清理会话；若设备仍无法启动，用 BROM 完整镜像恢复。
 
-## 五个坑，每个都是"设备自己打印出来"的
-
-按踩到的顺序，每一环都有设备侧日志作证：
-
-| # | 现象 | 设备原话 | 根因 |
-| --- | --- | --- | --- |
-| 1 | `chunk 0 failed at 0 bytes` | （无日志，直接返回非零） | 发的是 **`AIC.FW` 容器** ✗，而 `ota_shard_download_fun` **按 cpio 解析** ✓ |
-| 2 | `chunk 1 failed at 4096 bytes` | `E/NO_TAG: Queue overflow,please increase buffer size` | 块 4096 > 内部队列 ✗ → **改 2048** ✓ |
-| 3 | `chunk 705 failed at 1443840` | `E/ota.burn: Open MTD device failed!` | cpio 里的 **`data.fatfs` 是 NFTL 分区** ✓，却走了**裸 MTD** 分支 ✗ |
-| 4 | （未暴露就修掉了） | — | **漏调 `aic_upgrade_start()`** ✗ → `target_offset` 恒 0 ✗ → 会写**活动**分区 ✗ |
-| 5 | （同上） | — | 漏调 **`aic_upgrade_end()`** 与重启 ✗ → 数据写了但**不切换** ✗ |
-
-第 1 条最贵：症状是"第 0 块就失败" ✗，看起来像通道坏了 ✗，实际是**输入文件类型不对** ✗。
-`zxflashctl.py` 现在会**先校验 cpio magic** ✓（`070701`/`070702` ✓）并在传入 `.img` 时指明该发哪个文件 ✓。
-
-## A/B 是怎么切过去的
-
-```c
-aic_upgrade_start()   // asystem.c:38 —— 读 osAB_now，把目标指向**非活动**那一侧
-aic_upgrade_end()     // asystem.c:71 —— 只写 osAB_next，**不重启**
-rt_hw_cpu_reset()     // rthw.h:65 —— 重启由我们触发
-```
-
-**实测全程**（`osAB_now=A` 起）：
-
-```text
-升级前:  osAB_now=A  osAB_next=A
-本地通道: 770560 B（只含 m4_os.itb）/ 1.510 s
-重启后:  日志 mount fs[elm] device[blk_data_r] to /data ok.   ← 从 B 侧启动 ✓
-          osAB_now=B ✓
-```
-
-## 为什么只发 `m4_os.itb`
-
-构建产出的 `ota.cpio` **含三项**（`ota-subimgs.cfg` ✓）：
-
-```text
-m4_os.itb       → os 分区      ← 固件本体
-rodata.fatfs    → rodata 分区
-data.fatfs      → data 分区     ← 15 MB 用户数据，且是 NFTL 分区（坑 #3）
-```
-
-固件升级只需第一项 ✓；`osAB_*` 也只管 `os`/`os_r` ✓。只发它有两个好处：
-**绕开 NFTL 那条路径** ✓、体积从 5.1 MB 降到 **0.77 MB** ✓。
+## 用法
 
 ```bash
-# 产出只含固件的 cpio（dev 产物，不进仓库）
-cp <output>/<board>/images/m4_os.itb /tmp/pudcpio/
-printf 'm4_os.itb\n' > /tmp/pudcpio/ota-subimgs.cfg
-cd /tmp/pudcpio && cat ota-subimgs.cfg | cpio -ov -H crc > ota-os-only.cpio
+python3 tools/zxflashctl.py flash \
+  output/ZXM47D0N_rtt_lg4572b/images/ota.cpio
 ```
 
-## 已知未做（收益已实测）
-
-**烧写目前在 USB 中断上下文里做** ✗ —— 设备日志会警告
-`Current mode not supported run in ISR`，代价是实测的：
+工具发送前检查 cpio magic（`070701` 或 `070702`），并将文件补齐到 2048 字节倍数。当前构建的归档通常包含：
 
 ```text
-不烧写（纯传输）: 5112320 B / 0.251 s = 20.34 MB/s
-在 ISR 里烧 NAND: 5112320 B / 3.723 s =  1.37 MB/s   ← 慢 15 倍
+m4_os.itb
+rodata.fatfs
+data.fatfs
 ```
 
-正确做法是把烧写交给线程 ✓（PUD 固件里也是同一结论：重活不能在 USB 回调里做 ✓）。
+设备端由 SDK OTA 层负责解析、擦除、写入和 A/B 目标选择；本地通道不直接操作裸 flash。`aic_upgrade_start()` 选择非活动侧，成功 `STOP` 后调用 `aic_upgrade_end()` 和 `rt_hw_cpu_reset()`。
 
-## 致命缺陷：写不完整也会重启（**再次使用前必须修**）
+## 证据
 
-实测代价：本地通道在一次写入的 **4096 字节**处失败 ✗（`write failed: [Errno 5]`），
-**设备照样重启** ✓ ⇒ 它带着一个**半写的系统**启动 ✗ ⇒ 板子在 USB 与串口上**都不再回应** ✗
-（USB 反复 `device descriptor read/64, error -110` ✓，串口发了回车也没有任何字节 ✓）。
+最近一次完整实测：归档三个成员正确，补齐后发送 `5117952` bytes，`start -> 8`、`stop -> 0`；设备立即重新枚举。启动日志包含 `zxdisp fb 480x800`、`zxdisp started`、`mount fs[elm] ... blk_data`，`zxlogctl stats` 显示 `dropped=0`。本板配置下 OTA 观察速率约 1.55--1.58 MB/s。
 
-机制：流程是 `start` → **擦除非活动分区** → 分块写 → `end` 时切 A/B 并自动重启 ✓。
-写到一半失败 ⇒ 目标分区半写 ✓，而**重启不受写没写完的影响** ✗。
+## 为什么有这些限制
 
-### 已做的两道保护，以及它们**各自拦得住什么**（都实测过 ✓）
+- OTA 解析器读取 cpio，而不是 `.img` 容器。
+- OTA 内部队列按 2048 字节工作；更大的主机块会导致队列溢出。
+- 归档传输完整不等于设备已切换。必须检查 STOP 返回、重枚举和启动日志。
+- interface 1 的请求处理器检查 `wIndex == 1`，与 PUD interface 0 分流。
 
-| 检查 | 位置 | 拦得住 | 拦不住 |
-| --- | --- | --- | --- |
-| **传输完整性**（字节数 + CRC32 ✓） | 设备侧 `STOP` ✓ | 传到一半断掉（实测 4 KB 断流那种 ✓） | —— |
-| **内容完整性**（cpio 必须以 `TRAILER!!!` 结尾 ✓） | **主机侧发送前** ✓ | **完整传完但内容非法** ✓ | —— |
+## 故障恢复
 
-**传输完整性那一道德国不住这次的核心问题** ✗，原因是**实测**出来的 ✓：
-
-> `ota_shard_download_fun()` 是**流式解析器** ✓ —— 数据没了它就结束 ✓，
-> **没有看到 `TRAILER!!!` 也不报错** ✗。所以"完整传输 + 截断内容"会被它**判成功** ✓
-> ⇒ `zx_flash_error` 保持 0 ✓ ⇒ 切到半写的那一侧并重启 ✗。
-
-**证据获取方式也值得记** ✓：验证这件事时**故意不发 `STOP`** ✓ —— 切换与重启只发生在 `STOP` 里 ✓，
-所以"START + 数据 + 不发 STOP"能在**不切换、不重启**的前提下问清设备侧的判断 ✓（实测板子全程健康 ✓）。
-
-**还有一个取证教训** ✗：环在 **RAM** 里 ✓，设备一重启就没了 ✓ ⇒ **会触发重启的实验，必须一边发一边读** ✓，
-否则事后什么都拿不到 ✓（我因此白丢过一轮 ✓）。
-
-### 恢复路径（已验证三次 ✓）
-
-断电重启 ✓ → **BOOT+RESET 进 BROM** ✓ → 厂商路径烧**完整镜像** ✓（写全分区 ✓，能修半写状态 ✓）。
-
-**恢复路径（已验证 ✓）**：断电重启 ✓ → **BOOT+RESET 进 BROM** ✓ →
-用厂商路径烧**完整镜像** ✓（它写全部分区 ✓，能修复半写状态 ✓）；实测一次成功 ✓。
+传输中断或验证失败不会触发切换。若设备已处于不可启动状态，使用 BOOT+RESET 进入 BROM，再用厂商 `upgcmd image <完整 .img>` 恢复全部分区；BROM 阶段不能使用读 flash 或 `shcmd` 代理命令。
 
 ## 边界
 
-- **不属于 PUD 协议** ✓：命令号用自己的空间（0x80/0x81 ✓），端点自己定义 ✓，
-  本地文件**不 include 协议头** ✓
-- 受 `CONFIG_ZX_LOCAL_USB_FLASH` 保护 ✓：**宏关掉时 PUD 的描述符与命令逐字等于原协议** ✓
-- **BROM 路径保留** ✓ 作兜底；它偶发失败（实测约 2~4 次成功一次 ✗）—— **重试即可** ✓
-- 完整协议定义仍在 `PUD-kernel-drivers/notes/usb-protocol.md` ✓
+这是 `CONFIG_ZX_LOCAL_USB_FLASH` 保护的项目开发通道，不属于 PUD 协议，也不替代 BROM 完整镜像恢复。当前接口仍在 USB 回调中喂 OTA，速度与 NAND 写入行为取决于板上 SDK 实现。
 
 ## 相关
 
-- 移植实现与状态：[pud-port.md](pud-port.md)
-- 构建/烧录/控制台：[build-and-flash.md](build-and-flash.md)
-- 速率基线：[performance-baseline.md](performance-baseline.md)
+- 总体构建与恢复：[build-and-flash.md](build-and-flash.md)
+- 日志和状态验证：[logging.md](logging.md)
+- 本地实现：`application/os/widgets/zx_usb_flash.c`、`tools/zxflashctl.py`
