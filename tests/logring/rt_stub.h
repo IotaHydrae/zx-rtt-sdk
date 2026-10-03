@@ -24,7 +24,10 @@ typedef int rt_err_t; typedef int rt_bool_t; typedef struct rt_device *rt_device
 #define INIT_PREV_EXPORT(f)  static void __attribute__((unused)) __init_##f(void){}
 #define INIT_BOARD_EXPORT(f) static void __attribute__((unused)) __initb_##f(void){}
 #define INIT_APP_EXPORT(f)   static void __attribute__((unused)) __inita_##f(void){}
-struct ulog_backend { void (*output)(struct ulog_backend *, const char *, rt_size_t); };
+struct ulog_backend {
+    void (*output)(struct ulog_backend *, rt_uint32_t, const char *,
+                   rt_bool_t, const char *, rt_size_t);
+};
 struct rt_device_ops { rt_err_t (*open)(rt_device_t, rt_uint16_t);
                        rt_size_t (*write)(rt_device_t, rt_off_t, const void *, rt_size_t); };
 struct rt_object { char name[16]; };

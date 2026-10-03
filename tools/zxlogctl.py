@@ -53,8 +53,11 @@ def open_device(vid, pid):
     # attempt.  The project's own tool (pud_usb.py) does not reset either.
     try:
         dev.set_configuration()
-    except usb.core.USBError:
-        pass
+    except usb.core.USBError as exc:
+        if dev.get_active_configuration() is None:
+            print("zxlogctl: cannot select USB configuration: %s" % exc,
+                  file=sys.stderr)
+            sys.exit(3)
     return dev
 
 
@@ -72,21 +75,31 @@ def cmd_info(dev):
 def dump(dev, from_seq):
     """Ask for the ring from `from_seq` and print until the device says stop.
 
-    from_seq is ignored by the device today: the stream carries the record text
-    only, without sequence numbers, so a reader cannot resume where it stopped.
-    That is a real gap for `-f`, and it is why this prints everything.
+    The device uses the sequence number to continue from a previous read.  The
+    stream contains text only, so the host does not reconstruct sequence values
+    locally.
     """
-    dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_LOG, from_seq, LOG_INTERFACE, None,
-                      timeout=5000)
+    try:
+        dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_LOG, from_seq, LOG_INTERFACE, None,
+                          timeout=5000)
+    except usb.core.USBTimeoutError as exc:
+        print("zxlogctl: log request timed out: %s" % exc, file=sys.stderr)
+        return 4
+    except usb.core.USBError as exc:
+        print("zxlogctl: log request failed: %s" % exc, file=sys.stderr)
+        return 1
 
     total = 0
     started = time.time()
     while True:
         try:
             data = dev.read(LOG_EP_IN, CHUNK, timeout=3000)
-        except Exception as exc:          # timeouts end the stream in practice
-            print("zxlogctl: read stopped: %s" % exc, file=sys.stderr)
-            break
+        except usb.core.USBTimeoutError as exc:
+            print("zxlogctl: log stream timed out: %s" % exc, file=sys.stderr)
+            return 4
+        except usb.core.USBError as exc:
+            print("zxlogctl: log stream failed: %s" % exc, file=sys.stderr)
+            return 1
         if len(data) == 0:
             break
         sys.stdout.write(bytes(data).decode("utf-8", "replace"))
@@ -120,20 +133,37 @@ def main():
     if args.cmd == "info":
         return cmd_info(dev)
     if args.cmd == "stats":
-        dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_LOGSTAT, 0, LOG_INTERFACE, None,
-                          timeout=5000)
-        data = bytes(dev.read(LOG_EP_IN, 64, timeout=3000))
+        try:
+            dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_LOGSTAT, 0, LOG_INTERFACE, None,
+                              timeout=5000)
+            data = bytes(dev.read(LOG_EP_IN, 64, timeout=3000))
+        except usb.core.USBTimeoutError as exc:
+            print("zxlogctl: stats request timed out: %s" % exc, file=sys.stderr)
+            return 4
+        except usb.core.USBError as exc:
+            print("zxlogctl: stats request failed: %s" % exc, file=sys.stderr)
+            return 1
+        if len(data) < 16:
+            print("zxlogctl: short stats response (%d bytes)" % len(data),
+                  file=sys.stderr)
+            return 1
         import struct as _s
         head, tail, seq, dropped = _s.unpack("<IIII", data[:16])
         print("head %u  tail %u  seq %u  dropped %u  bytes_in_ring %u"
               % (head, tail, seq, dropped, head - tail))
         return 0
     if args.cmd == "run":
-        dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_RUN, 0, LOG_INTERFACE,
-                          args.command.encode() + b"\0", timeout=5000)
+        try:
+            dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_RUN, 0, LOG_INTERFACE,
+                              args.command.encode() + b"\0", timeout=5000)
+        except usb.core.USBTimeoutError as exc:
+            print("zxlogctl: run request timed out: %s" % exc, file=sys.stderr)
+            return 4
+        except usb.core.USBError as exc:
+            print("zxlogctl: run request failed: %s" % exc, file=sys.stderr)
+            return 1
         if not args.follow:
             return 0
-        time.sleep(0.5)          # let the command produce its output
         return dump(dev, 1)
     return dump(dev, args.from_seq)
 

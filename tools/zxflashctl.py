@@ -11,7 +11,7 @@ Exit codes follow the workspace convention:
     0 success   1 failure   2 usage   3 environment (no device/permission)
 
 Usage:
-    zxflashctl.py flash <image.img> [--vid 0x2E8A] [--pid 0x0001]
+    zxflashctl.py flash <ota.cpio> [--vid 0x2E8A] [--pid 0x0001]
     zxflashctl.py info
 """
 import argparse
@@ -59,8 +59,11 @@ def open_device(vid, pid):
     # attempt.  The project's own tool (pud_usb.py) does not reset either.
     try:
         dev.set_configuration()
-    except usb.core.USBError:
-        pass
+    except usb.core.USBError as exc:
+        if dev.get_active_configuration() is None:
+            print("zxflashctl: cannot select USB configuration: %s" % exc,
+                  file=sys.stderr)
+            sys.exit(3)
     return dev
 
 
@@ -156,13 +159,38 @@ def cmd_flash(dev, image, verify_size=True):
 
     # The device gates its A/B switch and reboot on these, so a transfer that
     # stops halfway cannot be mistaken for success.
+    # Pad the last chunk up to CHUNK.
+    #
+    # Measured: a final chunk shorter than CHUNK never reached the device.  The
+    # failing run announced 774656 bytes and the device received 774144 --
+    # exactly one 512-byte short packet missing -- which its size and CRC check
+    # correctly refused (so it did not switch and the board stayed up).  The
+    # archive length is not a multiple of the chunk size, so the short tail is
+    # unavoidable unless it is padded.  The padding lands past the cpio
+    # TRAILER!!! entry, so the archive content is unchanged; size and CRC are
+    # announced for the padded stream because that is what the device receives
+    # and checksums.
+    pad = (-len(data)) % CHUNK
+    if pad:
+        data += b"\0" * pad
+        print("  padded %d bytes to a %d-byte multiple (cpio content unchanged)" % (pad, CHUNK))
+    size = len(data)
+
     crc = zlib.crc32(data) & 0xFFFFFFFF
-    rc = dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_START, 0, FLASH_INTERFACE,
-                           struct.pack("<II", size, crc), timeout=5000)
+    try:
+        rc = dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_START, 0, FLASH_INTERFACE,
+                               struct.pack("<II", size, crc), timeout=5000)
+    except usb.core.USBTimeoutError as exc:
+        print("zxflashctl: START timed out: %s" % exc, file=sys.stderr)
+        return 4
+    except usb.core.USBError as exc:
+        print("zxflashctl: START failed: %s" % exc, file=sys.stderr)
+        return 1
     print("start -> %r (expect %d bytes, crc %08x)" % (rc, size, crc))
 
     started = time.time()
     sent = 0
+    transfer_error = None
     try:
         for off in range(0, size, CHUNK):
             chunk = data[off:off + CHUNK]
@@ -172,12 +200,11 @@ def cmd_flash(dev, image, verify_size=True):
             if written != len(chunk):
                 print("zxflashctl: short write at %d (%d/%d)"
                       % (off, written, len(chunk)), file=sys.stderr)
-                return 1
+                transfer_error = "short write at %d (%d/%d)" % (off, written, len(chunk))
+                break
             sent += written
     except usb.core.USBError as exc:
-        print("zxflashctl: write failed after %d bytes: %s" % (sent, exc),
-              file=sys.stderr)
-        return 1
+        transfer_error = "write failed after %d bytes: %s" % (sent, exc)
     elapsed = time.time() - started
 
     try:
@@ -185,8 +212,12 @@ def cmd_flash(dev, image, verify_size=True):
                                None, timeout=5000)
         print("stop ->", rc)
     except usb.core.USBError as exc:
-        # Expected if the device resets to apply the update.
-        print("stop -> %s (device may be rebooting)" % exc)
+        print("zxflashctl: STOP failed: %s" % exc, file=sys.stderr)
+        return 4 if transfer_error is None else 1
+
+    if transfer_error:
+        print("zxflashctl: %s" % transfer_error, file=sys.stderr)
+        return 1
 
     print("sent %d bytes in %.3f s (%.2f MB/s)"
           % (sent, elapsed, sent / elapsed / 1e6 if elapsed else 0.0))

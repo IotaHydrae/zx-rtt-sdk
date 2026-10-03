@@ -1,7 +1,7 @@
 /*
  * Temporary local USB flash channel -- NOT part of the PUD protocol.
  *
- * See notes/pud-port.md ("TODO: 本工程临时的 USB 烧写通道").  The two boards
+ * See notes/usb-flash.md.  The two boards
  * have different flash sizes and types, so this must not become part of the
  * shared protocol definition.  It exists because the vendor path measures
  * 1.01 MB/s (5.6 s per image) while EP1 already measures 39.3 MB/s, i.e. about
@@ -10,9 +10,9 @@
  * What it does NOT do: touch flash itself.  The SDK's OTA layer owns unpacking,
  * erasing, alignment and the A/B switch; we only hand it the byte stream.
  *
- * UNVERIFIED: who triggers the A/B switch and the reboot once the stream ends.
- * ota_shard_download_fun() may not do it, and this file does not assume it does
- * -- see the note in pud-port.md.
+ * A successful verified stream selects the inactive A/B side and resets the
+ * board here; the OTA layer remains responsible for parsing and writing the
+ * archive members.
  */
 #include <rtthread.h>
 #include <aic_core.h>
@@ -68,6 +68,7 @@ static volatile uint32_t zx_flash_bytes;
 static volatile uint32_t zx_flash_chunks;
 static volatile int zx_flash_active;
 static volatile int zx_flash_error;
+static volatile int zx_ota_session_open;
 
 /*
  * What the host says it is about to send, and what we have actually taken.
@@ -113,8 +114,14 @@ static int zx_flash_request(struct usb_setup_packet *setup, uint8_t **data, uint
     (void)data;
     (void)len;
 
+    /* The local channel is interface 1; PUD owns interface 0. */
+    if (setup->wIndex != 1)
+        return -1;
+
     switch (setup->bRequest) {
     case ZX_FLASH_REQ_START:
+        if (zx_ota_session_open)
+            return -1;
         /*
          * The data stage carries what to expect: {u32 size; u32 crc32}.  A
          * start with no expectation cannot be verified, so it is refused --
@@ -149,6 +156,7 @@ static int zx_flash_request(struct usb_setup_packet *setup, uint8_t **data, uint
             return -1;
         }
         zx_flash_active = 1;
+        zx_ota_session_open = 1;
         rt_kprintf("zxflash: ready\n");
         return 0;
 
@@ -218,7 +226,10 @@ static int zx_flash_request(struct usb_setup_packet *setup, uint8_t **data, uint
         return 0;
 
     case ZX_FLASH_REQ_STOP:
+        if (!zx_ota_session_open)
+            return -1;
         zx_flash_active = 0;
+        zx_ota_session_open = 0;
         ota_deinit();
         rt_kprintf("zxflash: %u bytes in %u chunks, error=%d\n",
                    (unsigned)zx_flash_bytes, (unsigned)zx_flash_chunks,
