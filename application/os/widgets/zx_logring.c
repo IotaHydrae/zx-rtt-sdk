@@ -34,7 +34,15 @@ struct zxring_rec {
 static char zxring_buf[ZXRING_SIZE];
 static rt_uint32_t zxring_head;   /* next byte to write */
 static rt_uint32_t zxring_tail;   /* next byte to read (dump starts here) */
-static rt_uint32_t zxring_seq;    /* last sequence number written */
+static rt_uint32_t zxring_seq;
+/*
+ * Where the last returned record ended, so a sequential dump does not rescan
+ * the whole ring for every record.  Without it the dump is O(n^2): reading
+ * 14000 records walks 10^8 pointer-chasing steps, which on this board is
+ * seconds of work -- and it runs inside the USB control-request handler.
+ */
+static rt_uint32_t zxring_cursor;
+static rt_uint32_t zxring_cursor_seq;    /* last sequence number written */
 static rt_uint32_t zxring_dropped;/* records that did not fit */
 
 static struct ulog_backend zxring_backend = { 0 };
@@ -66,9 +74,19 @@ static void zxring_write(const char *data, rt_size_t len)
         rt_hw_interrupt_enable(level);
         return;
     }
+    /*
+     * Never wrap.  The previous version jumped head back to 0 without
+     * adjusting tail, which left the two ends disagreeing; from then on the
+     * reader stepped with a bogus length and read past the buffer, and the
+     * device rebooted.  A linear ring cannot reach that state -- the newest
+     * records are simply refused once it is full, and counted as dropped so
+     * that "the log stops here" is visible rather than silent.  Clearing with
+     * `logcat -c` is what frees it again.
+     */
     if (zxring_head + need > ZXRING_SIZE) {
-        /* Not enough room at the end: skip to the start and lose the tail. */
-        zxring_head = 0;
+        zxring_dropped++;
+        rt_hw_interrupt_enable(level);
+        return;
     }
 
     rec = (struct zxring_rec *)(zxring_buf + zxring_head);
@@ -203,6 +221,7 @@ INIT_APP_EXPORT(zxconsole_claim);
  * The ring's own counters, for diagnosing "the writer ran but nothing comes
  * out" without guessing which half is at fault.
  */
+
 /*
  * Append a line from outside this file.  Used by components that must report
  * their own startup outcome: a silent failure is what made "the task is not
@@ -253,11 +272,22 @@ rt_uint32_t zxring_next(rt_uint32_t from_seq, char *buf, rt_size_t cap, rt_size_
     rt_uint32_t pos, end, found = 0;
 
     level = rt_hw_interrupt_disable();
-    pos = zxring_tail;
+    pos = (from_seq == zxring_cursor_seq) ? zxring_cursor : zxring_tail;
+    if (pos < zxring_tail)          /* ring was cleared since the cursor */
+        pos = zxring_tail;
     end = zxring_head;
 
     while (pos < end) {
         const struct zxring_rec *rec = (const struct zxring_rec *)(zxring_buf + pos);
+
+        /*
+         * Validate before trusting: a corrupt length would step past the
+         * buffer and fault.  These bounds should never trigger now that the
+         * writer cannot wrap, but a reader must not depend on the writer
+         * being right.
+         */
+        if (rec->len > ZXRING_MAX_LINE || pos + ZXRING_REC_HDR + rec->len > end)
+            break;
 
         if (rec->seq >= from_seq) {
             rt_size_t n = rec->len;
@@ -267,6 +297,8 @@ rt_uint32_t zxring_next(rt_uint32_t from_seq, char *buf, rt_size_t cap, rt_size_
             rt_memcpy(buf, rec->data, n);
             *len = n;
             found = rec->seq;
+            zxring_cursor = pos + ZXRING_REC_HDR + rec->len;
+            zxring_cursor_seq = rec->seq + 1;
             break;
         }
         pos += ZXRING_REC_HDR + rec->len;
