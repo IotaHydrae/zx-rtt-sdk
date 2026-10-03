@@ -13,6 +13,7 @@
 | [logging.md](logging.md) | `zxlogctl.py` 日志环、命令执行和诊断方法 |
 | [boot-flow.md](boot-flow.md) | BROM、启动分区和 OTA 后的启动证据 |
 | [performance-baseline.md](performance-baseline.md) | 当前板卡配置下的 USB 与 OTA 观察值 |
+| [usb-host-handoff.md](usb-host-handoff.md) | 更换电脑后的 USB 故障复测和交接步骤 |
 
 ## 维护规则
 

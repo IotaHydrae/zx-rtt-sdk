@@ -101,6 +101,14 @@ tools/scripts/upgcmd shcmd reset                          # hmm: BROM 阶段不�
 - 通用约定（知识库/测试/退出码/敏感信息）：工作区根 [`../AGENTS.md`](../AGENTS.md)
 - 同平台姊妹工作：`Pico-USB-Display`（PUD 固件，同样的协议与 CherryUSB）
 
+## USB 主机更换交接
+
+当前 LG4572B 板的 USB 失败现象尚未归因：在主机上可枚举为 `33c3:7788`，但配置阶段可能报
+`can't set config #1, error -110`，主机工具随后显示 `cannot claim the interface`。这不是
+`claim` 本身的诊断。ILI9488 配置镜像烧到 LG4572B 后仍复现过该超时，因此不能仅凭面板配置
+下结论。换主机时必须优先更换 USB 数据线和 USB 端口，并按 [notes/usb-host-handoff.md](notes/usb-host-handoff.md)
+中的顺序记录 `lsusb`、`dmesg`、`zxflashctl info` 结果；不要先改 USB 描述符或端点布局。
+
 ## 驱动工具的方式（与工作区规范同源）
 
 - **不许盲目 `sleep`，不许 blanket 超时** ✓ —— 用**轮询就绪**（0.2 s 间隔）+ **秒级超时** ✓。
