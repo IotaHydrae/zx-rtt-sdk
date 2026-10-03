@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send JPEG stills or an MJPEG stream to the ZX PUD display.
+"""Send an MJPEG video stream to the ZX PUD display.
 
 The firmware must report decoder type 1 (hardware JPEG). JPEG is sent as one
 full-screen EP1 transfer; the current decoder cannot display a sub-rectangle.
@@ -66,58 +66,33 @@ def jpeg_frames(path, width, height, fit):
             raise pud_usb.PudError("ffmpeg: %s" % err)
 
 
-def image_jpeg(path, width, height, fit, quality):
-    from PIL import Image
-    from io import BytesIO
-
-    image = Image.open(path).convert("RGB")
-    if fit:
-        image.thumbnail((width, height), Image.Resampling.LANCZOS)
-        canvas = Image.new("RGB", (width, height), (0, 0, 0))
-        canvas.paste(image, ((width - image.width) // 2,
-                             (height - image.height) // 2))
-        image = canvas
-    else:
-        image = image.resize((width, height), Image.Resampling.LANCZOS)
-    out = BytesIO()
-    image.save(out, format="JPEG", quality=quality, optimize=False)
-    return out.getvalue()
+def panel_size(disp, xres, yres):
+    caps = disp.caps or {}
+    return (xres or caps.get("xres") or 800,
+            yres or caps.get("yres") or 480)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("source")
-    ap.add_argument("--xres", type=int, default=800)
-    ap.add_argument("--yres", type=int, default=480)
-    ap.add_argument("--video", action="store_true",
-                    help="read source as a video and send MJPEG frames")
+    ap.add_argument("--xres", type=int, default=None)
+    ap.add_argument("--yres", type=int, default=None)
     ap.add_argument("--fps", type=float, default=None)
     ap.add_argument("--frames", type=int, default=None)
-    ap.add_argument("--no-loop", action="store_true")
     ap.add_argument("--stretch", action="store_true")
-    ap.add_argument("--quality", type=int, default=90)
     ap.add_argument("--stats", action="store_true")
     args = ap.parse_args()
 
-    if not 1 <= args.quality <= 100:
-        ap.error("--quality must be between 1 and 100")
-    if args.video and args.no_loop is False:
-        args.no_loop = True
-
     try:
         with pud_usb.open_device() as disp:
-            disp.width, disp.height = args.xres, args.yres
+            width, height = panel_size(disp, args.xres, args.yres)
+            disp.width, disp.height = width, height
             if disp.decoder_type not in (None, pud_usb.DECODER_TYPES["jpeg"]):
                 sys.exit("the device reports decoder_type=%s, not 1 (jpeg); "
                          "rebuild and flash the JPEG firmware"
                          % disp.decoder_type)
 
-            if args.video:
-                frames = jpeg_frames(args.source, args.xres, args.yres,
-                                     not args.stretch)
-            else:
-                frames = iter([image_jpeg(args.source, args.xres, args.yres,
-                                           not args.stretch, args.quality)])
+            frames = jpeg_frames(args.source, width, height, not args.stretch)
 
             started = time.perf_counter()
             report_frames = 0
@@ -129,7 +104,7 @@ def main():
                     raise pud_usb.PudError(
                         "JPEG frame is %d bytes, device limit is %d" %
                         (len(jpeg), disp._payload_limit()))
-                disp.send_raw(jpeg, 0, 0, args.xres - 1, args.yres - 1)
+                disp.send_raw(jpeg, 0, 0, width - 1, height - 1)
                 report_frames += 1
                 report_bytes += len(jpeg)
                 total_frames += 1
@@ -149,8 +124,6 @@ def main():
                     break
     except pud_usb.PudError as exc:
         sys.exit(str(exc))
-    except ImportError:
-        sys.exit("Pillow is required for JPEG image input")
     except KeyboardInterrupt:
         pass
 
