@@ -14,6 +14,10 @@
 #define PUD_EP2_IN_ADDR  (USB_EP_DIR_IN | 2)  /* query response, bulk IN */
 #define PUD_EP4_IN_ADDR  (USB_EP_DIR_IN | 4)  /* touch reports, interrupt */
 
+/* ArtInChip's application USB identity; keep Pico's identity driver-side only. */
+#define PUD_USB_VID 0x33C3
+#define PUD_USB_PID 0x7788
+
 /*
  * Vendor request numbers.  REQ_EP1_OUT (0x02) is retired with protocol v2: the
  * rectangle now travels in the EP1 header, and an old host asking for it should

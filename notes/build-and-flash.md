@@ -4,7 +4,7 @@
 
 ## TL;DR
 
-- 当前目标配置：`ZXM47D0N_rtt_lg4572b`，lg4572b 480x800 面板，无触摸，SPI NAND。
+- 当前目标配置：`ZXM47D0N_rtt_lg4572b_pud`，lg4572b 480x800 面板，无触摸，SPI NAND。
 - 改配置编辑 `target/configs/*_defconfig`，不要直接改 `.config`；menuconfig 会重新生成 `.config`。
 - 构建前将仓库工具链加入 PATH；构建产物位于 `output/<board>/images/`。
 - `.img` 是 BROM 完整恢复输入；`ota.cpio` 是 `zxflashctl.py` 的运行态 OTA 输入。

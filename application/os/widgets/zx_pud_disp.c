@@ -199,9 +199,139 @@ out_decoder:
     return ret;
 }
 
+static void zx_logo_word(const rt_uint8_t glyphs[3][7], unsigned x,
+                         unsigned y, unsigned scale, rt_uint16_t color)
+{
+    unsigned letter, row, column, dx, dy;
+
+    for (letter = 0; letter < 3; letter++) {
+        for (row = 0; row < 7; row++) {
+            for (column = 0; column < 5; column++) {
+                if (!(glyphs[letter][row] & (1u << (4 - column))))
+                    continue;
+                for (dy = 0; dy < scale; dy++) {
+                    rt_uint16_t *pixels = (rt_uint16_t *)
+                        ((rt_uint8_t *)zx_fb_info.framebuffer +
+                         (y + row * scale + dy) * zx_fb_info.stride);
+
+                    for (dx = 0; dx < scale; dx++)
+                        pixels[x + (letter * 6 + column) * scale + dx] = color;
+                }
+            }
+        }
+    }
+}
+
+static rt_uint16_t zx_logo_background(unsigned x, unsigned y,
+                                      unsigned width, unsigned height)
+{
+    unsigned ref_x = x * 800 / width;
+    unsigned ref_y = y * 480 / height;
+    int dx = (int)ref_x - 400;
+    int dy = (int)ref_y - 215;
+    unsigned distance = dx * dx + dy * dy;
+    unsigned glow = distance < 100000 ? (100000 - distance) / 2500 : 0;
+    unsigned red = 6 + ref_y / 80;
+    unsigned green = 10 + glow;
+    unsigned blue = 24 + glow + ref_x / 40;
+
+    /* Faint grid and diagonal traces frame the central mark. */
+    if (ref_x % 40 == 0 || ref_y % 40 == 0) {
+        green += 3;
+        blue += 4;
+    }
+    if ((ref_x < 180 || ref_x > 620) && (ref_x + ref_y) % 160 < 2) {
+        green += 22;
+        blue += 28;
+    }
+    if ((ref_y == 36 || ref_y == 443) && ref_x >= 40 && ref_x < 760)
+        return 0x1928;
+    if (ref_y >= 36 && ref_y < 39 && ref_x >= 40 && ref_x < 110)
+        return 0x05fa;
+    if (ref_y >= 441 && ref_y < 444 && ref_x >= 690 && ref_x < 760)
+        return 0x749f;
+
+    /* A small monitor emblem above the title, with a luminous cyan outline. */
+    if (ref_x >= 375 && ref_x < 425 && ref_y >= 81 && ref_y < 115) {
+        if (ref_x < 378 || ref_x >= 422 || ref_y < 84 || ref_y >= 112)
+            return 0x07ff;
+        return 0x1148;
+    }
+    if ((ref_x >= 398 && ref_x < 402 && ref_y >= 115 && ref_y < 123) ||
+        (ref_x >= 387 && ref_x < 413 && ref_y >= 123 && ref_y < 126))
+        return 0x07ff;
+
+    /* Thin accent line and connection indicator below the title. */
+    if (ref_y >= 307 && ref_y < 309 && ref_x >= 270 && ref_x < 530)
+        return ref_x < 400 ? 0x07ff : 0x749f;
+    if (ref_y >= 353 && ref_y < 361 && ref_x >= 326 && ref_x < 334)
+        return 0x07ff;
+
+    return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3);
+}
+
+static int zx_show_bootlogo(void)
+{
+    static const rt_uint8_t pud[3][7] = {
+        {30, 17, 17, 30, 16, 16, 16}, /* P */
+        {17, 17, 17, 17, 17, 17, 14}, /* U */
+        {30, 17, 17, 17, 17, 17, 30}, /* D */
+    };
+    static const rt_uint8_t usb[3][7] = {
+        {17, 17, 17, 17, 17, 17, 14}, /* U */
+        {15, 16, 16, 14, 1, 1, 30},  /* S */
+        {30, 17, 17, 30, 17, 17, 30}, /* B */
+    };
+    unsigned width = zx_fb_info.height;
+    unsigned height = zx_fb_info.width;
+    unsigned scale, left, top, x, y;
+    int index = 0;
+    int ret;
+
+    /* This PUD target uses the rotated RGB565 layout, not panel coordinates. */
+    if (!zx_fb_info.framebuffer || zx_fb_info.format != MPP_FMT_RGB_565 ||
+        zx_fb_info.bits_per_pixel != 16 || width < 80 || height < 80 ||
+        zx_fb_info.stride < width * 2 ||
+        height > zx_fb_info.smem_len / zx_fb_info.stride)
+        return -RT_EINVAL;
+
+    scale = width / 50;
+    if (scale > height / 24)
+        scale = height / 24;
+    left = (width - 17 * scale) / 2;
+    top = (height - 9 * scale) / 2;
+    for (y = 0; y < height; y++) {
+        rt_uint16_t *pixels = (rt_uint16_t *)
+            ((rt_uint8_t *)zx_fb_info.framebuffer + y * zx_fb_info.stride);
+
+        for (x = 0; x < width; x++)
+            pixels[x] = zx_logo_background(x, y, width, height);
+    }
+    zx_logo_word(pud, left + 2, top + 2, scale, 0x126d);
+    zx_logo_word(pud, left, top, scale, 0xefbf);
+    zx_logo_word(usb, (width - 17 * (scale / 3)) / 2,
+                 height * 7 / 10, scale / 3, 0x8e9e);
+
+    aicos_dcache_clean_invalid_range(
+        (ulong *)zx_fb_info.framebuffer,
+        (ulong)ALIGN_UP(zx_fb_info.smem_len, CACHE_LINE_SIZE));
+    ret = mpp_fb_ioctl(zx_fb, AICFB_PAN_DISPLAY, &index);
+    if (ret == 0)
+        ret = mpp_fb_ioctl(zx_fb, AICFB_POWERON, 0);
+    if (ret == 0)
+        ret = mpp_fb_ioctl(zx_fb, AICFB_WAIT_FOR_VSYNC, 0);
+    return ret;
+}
+
 static void zx_disp_task(void *arg)
 {
     (void)arg;
+
+    /* The display task owns both startup painting and subsequent USB frames. */
+    if (zx_show_bootlogo() == 0)
+        zxring_puts("[zxdisp] bootlogo shown\n");
+    else
+        zxring_puts("[zxdisp] bootlogo failed\n");
 
     for (;;) {
         if (zx_band_ready) {

@@ -13,7 +13,7 @@
 
 ```bash
 python3 tools/zxflashctl.py flash \
-  output/ZXM47D0N_rtt_lg4572b/images/ota.cpio
+  output/ZXM47D0N_rtt_lg4572b_pud/images/ota.cpio
 ```
 
 工具发送前检查 cpio magic（`070701` 或 `070702`），并将文件补齐到 2048 字节倍数。当前构建的归档通常包含：

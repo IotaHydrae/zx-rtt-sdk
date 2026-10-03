@@ -1,6 +1,6 @@
 # PUD 协议移植到 ZXM47D0N
 
-> 本板以 `2e8a:0001` 提供 PUD 接口；协议字段以 `PUD-kernel-drivers/notes/usb-protocol.md` 和 `pud_vendor.h` 为准。
+> 本板以厂商应用 USB ID `33c3:7788` 提供 PUD 接口；协议字段以 `PUD-kernel-drivers/notes/usb-protocol.md` 和 `pud_vendor.h` 为准。
 
 ## TL;DR
 
@@ -13,7 +13,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| VID:PID | `0x2e8a:0x0001` |
+| VID:PID | `0x33c3:0x7788` |
 | 接口 0 | class `0xff`，PUD 协议 |
 | EP1 | bulk OUT，图像流，HS MPS 512 / FS MPS 64 |
 | EP2 | bulk IN，查询应答 |

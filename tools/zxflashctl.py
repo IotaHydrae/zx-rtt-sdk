@@ -11,7 +11,7 @@ Exit codes follow the workspace convention:
     0 success   1 failure   2 usage   3 environment (no device/permission)
 
 Usage:
-    zxflashctl.py flash <ota.cpio> [--vid 0x2E8A] [--pid 0x0001]
+    zxflashctl.py flash <ota.cpio> [--vid 0x33C3] [--pid 0x7788]
     zxflashctl.py info
 """
 import argparse
@@ -29,8 +29,8 @@ except ImportError:
     sys.exit(3)
 
 PROG = 'zxflashctl'
-VID_DEFAULT = 0x2E8A
-PID_DEFAULT = 0x0001
+VID_DEFAULT = 0x33C3
+PID_DEFAULT = 0x7788
 
 # The local flash channel's own interface and request numbers; deliberately not
 # PUD's REQ_* space.

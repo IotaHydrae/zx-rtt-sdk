@@ -28,8 +28,8 @@ except ImportError:
     sys.exit(3)
 
 PROG = 'zxlogctl'
-VID_DEFAULT = 0x2E8A
-PID_DEFAULT = 0x0001
+VID_DEFAULT = 0x33C3
+PID_DEFAULT = 0x7788
 LOG_INTERFACE = 1
 LOG_EP_IN = 0x83
 REQ_LOG = 0x82

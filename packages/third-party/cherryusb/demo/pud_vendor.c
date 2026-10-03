@@ -4,7 +4,7 @@
  * The host is the same kernel driver (and the same pyusb tools) that talks to
  * the RP2350 build, so this file keeps two things deliberately unchanged:
  *
- *   - the ids 0x2E8A:0x0001, because that is what the driver matches on
+ *   - the vendor-specific descriptor shape and endpoints
  *   - the capability report, because the driver derives its buffer sizes, DRM
  *     mode and input axes from it before it registers anything
  *
@@ -36,8 +36,8 @@ void zx_pud_disp_submit(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye,
 int adb_winusb_register(void); /* packages/third-party/adbd/core/adbcherryusb.c */
 #endif
 
-#define USBD_VID           0x2E8A
-#define USBD_PID           0x0001
+#define USBD_VID           PUD_USB_VID
+#define USBD_PID           PUD_USB_PID
 #define USBD_MAX_POWER     100
 #define USBD_LANGID_STRING 1033
 
