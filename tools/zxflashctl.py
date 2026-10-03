@@ -53,14 +53,14 @@ def open_device(vid, pid):
     # pyusb does not set a configuration, and without one every later transfer
     # fails with "Configuration not set".  Do not swallow the failure: a silent
     # one leaves the tool reporting success on a device it cannot talk to.
+    # Do not reset on failure.  A reset re-enumerates the device, so using it
+    # as a retry turns every attempt to talk to it into another configuration
+    # -- visible in the board's own log ring as a fresh "Open ep" group per
+    # attempt.  The project's own tool (pud_usb.py) does not reset either.
     try:
         dev.set_configuration()
-    except usb.core.USBError as exc:
-        print("%s: set_configuration failed: %s -- resetting and retrying"
-              % (PROG, exc), file=sys.stderr)
-        dev.reset()
-        time.sleep(0.5)
-        dev.set_configuration()
+    except usb.core.USBError:
+        pass
     return dev
 
 
