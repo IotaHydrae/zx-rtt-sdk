@@ -17,17 +17,22 @@
 #include "usbd_core.h"
 #include "pud_vendor.h"
 
-#ifdef CONFIG_ZX_LOCAL_USB_FLASH
+#ifdef ZX_LOCAL_USB_FLASH
 #warning "PUD: local flash channel ENABLED in this translation unit"
 #else
 #warning "PUD: local flash channel DISABLED in this translation unit"
 #endif
 
 
-#ifdef CONFIG_ZX_LOCAL_USB_FLASH
+#ifdef ZX_LOCAL_USB_FLASH
 int zx_usb_flash_init(void);   /* application/os/widgets/zx_usb_flash.c */
 #endif
-#ifdef CONFIG_ZX_ADB_COMPOSITE
+/* Display path, implemented in the widgets application when enabled. */
+#ifdef ZX_WIDGETS_DEMO
+void zx_pud_disp_submit(uint16_t xs, uint16_t ys, uint16_t xe, uint16_t ye,
+                        const uint8_t *payload, uint32_t len);
+#endif
+#ifdef ZX_ADB_COMPOSITE
 int adb_winusb_register(void); /* packages/third-party/adbd/core/adbcherryusb.c */
 #endif
 
@@ -60,11 +65,11 @@ int adb_winusb_register(void); /* packages/third-party/adbd/core/adbcherryusb.c 
  *
  * Slots: 0 PUD, 1 local flash channel (optional), 2 ADB (optional).
  */
-#if defined(CONFIG_ZX_LOCAL_USB_FLASH) && defined(CONFIG_ZX_ADB_COMPOSITE)
+#if defined(ZX_LOCAL_USB_FLASH) && defined(ZX_ADB_COMPOSITE)
 #define USB_CONFIG_SIZE (9 + 9*3 + 7*7)
-#elif defined(CONFIG_ZX_LOCAL_USB_FLASH)
+#elif defined(ZX_LOCAL_USB_FLASH)
 #define USB_CONFIG_SIZE (9 + 9*2 + 7*5)
-#elif defined(CONFIG_ZX_ADB_COMPOSITE)
+#elif defined(ZX_ADB_COMPOSITE)
 #define USB_CONFIG_SIZE (9 + 9*2 + 7*5)
 #else
 #define USB_CONFIG_SIZE (9 + 9 + 7*3)
@@ -72,9 +77,9 @@ int adb_winusb_register(void); /* packages/third-party/adbd/core/adbcherryusb.c 
 
 static const uint8_t pud_descriptor[] = {
     USB_DEVICE_DESCRIPTOR_INIT(USB_2_0, 0x00, 0x00, 0x00, USBD_VID, USBD_PID, 0x0200, 0x01),
-    #if defined(CONFIG_ZX_LOCAL_USB_FLASH) && defined(CONFIG_ZX_ADB_COMPOSITE)
+    #if defined(ZX_LOCAL_USB_FLASH) && defined(ZX_ADB_COMPOSITE)
     USB_CONFIG_DESCRIPTOR_INIT(USB_CONFIG_SIZE, 0x03, 0x01, USB_CONFIG_BUS_POWERED, USBD_MAX_POWER),
-#elif defined(CONFIG_ZX_LOCAL_USB_FLASH) || defined(CONFIG_ZX_ADB_COMPOSITE)
+    #elif defined(ZX_LOCAL_USB_FLASH) || defined(ZX_ADB_COMPOSITE)
     USB_CONFIG_DESCRIPTOR_INIT(USB_CONFIG_SIZE, 0x02, 0x01, USB_CONFIG_BUS_POWERED, USBD_MAX_POWER),
 #else
     USB_CONFIG_DESCRIPTOR_INIT(USB_CONFIG_SIZE, 0x01, 0x01, USB_CONFIG_BUS_POWERED, USBD_MAX_POWER),
@@ -84,7 +89,7 @@ static const uint8_t pud_descriptor[] = {
     USB_ENDPOINT_DESCRIPTOR_INIT(PUD_EP1_OUT_ADDR, USB_ENDPOINT_TYPE_BULK, PUD_BULK_MPS, 0x00),
     USB_ENDPOINT_DESCRIPTOR_INIT(PUD_EP2_IN_ADDR, USB_ENDPOINT_TYPE_BULK, PUD_BULK_MPS, 0x00),
     USB_ENDPOINT_DESCRIPTOR_INIT(PUD_EP4_IN_ADDR, USB_ENDPOINT_TYPE_INTERRUPT, PUD_INT_MPS, PUD_INT_INTERVAL),
-#ifdef CONFIG_ZX_LOCAL_USB_FLASH
+#ifdef ZX_LOCAL_USB_FLASH
     /*
      * Local flash channel: interface 1, EP3 OUT bulk.  Not PUD protocol, and
      * deliberately not given a PUD_* constant -- the endpoint address is
@@ -99,7 +104,7 @@ static const uint8_t pud_descriptor[] = {
      * known good here, and IN/OUT are separate register banks in the port. */
     USB_ENDPOINT_DESCRIPTOR_INIT((USB_EP_DIR_IN | 3), USB_ENDPOINT_TYPE_BULK, PUD_BULK_MPS, 0x00),
 #endif
-#ifdef CONFIG_ZX_ADB_COMPOSITE
+#ifdef ZX_ADB_COMPOSITE
     /*
      * ADB: class 0xff / subclass 0x42 / protocol 0x01 is what the adb client
      * looks for, so the device keeps the PUD ids and adb still finds its
@@ -171,6 +176,10 @@ static uint32_t pud_ep2_fsm(uint16_t cmd, uint32_t len)
 
 static int pud_vendor_request(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
+    /* Interface 0 owns the PUD requests; interface 1 belongs to zx_usb_flash. */
+    if (setup->wIndex != 0)
+        return -1;
+
     /*
      * Unconditional, and deliberately before the switch: the previous
      * diagnostic only printed on failure, so "no output" could not tell
@@ -290,11 +299,16 @@ static void pud_ep1_out(uint8_t ep, uint32_t nbytes)
             (uint32_t)sizeof(*h) + h->size > nbytes) {
             pud_ep1_bad++;
         } else {
+            /*
+             * Hand the band to the display task and return.  No decode here:
+             * see zx_pud_disp.c for why, and note that the RP2350 firmware
+             * reached the same conclusion in decoder_internal.h.
+             */
             pud_ep1_frames++;
-            rt_kprintf("pud: frame x %u..%u y %u..%u size %u (transfer %u)\n",
-                       (unsigned)h->xs, (unsigned)h->xe,
-                       (unsigned)h->ys, (unsigned)h->ye,
-                       (unsigned)h->size, (unsigned)nbytes);
+#ifdef ZX_WIDGETS_DEMO
+            zx_pud_disp_submit(h->xs, h->ys, h->xe, h->ye,
+                               ep1_read_buffer + sizeof(*h), h->size);
+#endif
         }
     } else {
         pud_ep1_bad++;
@@ -351,13 +365,13 @@ int pud_vendor_init(void)
     usbd_add_endpoint(&pud_ep2_in_ep);
     usbd_add_endpoint(&pud_ep4_in_ep);
 
-#ifdef CONFIG_ZX_LOCAL_USB_FLASH
+#ifdef ZX_LOCAL_USB_FLASH
     /* Registered here but implemented in the application, not in this file:
      * it is a temporary local tool, not part of the ported protocol. */
     zx_usb_flash_init();
 #endif
 
-#ifdef CONFIG_ZX_ADB_COMPOSITE
+#ifdef ZX_ADB_COMPOSITE
     /* adbd's own interface only; the descriptor above is ours now. */
     adb_winusb_register();
 #endif
