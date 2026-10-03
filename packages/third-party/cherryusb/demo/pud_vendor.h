@@ -71,6 +71,7 @@ struct pud_caps {
 };
 
 /* Decoder ids the host chooses its encoder from (protocol field, append only) */
+#define PUD_DECODER_JPEG 1
 #define PUD_DECODER_QOI 3
 
 /*
@@ -93,7 +94,7 @@ struct pud_caps {
 #define PUD_DISP_INTF_TYPE     0
 #define PUD_DISP_WIDTH_MM      0 /* unknown until the panel data is filled in */
 #define PUD_DISP_HEIGHT_MM     0
-#define PUD_DISP_DECODER_TYPE  PUD_DECODER_QOI
+#define PUD_DISP_DECODER_TYPE  PUD_DECODER_JPEG
 #define PUD_HAS_TOUCH          0 /* this panel has no touch controller */
 
 /* EP1 transfer limit, header included.  Sized to the receive buffer. */

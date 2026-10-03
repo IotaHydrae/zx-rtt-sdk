@@ -253,7 +253,7 @@ static void pud_ep2_in(uint8_t ep, uint32_t nbytes)
  * rather than in a prior control request, so a sink does not even have to
  * parse them to be useful.
  */
-#define PUD_EP1_BUF_SIZE 65536
+#define PUD_EP1_BUF_SIZE PUD_FRAME_MAX
 
 /*
  * EP1 frame header, from the protocol's own definition

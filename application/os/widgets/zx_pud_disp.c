@@ -21,7 +21,10 @@
 #include <aic_core.h>
 #include "zx_fb.h"
 #include "mpp_fb.h"
+#include "mpp_decoder.h"
+#include "mpp_ge.h"
 #include "msh.h"
+#include "pud_vendor.h"
 #include "pud_qoi.h"
 
 void zxring_puts(const char *s);
@@ -39,7 +42,11 @@ void zxring_puts(const char *s);
  * boundary the flash channel keeps.  If PUD_FRAME_MAX changes, this changes
  * with it; the two are a documented pair.
  */
+#if PUD_DISP_DECODER_TYPE == PUD_DECODER_JPEG
+#define ZX_BAND_MAX_PAYLOAD (PUD_FRAME_MAX - 12)
+#else
 #define ZX_BAND_MAX_PAYLOAD 65524
+#endif
 
 struct zx_band {
     rt_uint16_t xs, ys, xe, ye;
@@ -56,7 +63,9 @@ static char zx_disp_stack[8192];
  * it is checkable without a console. */
 static struct mpp_fb *zx_fb;
 static struct aicfb_screeninfo zx_fb_info;
+#if PUD_DISP_DECODER_TYPE != PUD_DECODER_JPEG
 static rt_uint16_t zx_fb_buf[ZX_BAND_MAX_PIXELS];
+#endif
 static volatile rt_uint32_t zx_disp_submitted;
 static volatile rt_uint32_t zx_disp_drawn;
 static volatile rt_uint32_t zx_disp_dropped;
@@ -85,6 +94,7 @@ static int zx_fb_open(void)
 
 /* Copy a decoded rect into the framebuffer.  Rows are `stride` bytes apart and
  * hold pixels_per_row pixels -- not `width`, which is the row count here. */
+#if PUD_DISP_DECODER_TYPE != PUD_DECODER_JPEG
 static void zx_fb_blit(rt_uint16_t xs, rt_uint16_t ys, rt_uint16_t xe,
                        rt_uint16_t ye, const rt_uint16_t *px)
 {
@@ -109,6 +119,85 @@ static void zx_fb_blit(rt_uint16_t xs, rt_uint16_t ys, rt_uint16_t xe,
         mpp_fb_ioctl(zx_fb, AICFB_WAIT_FOR_VSYNC, 0);
     }
 }
+#endif
+
+static int zx_jpeg_decode(const rt_uint8_t *payload, rt_uint32_t len)
+{
+    struct decode_config config = {
+        .pix_fmt = MPP_FMT_NV12,
+        .bitstream_buffer_size = (int)((len + 1023u) & ~1023u),
+        .packet_count = 1,
+        .extra_frame_num = 0,
+    };
+    struct mpp_decoder *decoder;
+    struct mpp_packet packet = {0};
+    struct mpp_frame frame = {0};
+    struct mpp_ge *ge;
+    struct ge_bitblt blt = {0};
+    int ret;
+
+    decoder = mpp_decoder_create(MPP_CODEC_VIDEO_DECODER_MJPEG);
+    if (!decoder)
+        return -1;
+    ret = mpp_decoder_init(decoder, &config);
+    if (ret < 0)
+        goto out_decoder;
+    ret = mpp_decoder_get_packet(decoder, &packet, (int)len);
+    if (ret < 0)
+        goto out_decoder;
+    rt_memcpy(packet.data, payload, len);
+    packet.size = (int)len;
+    packet.flag = PACKET_FLAG_EOS;
+    ret = mpp_decoder_put_packet(decoder, &packet);
+    if (ret < 0)
+        goto out_decoder;
+    ret = mpp_decoder_decode(decoder);
+    if (ret < 0)
+        goto out_decoder;
+    ret = mpp_decoder_get_frame(decoder, &frame);
+    if (ret < 0)
+        goto out_decoder;
+
+    ge = mpp_ge_open();
+    if (!ge) {
+        ret = -1;
+        goto out_frame;
+    }
+    blt.src_buf = frame.buf;
+    blt.dst_buf.buf_type = MPP_PHY_ADDR;
+    blt.dst_buf.phy_addr[0] = (unsigned long)zx_fb_info.framebuffer;
+    blt.dst_buf.format = zx_fb_info.format;
+    blt.dst_buf.stride[0] = zx_fb_info.stride;
+    blt.dst_buf.size.width = zx_fb_info.height;
+    blt.dst_buf.size.height = zx_fb_info.width;
+    blt.dst_buf.crop_en = 1;
+    blt.dst_buf.crop.x = 0;
+    blt.dst_buf.crop.y = 0;
+    blt.dst_buf.crop.width = frame.buf.crop.width;
+    blt.dst_buf.crop.height = frame.buf.crop.height;
+    ret = mpp_ge_bitblt(ge, &blt);
+    if (ret == 0)
+        ret = mpp_ge_emit(ge);
+    if (ret == 0)
+        ret = mpp_ge_sync(ge);
+    mpp_ge_close(ge);
+    if (ret == 0) {
+        int index = 0;
+
+        aicos_dcache_clean_invalid_range(
+            (ulong *)zx_fb_info.framebuffer,
+            (ulong)ALIGN_UP(zx_fb_info.smem_len, CACHE_LINE_SIZE));
+        mpp_fb_ioctl(zx_fb, AICFB_PAN_DISPLAY, &index);
+        mpp_fb_ioctl(zx_fb, AICFB_POWERON, 0);
+        mpp_fb_ioctl(zx_fb, AICFB_WAIT_FOR_VSYNC, 0);
+    }
+
+out_frame:
+    mpp_decoder_put_frame(decoder, &frame);
+out_decoder:
+    mpp_decoder_destory(decoder);
+    return ret;
+}
 
 static void zx_disp_task(void *arg)
 {
@@ -118,16 +207,28 @@ static void zx_disp_task(void *arg)
         if (zx_band_ready) {
             rt_uint16_t xs, ys, xe, ye;
             rt_uint32_t len;
+#if PUD_DISP_DECODER_TYPE != PUD_DECODER_JPEG
             size_t got;
+#endif
 
             /* Keep the single slot occupied while decoding; this bounds the
-             * callback work and avoids copying 64 KiB onto the task stack. */
+             * callback work and avoids copying the receive slot onto the task
+             * stack. */
             xs = zx_band.xs;
             ys = zx_band.ys;
             xe = zx_band.xe;
             ye = zx_band.ye;
             len = zx_band.len;
 
+#if PUD_DISP_DECODER_TYPE == PUD_DECODER_JPEG
+            if (xs == 0 && ys == 0 && xe == zx_fb_info.height - 1 &&
+                ye == zx_fb_info.width - 1 && zx_jpeg_decode(zx_band.payload, len) == 0) {
+                zx_disp_drawn++;
+            } else {
+                zx_disp_decode_failed++;
+                zxring_puts("[zxdisp] jpeg decode failed\n");
+            }
+#else
             got = rgb565_qoi_decompress(zx_band.payload, len, zx_fb_buf,
                                         ZX_BAND_MAX_PIXELS);
             if (got == (size_t)(xe - xs + 1) *
@@ -138,6 +239,7 @@ static void zx_disp_task(void *arg)
                 zx_disp_decode_failed++;
                 zxring_puts("[zxdisp] qoi decode failed\n");
             }
+#endif
             zx_band_ready = 0;
         }
         rt_thread_mdelay(5);
@@ -148,9 +250,18 @@ static void zx_disp_task(void *arg)
 void zx_pud_disp_submit(rt_uint16_t xs, rt_uint16_t ys, rt_uint16_t xe,
                         rt_uint16_t ye, const rt_uint8_t *payload, rt_uint32_t len)
 {
+#if PUD_DISP_DECODER_TYPE != PUD_DECODER_JPEG
     rt_uint32_t width;
     rt_uint32_t height;
+#endif
 
+#if PUD_DISP_DECODER_TYPE == PUD_DECODER_JPEG
+    if (xs != 0 || ys != 0 || xe != zx_fb_info.height - 1 ||
+        ye != zx_fb_info.width - 1) {
+        zx_disp_dropped++;
+        return;
+    }
+#else
     if (xe < xs || ye < ys ||
         xe >= zx_fb_info.height || ye >= zx_fb_info.width) {
         zx_disp_dropped++;
@@ -163,6 +274,7 @@ void zx_pud_disp_submit(rt_uint16_t xs, rt_uint16_t ys, rt_uint16_t xe,
         zx_disp_dropped++;
         return;
     }
+#endif
     if (zx_band_ready || len > sizeof(zx_band.payload)) {
         zx_disp_dropped++;
         return;
