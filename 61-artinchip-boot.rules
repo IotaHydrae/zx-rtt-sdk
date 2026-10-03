@@ -1,0 +1,31 @@
+# udev rules for the ArtInChip boot ROM's USB upgrade device.
+#
+# Copy this file to /etc/udev/rules.d/ and reload udev.  Keep a prefix above 50-
+# (this file uses 61-): a 50- file is overridden by
+# /usr/lib/udev/rules.d/50-udev-default.rules and then does nothing at all --
+# the same trap the sibling Pico-USB-Display rule documents.
+#
+# Without a rule the device node is only writable by root, and libusb needs
+# write access to open it, so `tools/scripts/upgcmd` fails with
+#
+#   [ERROR]: upg_usb_dev_get_list()131:  Error, open USB device failed
+#   [ERROR]: __get_usbupg_device_list(): No usbupg device is found.
+#
+# even though lsusb lists the board.  That reads as "the board is not in boot
+# mode" or "the cable is wrong", which it is not.
+#
+# MODE="0666" matches the sibling rule so the flashing tools never have to run
+# as root.  GROUP="plugdev" MODE="0660" is the tighter alternative if the members
+# of plugdev are the only ones who flash boards.
+#
+# To install:
+#   sudo cp 61-artinchip-boot.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   # replug the board, or power-cycle it back into boot mode
+#
+# Note the PID is the one the boot ROM presents (ArtInChip Device).  A board
+# already running its firmware may enumerate under the same vendor id with a
+# different product id; add that one too if it also needs the rule.
+
+# ArtInChip boot ROM, USB upgrade device
+SUBSYSTEM=="usb", ATTR{idVendor}=="33c3", ATTR{idProduct}=="6677", MODE="0666"
