@@ -69,6 +69,22 @@ static volatile uint32_t zx_flash_chunks;
 static volatile int zx_flash_active;
 static volatile int zx_flash_error;
 
+/*
+ * What the host says it is about to send, and what we have actually taken.
+ *
+ * The channel switches the A/B side and reboots on success, so a transfer that
+ * stops halfway must NOT be treated as success -- doing that once left the
+ * board with a half-written system that would not start.  Size plus CRC32 over
+ * the received bytes is what gates that decision.
+ *
+ * This verifies the transfer, not the flash: reading the written partition
+ * back is a different job, and the OTA layer already checksums the archive it
+ * unpacks.
+ */
+static rt_uint32_t zx_expect_size;
+static rt_uint32_t zx_expect_crc;
+static rt_uint32_t zx_run_crc;
+
 /* Log streaming state.  One chunk per completion keeps the host's read
  * and the device's write in step without any protocol of their own. */
 static rt_uint32_t zx_log_seq;
@@ -99,9 +115,20 @@ static int zx_flash_request(struct usb_setup_packet *setup, uint8_t **data, uint
 
     switch (setup->bRequest) {
     case ZX_FLASH_REQ_START:
+        /*
+         * The data stage carries what to expect: {u32 size; u32 crc32}.  A
+         * start with no expectation cannot be verified, so it is refused --
+         * an unverifiable transfer must not be able to switch the system.
+         */
+        if (*len < 8)
+            return -1;
+        rt_memcpy(&zx_expect_size, *data, 4);
+        rt_memcpy(&zx_expect_crc, (rt_uint8_t *)*data + 4, 4);
+
         zx_flash_bytes = 0;
         zx_flash_chunks = 0;
         zx_flash_error = 0;
+        zx_run_crc = 0xFFFFFFFFu;
 
         /*
          * aic_upgrade_start() reads osAB_now and points the target at the
@@ -197,8 +224,24 @@ static int zx_flash_request(struct usb_setup_packet *setup, uint8_t **data, uint
                    (unsigned)zx_flash_bytes, (unsigned)zx_flash_chunks,
                    zx_flash_error);
 
-        if (zx_flash_error)
+        zx_run_crc = ~zx_run_crc;
+
+        if (zx_flash_error || zx_flash_bytes != zx_expect_size ||
+            zx_run_crc != zx_expect_crc) {
+            /*
+             * Refuse: no aic_upgrade_end(), no reboot.  The stream did not
+             * arrive as announced, so the inactive side is not trustworthy and
+             * must not be made the next boot target.  Say so in the ring --
+             * the host reads it from there.
+             */
+            rt_kprintf("[zxflash] REFUSED: got %u/%u bytes, crc %08x/%08x, err=%d\n",
+                       (unsigned)zx_flash_bytes, (unsigned)zx_expect_size,
+                       (unsigned)zx_run_crc, (unsigned)zx_expect_crc,
+                       zx_flash_error);
             return -1;
+        }
+        rt_kprintf("[zxflash] verified %u bytes, crc %08x\n",
+                   (unsigned)zx_flash_bytes, (unsigned)zx_run_crc);
 
         /*
          * A complete stream does not by itself change what boots.
@@ -220,11 +263,24 @@ static int zx_flash_request(struct usb_setup_packet *setup, uint8_t **data, uint
     }
 }
 
+static rt_uint32_t zx_crc32(rt_uint32_t crc, const rt_uint8_t *p, rt_size_t n)
+{
+    while (n--) {
+        int i;
+
+        crc ^= *p++;
+        for (i = 0; i < 8; i++)
+            crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+    }
+    return crc;
+}
+
 static void zx_flash_out(uint8_t ep, uint32_t nbytes)
 {
     (void)ep;
 
     if (zx_flash_active && nbytes && !zx_flash_error) {
+        zx_run_crc = zx_crc32(zx_run_crc, zx_flash_buf, nbytes);
         if (ota_shard_download_fun((char *)zx_flash_buf, (int)nbytes)) {
             zx_flash_error = 1;
             rt_kprintf("zxflash: chunk %u failed at %u bytes\n",

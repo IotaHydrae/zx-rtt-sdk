@@ -16,8 +16,10 @@ Usage:
 """
 import argparse
 import os
+import struct
 import sys
 import time
+import zlib
 
 try:
     import usb.core
@@ -72,7 +74,49 @@ def cmd_info(dev):
 
 
 CPIO_MAGIC_NEWC = b"070701"
+CPIO_TRAILER = "TRAILER!!!"
+
+
+def cpio_members(data):
+    """Walk the archive and yield (name, size).
+
+    Raises ValueError on anything malformed or missing its terminator.  This
+    exists because a complete transfer of an incomplete archive is not an
+    error anywhere downstream: ota_shard_download_fun() is a streaming parser,
+    so a truncated archive simply ends early and it reports success.  Measured
+    -- a truncated cpio was sent, no OTA error appeared, and the device
+    switched to the half-written side and stopped booting.  The transfer-level
+    size and CRC cannot see this; only the content can.
+    """
+    off = 0
+    while True:
+        hdr = data[off:off + 110]
+        if len(hdr) < 110 or hdr[:6] not in (CPIO_MAGIC_NEWC, CPIO_MAGIC_CRC):
+            raise ValueError("no cpio header at offset %d" % off)
+        fields = [int(hdr[6 + i * 8:14 + i * 8], 16) for i in range(13)]
+        filesize, namesize = fields[6], fields[11]
+        if namesize == 0:
+            raise ValueError("zero-length name at offset %d" % off)
+        name = data[off + 110:off + 110 + namesize - 1].decode("ascii", "replace")
+        off = (off + 110 + namesize + 3) & ~3
+        yield name, filesize
+        off = (off + filesize + 3) & ~3
+        if name == CPIO_TRAILER:
+            return
 CPIO_MAGIC_CRC = b"070702"   # what tools/scripts/mkcpio.py produces (-H crc)
+
+
+def check_image_complete(image, data):
+    """Reject an archive that does not end with its terminator."""
+    try:
+        members = list(cpio_members(data))
+    except (ValueError, IndexError) as exc:
+        return "%s is not a complete cpio archive: %s" % (image, exc)
+    if not members or members[-1][0] != CPIO_TRAILER:
+        return "%s is missing its %s terminator" % (image, CPIO_TRAILER)
+    print("  cpio members: %s"
+          % ", ".join("%s(%d B)" % (n, z) for n, z in members if n != CPIO_TRAILER))
+    return None
 
 
 def check_image_format(image, data):
@@ -103,12 +147,19 @@ def cmd_flash(dev, image, verify_size=True):
     if problem:
         print("zxflashctl: %s" % problem, file=sys.stderr)
         return 2
+    problem = check_image_complete(image, data)
+    if problem:
+        print("zxflashctl: %s" % problem, file=sys.stderr)
+        return 2
 
     print("image %s: %d bytes" % (image, size))
 
+    # The device gates its A/B switch and reboot on these, so a transfer that
+    # stops halfway cannot be mistaken for success.
+    crc = zlib.crc32(data) & 0xFFFFFFFF
     rc = dev.ctrl_transfer(TYPE_VENDOR_OUT, REQ_START, 0, FLASH_INTERFACE,
-                           None, timeout=5000)
-    print("start ->", rc)
+                           struct.pack("<II", size, crc), timeout=5000)
+    print("start -> %r (expect %d bytes, crc %08x)" % (rc, size, crc))
 
     started = time.time()
     sent = 0
