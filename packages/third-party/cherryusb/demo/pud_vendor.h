@@ -9,6 +9,9 @@
 #ifndef __PUD_VENDOR_H
 #define __PUD_VENDOR_H
 
+/* Board Kconfig symbols select the panel canvas and touch capability below. */
+#include <rtconfig.h>
+
 /* Endpoint addresses (protocol doc, "端点分配") */
 #define PUD_EP1_OUT_ADDR (USB_EP_DIR_OUT | 1) /* image stream, bulk OUT  */
 #define PUD_EP2_IN_ADDR  (USB_EP_DIR_IN | 2)  /* query response, bulk IN */
@@ -81,17 +84,17 @@ struct pud_caps {
 /*
  * Compile-time identity of this board, reported through PUD_CMD_GET_CAPS.
  *
- * The panel is natively 480x800 (portrait), but the framebuffer layer runs it
- * rotated 90 degrees (AICFB_ROTATE_90), so the canvas the host actually drives
- * is 800x480 landscape.  The protocol asks for the panel "in the coordinate
- * system it is driven in", and that is the rotated one.
- *
- * Confirmed on the glass: test bars painted in buffer coordinates come out
- * left-to-right in the order they were written, so the buffer's 800-pixel rows
- * do map to the horizontal axis -- which is also what stride/2 = 800 says.
+ * The host canvas follows the framebuffer dimensions after panel rotation.
+ * ILI9488 is configured as 480x320 on the host, while LG4572B uses 800x480.
+ * These values are selected from the board Kconfig symbols in rtconfig.h.
  */
+#ifdef AIC_PANEL_DBI_ILI9488
+#define PUD_DISP_XRES          480
+#define PUD_DISP_YRES          320
+#else
 #define PUD_DISP_XRES          800
 #define PUD_DISP_YRES          480
+#endif
 #define PUD_DISP_BPP           16
 #define PUD_DISP_ROTATION      90
 #define PUD_DISP_PIXELCLOCK    0 /* not estimated here; 0 means "unknown" */
@@ -99,7 +102,11 @@ struct pud_caps {
 #define PUD_DISP_WIDTH_MM      0 /* unknown until the panel data is filled in */
 #define PUD_DISP_HEIGHT_MM     0
 #define PUD_DISP_DECODER_TYPE  PUD_DECODER_JPEG
-#define PUD_HAS_TOUCH          0 /* this panel has no touch controller */
+#ifdef ZX_TOUCH_FT6236
+#define PUD_HAS_TOUCH          1
+#else
+#define PUD_HAS_TOUCH          0
+#endif
 
 /* EP1 transfer limit, header included.  Sized to the receive buffer. */
 #define PUD_FRAME_MAX 65536

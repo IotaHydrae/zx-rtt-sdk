@@ -18,6 +18,10 @@ if PUD_TOOLS not in sys.path:
     sys.path.insert(0, PUD_TOOLS)
 import pud_usb
 
+# ZX firmware uses the vendor application identity, not the Pico USB ID.
+PUD_VID = 0x33C3
+PUD_PID = 0x7788
+
 
 def jpeg_frames(path, width, height, fit):
     filters = ["scale=%d:%d:force_original_aspect_ratio=decrease" %
@@ -84,7 +88,7 @@ def main():
     args = ap.parse_args()
 
     try:
-        with pud_usb.open_device() as disp:
+        with pud_usb.open_device(vid=PUD_VID, pid=PUD_PID) as disp:
             width, height = panel_size(disp, args.xres, args.yres)
             disp.width, disp.height = width, height
             if disp.decoder_type not in (None, pud_usb.DECODER_TYPES["jpeg"]):

@@ -12,6 +12,10 @@ if PUD_TOOLS not in sys.path:
     sys.path.insert(0, PUD_TOOLS)
 import pud_usb
 
+# ZX firmware uses the vendor application identity, not the Pico USB ID.
+PUD_VID = 0x33C3
+PUD_PID = 0x7788
+
 
 def image_jpeg(path, width, height, fit, quality):
     from PIL import Image
@@ -47,7 +51,7 @@ def main():
         ap.error("--repeat must be >= 1")
 
     try:
-        with pud_usb.open_device() as disp:
+        with pud_usb.open_device(vid=PUD_VID, pid=PUD_PID) as disp:
             caps = disp.caps or {}
             width = args.xres or caps.get("xres") or 800
             height = args.yres or caps.get("yres") or 480

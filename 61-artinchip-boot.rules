@@ -1,4 +1,4 @@
-# udev rules for the ArtInChip boot ROM's USB upgrade device.
+# udev rules for the ArtInChip boot ROM and ZX PUD USB devices.
 #
 # Copy this file to /etc/udev/rules.d/ and reload udev.  Keep a prefix above 50-
 # (this file uses 61-): a 50- file is overridden by
@@ -23,9 +23,9 @@
 #   sudo udevadm control --reload-rules && sudo udevadm trigger
 #   # replug the board, or power-cycle it back into boot mode
 #
-# Note the PID is the one the boot ROM presents (ArtInChip Device).  A board
-# already running its firmware may enumerate under the same vendor id with a
-# different product id; add that one too if it also needs the rule.
+# The boot ROM and the running PUD firmware use different product IDs.
 
 # ArtInChip boot ROM, USB upgrade device
 SUBSYSTEM=="usb", ATTR{idVendor}=="33c3", ATTR{idProduct}=="6677", MODE="0666"
+# ZX PUD application (display, flash and log tools)
+SUBSYSTEM=="usb", ATTR{idVendor}=="33c3", ATTR{idProduct}=="7788", MODE="0666"
